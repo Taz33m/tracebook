@@ -1,0 +1,36 @@
+# Core dependencies
+numba>=0.58.0
+numpy>=1.24.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+
+# Profiling and performance
+psutil>=5.9.0
+
+# Visualization
+plotly>=5.15.0
+dash>=2.12.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Testing and benchmarking
+pytest>=7.4.0
+pytest-benchmark>=4.0.0
+pytest-cov>=4.1.0
+
+# Development tools
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Data export and analysis
+h5py>=3.9.0
+tables>=3.8.0
+
+# Configuration
+pyyaml>=6.0
+toml>=0.10.2
+
+# Logging and monitoring
+structlog>=23.1.0
+rich>=13.4.0
