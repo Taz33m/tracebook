@@ -1,3 +1,10 @@
+<p align="center">
+  <img src="docs/logo.png" alt="tracebook logo" width="200"/>
+</p>
+
+<h1 align="center">tracebook</h1>
+<p align="center"><em>High-performance, latency-optimized order book simulator</em></p>
+
 ## Tracebook: a latency-optimized order book simulator with magic-trace integration.
 
 This project demonstrates systems-level thinking and low-latency engineering principles inspired by high-frequency trading infrastructure. It features real-time order generation, FIFO-based matching, and throughput exceeding 200 orders/sec. Built entirely on a MacBook Pro without a discrete GPU, it integrates Jane Street’s magic-trace (with fallback profiling) to analyze function-level performance and visualize bottlenecks. The result is a fully traceable, production-grade simulation platform that reflects the rigor expected in latency-sensitive trading environments.
