@@ -22,7 +22,7 @@ pytest-cov>=4.1.0
 build>=1.2.0
 black>=23.0.0
 flake8>=6.0.0
-mypy>=1.5.0
+mypy>=2.0.0
 
 # Data export and analysis
 h5py>=3.9.0
