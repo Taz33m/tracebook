@@ -12,3 +12,6 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 - Added reproducible benchmark runner and local performance baseline docs.
 - Added dashboard demo simulation support.
 - Added GitHub Actions CI, packaging metadata, and open-source project templates.
+- Reworked the README and docs into an artifact-first professional repo front door.
+- Added release guidance, architecture docs, command docs, and richer package metadata.
+- Added a source distribution manifest for docs, examples, tests, and project metadata.

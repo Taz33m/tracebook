@@ -64,6 +64,14 @@ setup(
     url="https://github.com/Taz33m/tracebook",
     license="MIT",
     license_files=["LICENSE"],
+    keywords=[
+        "order-book",
+        "matching-engine",
+        "market-microstructure",
+        "benchmarking",
+        "profiling",
+        "simulation",
+    ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[
@@ -80,7 +88,11 @@ setup(
     ],
     project_urls={
         "Homepage": "https://github.com/Taz33m/tracebook",
+        "Changelog": "https://github.com/Taz33m/tracebook/blob/main/CHANGELOG.md",
+        "Continuous Integration": "https://github.com/Taz33m/tracebook/actions/workflows/ci.yml",
+        "Documentation": "https://github.com/Taz33m/tracebook/tree/main/docs",
         "Issues": "https://github.com/Taz33m/tracebook/issues",
+        "Security": "https://github.com/Taz33m/tracebook/blob/main/SECURITY.md",
         "Source": "https://github.com/Taz33m/tracebook",
     },
     python_requires=">=3.10",

@@ -28,6 +28,8 @@ For packaging changes, also run:
 python -m build --sdist --wheel --outdir dist
 ```
 
+The command reference in `docs/commands.md` is the source of truth for reviewer-facing smoke paths.
+
 ## Pull Requests
 
 - Keep changes scoped to one clear theme.

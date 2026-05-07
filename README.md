@@ -3,142 +3,385 @@
 </p>
 
 <h1 align="center">tracebook</h1>
-<p align="center"><em>Latency-focused order book simulation with profiling hooks</em></p>
+
 <p align="center">
-  <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg"/></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"/></a>
-  <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
+  <strong>Latency-focused order book simulation with reproducible benchmarks, lifecycle events, and trace-level profiling hooks.</strong>
 </p>
 
-## Overview
+<p align="center">
+  <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg"/></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
+  <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-45%20passing-brightgreen"/>
+  <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
+</p>
 
-`tracebook` is a Python order book simulator for experimenting with matching semantics, synthetic order flow, and profiling. It currently includes FIFO and pro-rata matching, decimal order quantities, IOC/FOK/market-order handling, synthetic order streams, a performance monitor, magic-trace integration with fallback tracing, and a Dash-based dashboard.
+> **TL;DR:** `tracebook` is an alpha Python market microstructure workbench for testing order book matching semantics, synthetic order flow, cancellations, replacements, benchmark latency, and profiling instrumentation. It is built for systems engineers and quant-minded developers who want inspectable behavior before making performance claims.
 
-The project is still alpha software. The core matching behavior is covered by pytest tests, while performance claims are published only as reproducible local benchmark results.
+## Best Way To Review
 
-## Features
+1. Run the unit tests and system smoke.
+2. Execute a deterministic simulation with cancel and replace events.
+3. Generate a benchmark JSON report with warmup excluded.
+4. Launch the dashboard demo if you want live depth and performance telemetry.
+5. Read the claims, non-claims, and limitations before treating any number as a production latency claim.
 
-- FIFO and pro-rata matching algorithms
-- Decimal quantities for crypto-style order sizes
-- Limit, market, IOC, and FOK order semantics
-- Synthetic order generation with random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows
-- Event-based simulations with new, cancel, and replace events
-- Structured order submission results for richer demos and benchmarks
-- Performance metrics collection with optional magic-trace/fallback profiling
-- Reproducible benchmark runner with warmup and JSON output
-- Interactive dashboard entry point with a self-contained demo mode
+```bash
+python -m pip install -e ".[dev,dashboard]"
+python -m pytest
+python test_system.py
+tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --cancel-ratio 0.05 --replace-ratio 0.02 --warmup-seconds 0.01
+tracebook-benchmark --scenario smoke --seed 1337 --warmup-seconds 0.01 --output benchmark_results/smoke.json
+```
 
-## Installation
+## Why This Matters
 
-Python 3.10 or 3.11 is recommended; those are the versions exercised in CI.
+Order book projects are easy to overstate. A simulator can advertise high throughput while silently mixing order generation time into matching latency, ignoring cancellations, using only integer quantities, or skipping basic exchange-style order semantics.
+
+`tracebook` takes the opposite path. It keeps the matching behavior explicit, separates generation and matching metrics, supports lifecycle events, validates incoming orders, and publishes benchmark output as reproducible local artifacts rather than universal performance claims.
+
+The goal is a credible open-source alpha: small enough to audit, complete enough to demonstrate real mechanics, and honest enough that future optimization work has a stable baseline.
+
+## Current Local Benchmark Snapshot
+
+The sample below is a local smoke baseline, not a portable performance claim. It was measured on May 7, 2026 with Python 3.13.0 on macOS 15.4.1 using:
+
+```bash
+tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /private/tmp/tracebook-benchmark-doc-baseline.json
+```
+
+| Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `smoke` | 200 | 199.95 | 1.390 | 0.032 | 0.115 | 0.205 | 5.307 | 0.000 | 168.98 |
+| `fifo_baseline` | 200 | 199.91 | 0.063 | 0.048 | 0.156 | 0.262 | 4.804 | 0.000 | 130.95 |
+| `pro_rata_baseline` | 200 | 194.37 | 0.195 | 0.052 | 0.249 | 1.539 | 3.109 | 0.000 | 124.52 |
+| `cancellation_mix` | 103 | 102.96 | 0.041 | 0.026 | 0.097 | 0.115 | 2.006 | 0.022 | 124.75 |
+
+See [`docs/performance.md`](docs/performance.md) before adding or changing benchmark claims.
+
+## Current Artifact Proof
+
+All checks below were run during the latest production repo pass in this checkout.
+
+| Proof surface | Verified result |
+| --- | --- |
+| Unit tests | `45` pytest tests passing |
+| System smoke | `python test_system.py` passes all 4 checks |
+| Lint | `python -m flake8 src tests` reports `0` issues |
+| Package build | sdist and wheel build successfully |
+| Simulation CLI | deterministic FIFO smoke run completes |
+| Benchmark CLI | smoke scenario writes JSON report |
+| Dashboard CLI | `tracebook-dashboard --demo-simulation --help` completes |
+| Remote CI | GitHub Actions passes on Python 3.10 and 3.11 |
+
+## What It Implements
+
+| Component | What it does | Why it matters |
+| --- | --- | --- |
+| FIFO matching | Matches resting orders by price-time priority | Provides the standard exchange-style baseline |
+| Pro-rata matching | Allocates fills by resting size at a price level | Supports futures-style allocation experiments |
+| Decimal quantities | Handles float quantities for crypto-style sizing | Avoids legacy integer-only simulator behavior |
+| Order types | Supports limit, market, IOC, and FOK semantics | Covers common execution workflows |
+| Lifecycle APIs | Cancels, replaces, active-order lookup, and structured `OrderResult` submissions | Makes simulations and demos inspectable |
+| Event simulation | Interleaves `NEW`, `CANCEL`, and `REPLACE` events with deterministic seeds | Exercises more than one-way order ingestion |
+| Synthetic streams | Generates random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows | Enables repeatable workload variation |
+| Performance monitor | Tracks throughput, latency, resources, generation time, event latency, and overhead | Separates signal from instrumentation cost |
+| Benchmark runner | Runs fixed scenarios with warmup and machine metadata | Makes performance regression checks reproducible |
+| Dashboard demo | Starts a Dash dashboard with optional background simulation | Gives a live review path without external services |
+| CI and packaging | Tests, lint, smoke runs, benchmark smoke, dashboard smoke, and wheel/sdist build | Keeps the repo usable for contributors |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["OrderFactory / user API"] --> B["OrderBook"]
+    B --> C["Validation"]
+    C --> D["MatchingEngine"]
+    D --> E1["FIFO path"]
+    D --> E2["Pro-rata path"]
+    D --> F["Price levels"]
+    F --> G["Trades + resting book"]
+    G --> H["Market data snapshots"]
+    I["SyntheticOrderStream"] --> J["Simulation events"]
+    J --> B
+    B --> K["PerformanceMonitor"]
+    K --> L["Benchmark JSON"]
+    K --> M["Dashboard"]
+    H --> M
+```
+
+Core paths:
+
+- `src/tracebook/core/order.py`: order, trade, side/type enums, and order factory.
+- `src/tracebook/core/orderbook.py`: public book API, validation, lifecycle operations, callbacks, snapshots.
+- `src/tracebook/core/matching_engine.py`: FIFO and pro-rata matching coordination.
+- `src/tracebook/core/price_level.py`: price-level storage and depth snapshots.
+- `src/tracebook/simulation/`: synthetic order streams and event-based simulation engine.
+- `src/tracebook/benchmarks/runner.py`: reproducible benchmark scenarios and JSON reports.
+- `src/tracebook/profiling/`: performance monitor and magic-trace/fallback profiling.
+- `src/tracebook/visualization/dashboard.py`: Dash dashboard and demo simulation entry point.
+
+See [`docs/architecture.md`](docs/architecture.md) for the deeper component map.
+
+## Quick Start
+
+Install locally:
 
 ```bash
 git clone https://github.com/Taz33m/tracebook.git
 cd tracebook
-
 python -m venv venv
 source venv/bin/activate
-
 pip install -e ".[dev,dashboard]"
 ```
 
-For a one-command contributor setup, run `make setup`. For a smaller core install, use `pip install -e .`; dashboard and analysis dependencies are available through extras such as `pip install -e ".[dashboard]"`, `pip install -e ".[analysis]"`, and `pip install -e ".[all]"`.
-
-## Quick Start
+Run a minimal match:
 
 ```python
-from tracebook.core.order import OrderSide
-from tracebook.core.orderbook import OrderBook
+from tracebook import OrderBook, OrderSide
 
-orderbook = OrderBook("BTCUSD", matching_algorithm="fifo")
+book = OrderBook("BTCUSD", matching_algorithm="fifo")
 
-orderbook.add_limit_order(OrderSide.BUY, price=50000.0, quantity=1.0)
-trades = orderbook.add_limit_order(OrderSide.SELL, price=49999.0, quantity=0.5)
+book.add_limit_order(OrderSide.BUY, price=50_000.0, quantity=1.0)
+trades = book.add_limit_order(OrderSide.SELL, price=49_999.0, quantity=0.5)
 
 for trade in trades:
-    print(f"{trade.quantity}@{trade.price}")
+    print(trade.quantity, trade.price)
 ```
 
-For a structured result object:
+Use structured result APIs when the caller needs lifecycle detail:
 
 ```python
-result = orderbook.submit_limit_order(OrderSide.BUY, price=49950.0, quantity=0.25)
-print(result.order.order_id, result.rested, result.cancelled, result.rejected_reason)
+from tracebook import OrderBook, OrderSide
+
+book = OrderBook("BTCUSD")
+
+result = book.submit_limit_order(OrderSide.BUY, price=49_950.0, quantity=0.25)
+
+print(result.order.order_id)
+print(result.rested)
+print(result.cancelled)
+print(result.rejected_reason)
 ```
 
-## Run A Simulation
+## Order Lifecycle Example
+
+```python
+from tracebook import OrderBook, OrderSide
+
+book = OrderBook("ETHUSD")
+
+resting = book.submit_limit_order(OrderSide.BUY, price=3_000.0, quantity=2.0)
+order_id = resting.order.order_id
+
+print(book.get_active_order_ids())
+print(book.get_order(order_id).remaining_quantity)
+
+replacement = book.replace_order(order_id, price=3_001.0, quantity=1.5)
+print(replacement.rested, replacement.rejected_reason)
+
+cancelled = book.cancel_order(replacement.order.order_id)
+print(cancelled)
+```
+
+## Simulation
+
+Run a deterministic FIFO simulation with cancel and replace events:
 
 ```bash
-python -m tracebook.simulation.simulation_engine \
+tracebook-sim \
   --duration 5 \
   --throughput 500 \
   --algorithm FIFO \
   --seed 1337 \
   --cancel-ratio 0.05 \
-  --replace-ratio 0.02
+  --replace-ratio 0.02 \
+  --warmup-seconds 0.05 \
+  --output benchmark_results/simulation.json
 ```
 
-Enable magic-trace/fallback tracing for a run:
+Run the pro-rata path:
 
 ```bash
-python -m tracebook.simulation.simulation_engine \
-  --duration 5 \
-  --throughput 500 \
-  --algorithm FIFO \
-  --magic-trace
+tracebook-sim --duration 5 --throughput 500 --algorithm PRO_RATA --seed 1337
 ```
 
-## Dashboard
+Enable magic-trace integration or fallback tracing:
 
 ```bash
-tracebook-dashboard --port 8050 --demo-simulation
+tracebook-sim --duration 5 --throughput 500 --algorithm FIFO --magic-trace
 ```
-
-Visit `http://localhost:8050`.
 
 ## Reproducible Benchmarks
 
 ```bash
 tracebook-benchmark \
-  --scenario smoke \
+  --scenario all \
   --seed 1337 \
   --warmup-seconds 0.05 \
-  --output benchmark_results/smoke.json
+  --output benchmark_results/local.json
 ```
 
-Available scenarios are `smoke`, `fifo_baseline`, `pro_rata_baseline`, `cancellation_mix`, and `all`. See `docs/performance.md` for the benchmark report format and how to publish measured local baselines.
+Scenarios:
 
-## Testing
+| Scenario | Purpose |
+| --- | --- |
+| `smoke` | Short CI-friendly FIFO run |
+| `fifo_baseline` | FIFO matching baseline |
+| `pro_rata_baseline` | Pro-rata matching baseline |
+| `cancellation_mix` | FIFO run with cancel and replace events |
+| `all` | Runs every scenario above |
+
+Benchmark JSON includes machine metadata, dependency versions, scenario config, seed, warmup, throughput, matching latency percentiles, generation latency, lifecycle event latency, memory, and monitoring overhead.
+
+See [`docs/performance.md`](docs/performance.md) for local baseline guidance and sample measured results.
+
+## Dashboard
 
 ```bash
-pytest
-python test_system.py
+tracebook-dashboard --port 8050 --demo-simulation --demo-throughput 200 --seed 1337
 ```
 
-The old placeholder benchmark filenames are no longer advertised; benchmark-style runs use `tracebook-benchmark` or the simulation module above.
+Open `http://localhost:8050` to inspect live throughput, latency, resource usage, trade volume, and book depth.
+
+Dashboard dependencies are optional:
+
+```bash
+pip install -e ".[dashboard]"
+```
+
+## Command Surface
+
+| Command | Purpose |
+| --- | --- |
+| `tracebook-sim --duration 5 --throughput 500 --algorithm FIFO` | Run a FIFO simulation |
+| `tracebook-sim --algorithm PRO_RATA --seed 1337` | Run the pro-rata path deterministically |
+| `tracebook-sim --cancel-ratio 0.05 --replace-ratio 0.02` | Interleave lifecycle events |
+| `tracebook-sim --output results.json` | Export simulation results |
+| `tracebook-benchmark --scenario smoke` | Run the benchmark smoke scenario |
+| `tracebook-benchmark --scenario all --output benchmark_results/local.json` | Produce a full local benchmark report |
+| `tracebook-dashboard --demo-simulation` | Launch the dashboard with live demo data |
+| `python -m pytest` | Run unit tests |
+| `python test_system.py` | Run integration smoke checks |
+| `python -m build --sdist --wheel --outdir dist` | Build package artifacts |
+
+See [`docs/commands.md`](docs/commands.md) for CLI options and review workflows.
+
+## Python API
+
+```python
+from tracebook import OrderBook, OrderBookManager, OrderSide
+
+manager = OrderBookManager()
+book = manager.create_order_book("BTCUSD", matching_algorithm="fifo")
+
+book.submit_limit_order(OrderSide.BUY, 50_000.0, 1.0)
+book.submit_limit_order(OrderSide.BUY, 49_950.0, 0.25)
+
+result = book.submit_ioc_order(OrderSide.SELL, 49_900.0, 0.5)
+
+print(len(result.trades))
+print(book.get_best_bid())
+print(book.get_best_ask())
+print(book.get_order_book_depth(levels=3))
+print(book.get_statistics())
+```
+
+Public top-level exports:
+
+| Export | Purpose |
+| --- | --- |
+| `OrderBook` | Single-symbol order book |
+| `OrderBookManager` | Multi-symbol book registry |
+| `OrderFactory` | Explicit order construction |
+| `OrderResult` | Structured submission result |
+| `OrderSide` | `BUY` and `SELL` enum |
+| `OrderType` | `MARKET`, `LIMIT`, `IOC`, `FOK` enum |
+| `Trade` | Executed trade record |
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| Simulation JSON | Raw simulation config, summary metrics, performance data, order book stats, stream stats, algorithm analysis |
+| Benchmark JSON | Scenario summaries plus raw simulation results, machine metadata, dependency versions, warmup and seed |
+| Dashboard charts | Throughput, latency, resources, trade volume, and depth |
+| Performance docs | Local baseline samples and reporting rules |
+
+Generated benchmark outputs and trace artifacts are ignored by git.
+
+## Repository Layout
+
+```text
+src/tracebook/              package source
+  core/                     orders, price levels, matching engine, order book API
+  algorithms/               FIFO and pro-rata analysis helpers
+  simulation/               synthetic order streams and event simulation
+  benchmarks/               reproducible benchmark runner
+  profiling/                performance monitor and tracing tools
+  visualization/            Dash dashboard
+tests/                      pytest correctness and integration coverage
+docs/                       architecture, commands, and performance notes
+examples/                   runnable example scripts
+.github/workflows/          CI across supported Python versions
+setup.py                    package metadata, extras, console scripts
+pyproject.toml              build-system and tool configuration
+```
+
+## Claims And Non-Claims
+
+Claims:
+
+- Implements FIFO and pro-rata matching paths for supported order types.
+- Supports decimal order quantities.
+- Validates symbols, sides, order types, prices, and quantities before matching.
+- Supports cancellation, replacement, active order lookup, and book-depth snapshots.
+- Runs deterministic synthetic simulations with new, cancel, and replace events.
+- Reports benchmark output with warmup, seed, machine metadata, generation timing, matching latency, event latency, memory, and monitoring overhead.
+- Provides a dashboard demo path without requiring external market connectivity.
+
+Non-claims:
+
+- Not a production exchange matching engine.
+- Not a trading venue, broker, market data vendor, or exchange connector.
+- Not investment advice.
+- Not a guarantee of live low-latency performance.
+- Not a fixed-point/tick-index implementation yet.
+- Not a complete market microstructure research platform.
+- Not proof that a listed benchmark number will reproduce on another machine.
+
+## Limitations
+
+- Alpha software; APIs may still evolve before a stable v1 release.
+- Current storage uses Python dictionaries and lists around Numba-accelerated helper paths, not a final low-latency memory layout.
+- Prices and quantities are float64-style values; fixed-point accounting is a later performance phase.
+- Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
+- Dashboard is a local demo and monitoring surface, not a secured production service.
+- Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.
+- Benchmark results are local artifacts and should always cite the command, seed, machine, Python version, and dependency versions.
+
+## Roadmap
+
+Near-term production hardening:
+
+- Add a meaningful mypy baseline after cleaning current typing noise.
+- Expand benchmark scenarios for deeper book sweeps, multi-symbol runs, and higher cancellation mixes.
+- Add more artifact-level tests around exported JSON schemas.
+- Introduce fixed-point price and quantity experiments behind benchmark evidence.
+- Publish release artifacts once the alpha API stabilizes.
 
 ## Open Source Project Health
 
-- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Security policy: [SECURITY.md](SECURITY.md)
-- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Support guide: [`SUPPORT.md`](SUPPORT.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- Project plan: [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
 
 Pull requests should include tests and should not add benchmark claims without a reproducible command and machine context.
 
-## Project Layout
-
-```text
-src/tracebook/
-  core/           # Orders, price levels, order book, matching engine
-  algorithms/     # FIFO and pro-rata analysis helpers
-  profiling/      # Performance monitor, tracing, visualization
-  simulation/     # Synthetic order streams and simulation runner
-  visualization/  # Dash dashboard
-tests/            # Behavioral pytest coverage
-examples/         # Interactive demo script
-```
-
 ## License
 
-MIT License - see [LICENSE](LICENSE).
+MIT License. See [`LICENSE`](LICENSE).

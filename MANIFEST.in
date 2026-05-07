@@ -1,0 +1,13 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CODE_OF_CONDUCT.md
+include CONTRIBUTING.md
+include PROJECT_PLAN.md
+include QUICKSTART.md
+include SECURITY.md
+include SUPPORT.md
+
+recursive-include docs *.md *.png
+recursive-include examples *.py
+recursive-include tests *.py
