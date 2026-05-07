@@ -6,20 +6,20 @@ VENV := venv
 PIP := $(VENV)/bin/pip
 PYTHON_VENV := $(VENV)/bin/python
 
-# Setup virtual environment and install dependencies
+# Setup virtual environment and install the package with development extras
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install -e ".[all]"
 	@echo "Setup complete! Activate with: source $(VENV)/bin/activate"
 
-# Install dependencies
+# Install the package for local use
 install:
-	$(PIP) install -r requirements.txt
+	$(PIP) install -e .
 
 # Install development dependencies
-install-dev: install
-	$(PIP) install -e ".[dev,dashboard]"
+install-dev:
+	$(PIP) install -e ".[all]"
 
 # Run all tests
 test:

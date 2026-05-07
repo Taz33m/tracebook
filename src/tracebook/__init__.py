@@ -2,8 +2,7 @@
 
 from .core.order import OrderFactory, OrderSide, OrderType, Trade
 from .core.orderbook import OrderBook, OrderBookManager, OrderResult
-
-__version__ = "0.1.0"
+from ._version import __version__
 
 __all__ = [
     "OrderBook",

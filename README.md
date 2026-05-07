@@ -39,11 +39,10 @@ cd tracebook
 python -m venv venv
 source venv/bin/activate
 
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[dev,dashboard]"
 ```
 
-For a smaller core install, use `pip install -e .`; dashboard and analysis dependencies are available through extras such as `pip install -e ".[dashboard]"` and `pip install -e ".[dev,dashboard]"`.
+For a one-command contributor setup, run `make setup`. For a smaller core install, use `pip install -e .`; dashboard and analysis dependencies are available through extras such as `pip install -e ".[dashboard]"`, `pip install -e ".[analysis]"`, and `pip install -e ".[all]"`.
 
 ## Quick Start
 

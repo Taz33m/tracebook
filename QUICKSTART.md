@@ -7,14 +7,13 @@ Use Python 3.10 or 3.11.
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[dev,dashboard]"
 ```
 
-For CI-style development installs, use:
+For the full contributor environment, use:
 
 ```bash
-pip install -e ".[dev,dashboard]"
+make setup
 ```
 
 ## Basic Order Book Usage
