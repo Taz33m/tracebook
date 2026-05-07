@@ -3,7 +3,6 @@ from pathlib import Path
 
 from setuptools import setup, find_packages
 
-
 ROOT = Path(__file__).parent
 
 
@@ -18,39 +17,40 @@ def read_version() -> str:
                     return ast.literal_eval(node.value)
     raise RuntimeError("Unable to find __version__ in src/tracebook/_version.py")
 
+
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 CORE_REQUIREMENTS = [
-    "numba>=0.58.0",
+    "numba>=0.65.1",
     "numpy>=2.2.6",
-    "psutil>=5.9.0",
+    "psutil>=7.2.2",
 ]
 
 DASHBOARD_REQUIREMENTS = [
-    "dash>=2.12.0",
-    "plotly>=5.15.0",
-    "pandas>=2.0.0",
+    "dash>=4.1.0",
+    "plotly>=6.7.0",
+    "pandas>=2.3.3",
 ]
 
 ANALYSIS_REQUIREMENTS = [
     "h5py>=3.16.0",
-    "matplotlib>=3.7.0",
-    "pandas>=2.0.0",
-    "plotly>=5.15.0",
-    "pyarrow>=12.0.0",
-    "seaborn>=0.12.0",
-    "tables>=3.8.0",
+    "matplotlib>=3.10.9",
+    "pandas>=2.3.3",
+    "plotly>=6.7.0",
+    "pyarrow>=24.0.0",
+    "seaborn>=0.13.2",
+    "tables>=3.10.1",
 ]
 
 DEV_REQUIREMENTS = [
-    "build>=1.2.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
+    "build>=1.5.0",
+    "black>=26.3.1",
+    "flake8>=7.3.0",
     "mypy>=2.0.0",
-    "pytest>=7.4.0",
-    "pytest-benchmark>=4.0.0",
-    "pytest-cov>=4.1.0",
+    "pytest>=9.0.3",
+    "pytest-benchmark>=5.2.3",
+    "pytest-cov>=7.1.0",
 ]
 
 setup(
@@ -58,12 +58,23 @@ setup(
     version=read_version(),
     author="Taz33m",
     author_email="tazeemmahashin@gmail.com",
-    description="High-performance order book simulator with Numba optimization and magic-trace profiling",
+    description=(
+        "Latency-focused order book simulation with reproducible benchmarks "
+        "and trace-level profiling hooks"
+    ),
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Taz33m/tracebook",
     license="MIT",
     license_files=["LICENSE"],
+    keywords=[
+        "order-book",
+        "matching-engine",
+        "market-microstructure",
+        "benchmarking",
+        "profiling",
+        "simulation",
+    ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[
@@ -80,7 +91,11 @@ setup(
     ],
     project_urls={
         "Homepage": "https://github.com/Taz33m/tracebook",
+        "Changelog": "https://github.com/Taz33m/tracebook/blob/main/CHANGELOG.md",
+        "Continuous Integration": "https://github.com/Taz33m/tracebook/actions/workflows/ci.yml",
+        "Documentation": "https://github.com/Taz33m/tracebook/tree/main/docs",
         "Issues": "https://github.com/Taz33m/tracebook/issues",
+        "Security": "https://github.com/Taz33m/tracebook/blob/main/SECURITY.md",
         "Source": "https://github.com/Taz33m/tracebook",
     },
     python_requires=">=3.10",
