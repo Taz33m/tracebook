@@ -13,6 +13,7 @@ import threading
 from typing import Dict, List, Any
 from collections import deque
 
+from .. import __version__
 from ..profiling.performance_monitor import get_performance_monitor
 from ..core.orderbook import OrderBookManager
 
@@ -572,6 +573,7 @@ def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Run the tracebook performance dashboard.")
+    parser.add_argument("--version", action="version", version=f"tracebook {__version__}")
     parser.add_argument("--port", type=int, default=8050)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--update-interval", type=int, default=1000)

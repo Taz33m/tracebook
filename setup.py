@@ -26,6 +26,7 @@ ANALYSIS_REQUIREMENTS = [
 ]
 
 DEV_REQUIREMENTS = [
+    "build>=1.2.0",
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
@@ -38,17 +39,18 @@ setup(
     name="tracebook",
     version="0.1.0",
     author="Taz33m",
+    author_email="tazeemmahashin@gmail.com",
     description="High-performance order book simulator with Numba optimization and magic-trace profiling",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Taz33m/tracebook",
+    license="MIT",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Intended Audience :: Financial and Insurance Industry",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
@@ -57,6 +59,11 @@ setup(
         "Topic :: Scientific/Engineering",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
+    project_urls={
+        "Homepage": "https://github.com/Taz33m/tracebook",
+        "Issues": "https://github.com/Taz33m/tracebook/issues",
+        "Source": "https://github.com/Taz33m/tracebook",
+    },
     python_requires=">=3.10",
     install_requires=CORE_REQUIREMENTS,
     extras_require={

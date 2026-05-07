@@ -4,6 +4,11 @@
 
 <h1 align="center">tracebook</h1>
 <p align="center"><em>Latency-focused order book simulation with profiling hooks</em></p>
+<p align="center">
+  <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg"/></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"/></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
+</p>
 
 ## Overview
 
@@ -112,6 +117,15 @@ python test_system.py
 ```
 
 The old placeholder benchmark filenames are no longer advertised; benchmark-style runs use `tracebook-benchmark` or the simulation module above.
+
+## Open Source Project Health
+
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+
+Pull requests should include tests and should not add benchmark claims without a reproducible command and machine context.
 
 ## Project Layout
 

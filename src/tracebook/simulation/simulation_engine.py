@@ -12,6 +12,7 @@ from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
 import numpy as np
 
+from .. import __version__
 from ..core.orderbook import OrderBook, OrderBookManager
 from ..core.order import Order, Trade, OrderSide
 from ..algorithms.fifo import FIFOAnalyzer
@@ -523,6 +524,7 @@ def run_benchmark_simulation(
 def main(argv: Optional[List[str]] = None) -> int:
     """Run a benchmark simulation from the command line."""
     parser = argparse.ArgumentParser(description="Run a tracebook benchmark simulation.")
+    parser.add_argument("--version", action="version", version=f"tracebook {__version__}")
     parser.add_argument(
         "--duration", type=float, default=5.0, help="Simulation duration in seconds."
     )

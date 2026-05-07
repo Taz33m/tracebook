@@ -10,6 +10,7 @@ from dataclasses import dataclass, asdict, replace
 from importlib import metadata
 from typing import Any, Dict, List, Optional
 
+from .. import __version__
 from ..simulation.simulation_engine import run_benchmark_simulation
 
 
@@ -168,6 +169,7 @@ def write_report(report: Dict[str, Any], output_path: str) -> str:
 def main(argv: Optional[List[str]] = None) -> int:
     """Run benchmarks from the command line."""
     parser = argparse.ArgumentParser(description="Run reproducible tracebook benchmarks.")
+    parser.add_argument("--version", action="version", version=f"tracebook {__version__}")
     parser.add_argument(
         "--scenario",
         choices=list(SCENARIOS.keys()) + ["all"],

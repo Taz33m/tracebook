@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,6 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,dashboard]"
 
+      - name: Run lint
+        run: python -m flake8 src tests
+
       - name: Run pytest
         run: python -m pytest
 
@@ -37,6 +43,9 @@ jobs:
 
       - name: Run benchmark smoke
         run: tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/ci-smoke.json
+
+      - name: Build package artifacts
+        run: python -m build --sdist --wheel --outdir dist
 
       - name: Dashboard import and help smoke
         run: |
