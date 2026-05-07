@@ -29,7 +29,7 @@ h5py>=3.16.0
 tables>=3.8.0
 
 # Configuration
-pyyaml>=6.0
+pyyaml>=6.0.3
 toml>=0.10.2
 
 # Logging and monitoring
