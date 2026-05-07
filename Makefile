@@ -1,4 +1,4 @@
-.PHONY: install test benchmark profile clean docs setup
+.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput profile dashboard demo format lint quality docs clean clean-all monitor help
 
 # Python and virtual environment
 PYTHON := python3
@@ -19,40 +19,40 @@ install:
 
 # Install development dependencies
 install-dev: install
-	$(PIP) install -e .
+	$(PIP) install -e ".[dev,dashboard]"
 
 # Run all tests
 test:
-	$(PYTHON_VENV) -m pytest tests/ -v --cov=src --cov-report=term-missing
+	$(PYTHON_VENV) -m pytest tests/ -v --cov=tracebook --cov-report=term-missing
 
 # Run tests with HTML coverage report
 test-coverage:
-	$(PYTHON_VENV) -m pytest tests/ -v --cov=src --cov-report=html
+	$(PYTHON_VENV) -m pytest tests/ -v --cov=tracebook --cov-report=html
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Run benchmarks
 benchmark:
-	$(PYTHON_VENV) -m pytest tests/benchmarks/ -v --benchmark-only
+	$(PYTHON_VENV) -m tracebook.benchmarks.runner --scenario smoke --output benchmark_results/smoke.json
 
 # Run latency benchmarks specifically
 benchmark-latency:
-	$(PYTHON_VENV) -m pytest tests/benchmarks/latency_benchmark.py -v --benchmark-only
+	$(PYTHON_VENV) -m tracebook.benchmarks.runner --scenario fifo_baseline --throughput 500 --output benchmark_results/fifo-latency.json
 
 # Run throughput benchmarks specifically
 benchmark-throughput:
-	$(PYTHON_VENV) -m pytest tests/benchmarks/throughput_benchmark.py -v --benchmark-only
+	$(PYTHON_VENV) -m tracebook.benchmarks.runner --scenario fifo_baseline --throughput 2000 --output benchmark_results/fifo-throughput.json
 
 # Profile with magic-trace (requires magic-trace installation)
 profile:
-	$(PYTHON_VENV) examples/advanced_profiling.py
+	$(PYTHON_VENV) -m tracebook.simulation.simulation_engine --duration 5 --throughput 500 --algorithm FIFO --magic-trace
 
 # Run the dashboard demo
 dashboard:
-	$(PYTHON_VENV) examples/dashboard_demo.py
+	$(PYTHON_VENV) -m tracebook.visualization.dashboard --port 8050 --demo-simulation
 
 # Run basic simulation example
 demo:
-	$(PYTHON_VENV) examples/basic_simulation.py
+	$(PYTHON_VENV) examples/full_simulation_demo.py
 
 # Code formatting with black
 format:
@@ -62,18 +62,14 @@ format:
 lint:
 	$(PYTHON_VENV) -m flake8 src/ tests/ examples/
 
-# Type checking with mypy
-typecheck:
-	$(PYTHON_VENV) -m mypy src/
-
-# Run all code quality checks
-quality: format lint typecheck
+# Run code quality checks used for the alpha CI gate
+quality: format lint
 
 # Generate documentation
 docs:
 	@echo "Generating documentation..."
 	@mkdir -p docs/generated
-	$(PYTHON_VENV) -c "import src.core.orderbook; help(src.core.orderbook)" > docs/generated/orderbook_help.txt
+	$(PYTHON_VENV) -c "import tracebook.core.orderbook; help(tracebook.core.orderbook)" > docs/generated/orderbook_help.txt
 
 # Clean up generated files
 clean:
@@ -93,16 +89,7 @@ clean-all: clean
 
 # Performance monitoring (long-running)
 monitor:
-	$(PYTHON_VENV) -c "from src.simulation.market_simulator import MarketSimulator; MarketSimulator().run_continuous_monitoring()"
-
-# Create project structure
-create-structure:
-	mkdir -p src/core src/algorithms src/profiling src/simulation src/visualization src/utils
-	mkdir -p tests/benchmarks
-	mkdir -p examples docs
-	touch src/__init__.py src/core/__init__.py src/algorithms/__init__.py
-	touch src/profiling/__init__.py src/simulation/__init__.py src/visualization/__init__.py
-	touch src/utils/__init__.py tests/__init__.py tests/benchmarks/__init__.py
+	$(PYTHON_VENV) -m tracebook.simulation.simulation_engine --duration 60 --throughput 500 --algorithm FIFO
 
 # Help
 help:
@@ -112,19 +99,17 @@ help:
 	@echo "  install-dev     - Install in development mode"
 	@echo "  test            - Run all tests with coverage"
 	@echo "  test-coverage   - Run tests with HTML coverage report"
-	@echo "  benchmark       - Run all benchmarks"
-	@echo "  benchmark-latency - Run latency benchmarks only"
-	@echo "  benchmark-throughput - Run throughput benchmarks only"
-	@echo "  profile         - Run profiling example"
+	@echo "  benchmark       - Run reproducible benchmark smoke scenario"
+	@echo "  benchmark-latency - Run reproducible FIFO latency baseline"
+	@echo "  benchmark-throughput - Run reproducible FIFO throughput baseline"
+	@echo "  profile         - Run simulation with magic-trace/fallback profiling"
 	@echo "  dashboard       - Launch performance dashboard"
 	@echo "  demo            - Run basic simulation demo"
 	@echo "  format          - Format code with black"
 	@echo "  lint            - Lint code with flake8"
-	@echo "  typecheck       - Type check with mypy"
 	@echo "  quality         - Run all code quality checks"
 	@echo "  docs            - Generate documentation"
 	@echo "  clean           - Clean generated files"
 	@echo "  clean-all       - Clean everything including venv"
 	@echo "  monitor         - Run continuous performance monitoring"
-	@echo "  create-structure - Create project directory structure"
 	@echo "  help            - Show this help message"

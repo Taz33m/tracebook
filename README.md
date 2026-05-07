@@ -3,163 +3,129 @@
 </p>
 
 <h1 align="center">tracebook</h1>
-<p align="center"><em>High-performance, latency-optimized order book simulator</em></p>
+<p align="center"><em>Latency-focused order book simulation with profiling hooks</em></p>
 
-## Tracebook: a latency-optimized order book simulator with magic-trace integration.
+## Overview
 
-This project demonstrates systems-level thinking and low-latency engineering principles inspired by high-frequency trading infrastructure. It features real-time order generation, FIFO-based matching, and throughput exceeding 200 orders/sec. Built entirely on a MacBook Pro without a discrete GPU, it integrates Jane Street’s magic-trace (with fallback profiling) to analyze function-level performance and visualize bottlenecks. The result is a fully traceable, production-grade simulation platform that reflects the rigor expected in latency-sensitive trading environments.
+`tracebook` is a Python order book simulator for experimenting with matching semantics, synthetic order flow, and profiling. It currently includes FIFO and pro-rata matching, decimal order quantities, IOC/FOK/market-order handling, synthetic order streams, a performance monitor, magic-trace integration with fallback tracing, and a Dash-based dashboard.
+
+The project is still alpha software. The core matching behavior is covered by pytest tests, while performance claims are published only as reproducible local benchmark results.
 
 ## Features
 
-- **Ultra-Low Latency**: Sub-microsecond order matching with JIT compilation
-- **High Throughput**: Process 10,000+ orders per second
-- **Advanced Profiling**: Jane Street's magic-trace integration for nanosecond precision
-- **Multiple Algorithms**: FIFO and Pro-Rata matching implementations
-- **Real-time Analytics**: Live dashboards and performance monitoring
-- **Comprehensive Benchmarking**: Detailed latency and throughput analysis
-
-## Architecture
-
-The simulator is built with performance as the primary concern:
-
-- **Numba JIT Compilation**: Critical paths optimized for near-native performance
-- **Cache-Friendly Data Structures**: Minimized memory allocations and cache misses
-- **Lock-Free Algorithms**: Thread-safe operations without traditional locking
-- **Magic-Trace Integration**: Function-level profiling without performance overhead
-
-## Performance Targets
-
-| Metric | Target | Typical Achievement |
-|--------|--------|-------------------|
-| Throughput | 10,000+ orders/sec | 15,000+ orders/sec |
-| Latency (P50) | < 100ns | ~50ns |
-| Latency (P99) | < 1μs | ~500ns |
-| Memory Usage | < 100MB | ~50MB |
+- FIFO and pro-rata matching algorithms
+- Decimal quantities for crypto-style order sizes
+- Limit, market, IOC, and FOK order semantics
+- Synthetic order generation with random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows
+- Event-based simulations with new, cancel, and replace events
+- Structured order submission results for richer demos and benchmarks
+- Performance metrics collection with optional magic-trace/fallback profiling
+- Reproducible benchmark runner with warmup and JSON output
+- Interactive dashboard entry point with a self-contained demo mode
 
 ## Installation
 
+Python 3.10 or 3.11 is recommended; those are the versions exercised in CI.
+
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd high-performance-orderbook
+git clone https://github.com/Taz33m/tracebook.git
+cd tracebook
 
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
-
-# Install magic-trace (Linux/macOS only)
-# Follow instructions at: https://github.com/janestreet/magic-trace
+pip install -e .
 ```
+
+For a smaller core install, use `pip install -e .`; dashboard and analysis dependencies are available through extras such as `pip install -e ".[dashboard]"` and `pip install -e ".[dev,dashboard]"`.
 
 ## Quick Start
 
 ```python
-from src.core.orderbook import OrderBook
-from src.simulation.order_generator import OrderGenerator
-from src.profiling.performance_monitor import PerformanceMonitor
+from tracebook.core.order import OrderSide
+from tracebook.core.orderbook import OrderBook
 
-# Create order book with FIFO matching
-orderbook = OrderBook(matching_algorithm='fifo')
+orderbook = OrderBook("BTCUSD", matching_algorithm="fifo")
 
-# Generate synthetic orders
-generator = OrderGenerator()
-orders = generator.generate_realistic_orders(count=10000)
+orderbook.add_limit_order(OrderSide.BUY, price=50000.0, quantity=1.0)
+trades = orderbook.add_limit_order(OrderSide.SELL, price=49999.0, quantity=0.5)
 
-# Run simulation with profiling
-monitor = PerformanceMonitor()
-with monitor.profile_session():
-    for order in orders:
-        orderbook.add_order(order)
-
-# View results
-monitor.print_summary()
+for trade in trades:
+    print(f"{trade.quantity}@{trade.price}")
 ```
 
-## Benchmarking
+For a structured result object:
 
-Run comprehensive benchmarks:
+```python
+result = orderbook.submit_limit_order(OrderSide.BUY, price=49950.0, quantity=0.25)
+print(result.order.order_id, result.rested, result.cancelled, result.rejected_reason)
+```
+
+## Run A Simulation
 
 ```bash
-# Latency benchmarks
-python -m pytest tests/benchmarks/latency_benchmark.py -v
-
-# Throughput benchmarks
-python -m pytest tests/benchmarks/throughput_benchmark.py -v
-
-# Full benchmark suite
-make benchmark
+python -m tracebook.simulation.simulation_engine \
+  --duration 5 \
+  --throughput 500 \
+  --algorithm FIFO \
+  --seed 1337 \
+  --cancel-ratio 0.05 \
+  --replace-ratio 0.02
 ```
 
-## Profiling with Magic-Trace
+Enable magic-trace/fallback tracing for a run:
 
 ```bash
-# Profile a simulation run
-python examples/advanced_profiling.py
-
-# Analyze trace data
-magic-trace attach -p $(pgrep python) -o trace.fxt
+python -m tracebook.simulation.simulation_engine \
+  --duration 5 \
+  --throughput 500 \
+  --algorithm FIFO \
+  --magic-trace
 ```
 
-##  Dashboard
-
-Launch the real-time performance dashboard:
+## Dashboard
 
 ```bash
-python examples/dashboard_demo.py
+tracebook-dashboard --port 8050 --demo-simulation
 ```
 
-Visit `http://localhost:8050` to view live metrics.
+Visit `http://localhost:8050`.
+
+## Reproducible Benchmarks
+
+```bash
+tracebook-benchmark \
+  --scenario smoke \
+  --seed 1337 \
+  --warmup-seconds 0.05 \
+  --output benchmark_results/smoke.json
+```
+
+Available scenarios are `smoke`, `fifo_baseline`, `pro_rata_baseline`, `cancellation_mix`, and `all`. See `docs/performance.md` for the benchmark report format and how to publish measured local baselines.
 
 ## Testing
 
 ```bash
-# Run all tests
 pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test categories
-pytest tests/test_orderbook.py -v
-pytest tests/benchmarks/ -v
+python test_system.py
 ```
 
-## Documentation
+The old placeholder benchmark filenames are no longer advertised; benchmark-style runs use `tracebook-benchmark` or the simulation module above.
 
-- [Architecture Guide](docs/architecture.md)
-- [Performance Guide](docs/performance_guide.md)
-- [API Reference](docs/api_reference.md)
+## Project Layout
 
-## Performance Insights
-
-This project demonstrates several advanced optimization techniques:
-
-1. **Numba JIT Compilation**: 10-100x speedup on critical paths
-2. **Memory Pool Allocation**: Reduced GC pressure and allocation overhead
-3. **SIMD Vectorization**: Automatic vectorization of numerical operations
-4. **Cache Optimization**: Data structure layout optimized for CPU cache
-5. **Magic-Trace Profiling**: Zero-overhead profiling for production systems
-
-##  Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure benchmarks pass
-5. Submit a pull request
+```text
+src/tracebook/
+  core/           # Orders, price levels, order book, matching engine
+  algorithms/     # FIFO and pro-rata analysis helpers
+  profiling/      # Performance monitor, tracing, visualization
+  simulation/     # Synthetic order streams and simulation runner
+  visualization/  # Dash dashboard
+tests/            # Behavioral pytest coverage
+examples/         # Interactive demo script
+```
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Acknowledgments
-
-- Jane Street for magic-trace profiling tool
-- Numba team for JIT compilation framework
-- High-frequency trading community for algorithmic insights
-
----
-
+MIT License - see [LICENSE](LICENSE).

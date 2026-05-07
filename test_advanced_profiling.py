@@ -15,12 +15,11 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from profiling.magic_trace_wrapper import MagicTraceProfiler, MagicTraceConfig
-from profiling.trace_analyzer import get_tracer, profile_function, NumpyJSONEncoder
-from core.orderbook import OrderBook, OrderBookManager
-from core.order import OrderFactory, OrderSide, OrderType
-from simulation.order_generator import OrderGenerator
-from simulation.simulation_engine import SimulationEngine, SimulationConfig
+from tracebook.profiling.magic_trace_wrapper import MagicTraceProfiler, MagicTraceConfig
+from tracebook.profiling.trace_analyzer import get_tracer, profile_function, NumpyJSONEncoder
+from tracebook.core.orderbook import OrderBook, OrderBookManager
+from tracebook.core.order import OrderFactory, OrderSide, OrderType
+from tracebook.simulation.simulation_engine import SimulationEngine, SimulationConfig
 
 
 def test_basic_profiling():
@@ -173,7 +172,7 @@ def test_simulation_profiling():
     # Configure simulation
     config = SimulationConfig()
     config.duration_seconds = 2.0
-    config.target_orders_per_second = 100.0
+    config.target_throughput = 100.0
     config.symbols = ["TESTUSD"]
     config.matching_algorithm = "FIFO"
     
@@ -194,19 +193,20 @@ def test_simulation_profiling():
         print("✓ Started simulation profiling session")
         
         # Import and run simulation
-        from simulation.simulation_engine import run_benchmark_simulation
+        from tracebook.simulation.simulation_engine import run_benchmark_simulation
         
         print("Running benchmark simulation...")
         results = run_benchmark_simulation(
             duration=config.duration_seconds,
-            throughput=config.target_orders_per_second,
+            throughput=config.target_throughput,
             algorithm=config.matching_algorithm
         )
         
+        summary = results.get('summary_metrics', {})
         print(f"✓ Simulation completed:")
-        print(f"  Orders processed: {results.get('orders_processed', 0)}")
-        print(f"  Trades executed: {results.get('trades_executed', 0)}")
-        print(f"  Throughput: {results.get('throughput', 0):.1f} orders/sec")
+        print(f"  Orders processed: {summary.get('total_orders_processed', 0)}")
+        print(f"  Trades executed: {summary.get('total_trades_executed', 0)}")
+        print(f"  Throughput: {summary.get('actual_throughput', 0):.1f} orders/sec")
         
         # Stop profiling
         session.stop()

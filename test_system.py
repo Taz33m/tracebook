@@ -16,8 +16,8 @@ def test_basic_functionality():
     
     try:
         # Test core imports
-        from core.order import Order, OrderFactory, OrderSide, OrderType
-        from core.orderbook import OrderBook
+        from tracebook.core.order import OrderFactory, OrderSide, OrderType
+        from tracebook.core.orderbook import OrderBook
         print("✓ Core imports successful")
         
         # Create order factory and orders
@@ -44,6 +44,9 @@ def test_basic_functionality():
         if trades2:
             trade = trades2[0]
             print(f"✓ Trade executed: {trade.quantity}@{trade.price}")
+
+        assert len(trades2) == 1
+        assert trades2[0].quantity == 0.5
         
         # Get statistics
         stats = order_book.get_statistics()
@@ -63,7 +66,7 @@ def test_performance_monitoring():
     print("\nTesting performance monitoring...")
     
     try:
-        from profiling.performance_monitor import PerformanceMonitor
+        from tracebook.profiling.performance_monitor import PerformanceMonitor
         
         monitor = PerformanceMonitor(enable_magic_trace=False)  # Disable magic-trace for testing
         monitor.start_monitoring()
@@ -94,7 +97,7 @@ def test_order_generation():
     print("\nTesting order generation...")
     
     try:
-        from simulation.order_generator import create_order_stream, OrderPattern
+        from tracebook.simulation.order_generator import create_order_stream, OrderPattern
         
         # Create a short order stream
         stream = create_order_stream(
@@ -130,7 +133,7 @@ def test_simulation_engine():
     print("\nTesting simulation engine...")
     
     try:
-        from simulation.simulation_engine import run_benchmark_simulation
+        from tracebook.simulation.simulation_engine import run_benchmark_simulation
         
         # Run a very short simulation
         results = run_benchmark_simulation(

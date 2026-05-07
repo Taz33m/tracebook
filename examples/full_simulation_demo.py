@@ -20,13 +20,11 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from simulation.simulation_engine import SimulationEngine, SimulationConfig, run_benchmark_simulation
-from simulation.order_generator import OrderPattern, create_order_stream
-from visualization.dashboard import create_dashboard
-from profiling.performance_monitor import PerformanceMonitor
-from core.orderbook import OrderBookManager
-from algorithms.fifo import FIFOOptimizer
-from algorithms.pro_rata import ProRataOptimizer
+from tracebook.simulation.simulation_engine import SimulationEngine, SimulationConfig, run_benchmark_simulation
+from tracebook.simulation.order_generator import OrderPattern, create_order_stream
+from tracebook.visualization.dashboard import create_dashboard
+from tracebook.profiling.performance_monitor import PerformanceMonitor
+from tracebook.core.order import OrderSide, OrderType
 
 
 def demo_basic_simulation():
@@ -77,7 +75,7 @@ def demo_advanced_simulation():
         if trade_count % 100 == 0:
             print(f"Trades executed: {trade_count}")
     
-    def on_order(order):
+    def on_order(order, trades):
         nonlocal order_count
         order_count += 1
         if order_count % 1000 == 0:
@@ -181,8 +179,8 @@ def demo_order_patterns():
             
             # Analyze order characteristics
             if orders:
-                market_orders = sum(1 for o in orders if o.order_type == 0)  # MARKET
-                buy_orders = sum(1 for o in orders if o.side == 0)  # BUY
+                market_orders = sum(1 for o in orders if o.order_type == OrderType.MARKET)
+                buy_orders = sum(1 for o in orders if o.side == OrderSide.BUY)
                 
                 print(f"  Market orders: {market_orders/len(orders):.1%}")
                 print(f"  Buy orders: {buy_orders/len(orders):.1%}")
@@ -296,21 +294,11 @@ def demo_optimization_recommendations():
         
         print(f"\nAnalyzing performance for {symbol}...")
         
-        # FIFO optimization
-        fifo_optimizer = FIFOOptimizer()
-        fifo_recommendations = fifo_optimizer.optimize_configuration(symbol_stats)
-        
-        print("\nFIFO Optimization Recommendations:")
-        for rec in fifo_recommendations:
-            print(f"  - {rec}")
-        
-        # Pro-Rata optimization
-        pro_rata_optimizer = ProRataOptimizer()
-        pro_rata_recommendations = pro_rata_optimizer.optimize_configuration(symbol_stats)
-        
-        print("\nPro-Rata Optimization Recommendations:")
-        for rec in pro_rata_recommendations:
-            print(f"  - {rec}")
+        print("\nBook Health:")
+        print(f"  Resting buy orders: {symbol_stats.get('buy_side_orders', 0)}")
+        print(f"  Resting sell orders: {symbol_stats.get('sell_side_orders', 0)}")
+        print(f"  Resting buy quantity: {symbol_stats.get('buy_side_quantity', 0):.6g}")
+        print(f"  Resting sell quantity: {symbol_stats.get('sell_side_quantity', 0):.6g}")
     
     return results
 

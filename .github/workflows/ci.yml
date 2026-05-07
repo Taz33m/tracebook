@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,dashboard]"
+
+      - name: Run pytest
+        run: python -m pytest
+
+      - name: Run system smoke test
+        run: python test_system.py
+
+      - name: Run simulation CLI smoke
+        run: tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --warmup-seconds 0.01
+
+      - name: Run benchmark smoke
+        run: tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/ci-smoke.json
+
+      - name: Dashboard import and help smoke
+        run: |
+          python -c "from tracebook.visualization.dashboard import create_dashboard; create_dashboard()"
+          tracebook-dashboard --demo-simulation --help

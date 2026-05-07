@@ -1,99 +1,79 @@
-# Quick Start Guide
+# Quick Start
 
-## High-Performance Order Book Simulator
+## Setup
 
-This is a high-performance order book simulator built in Python with Numba JIT compilation for GPU-style parallelism on CPU.
+Use Python 3.10 or 3.11.
 
-### Quick Setup
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+```
 
-1. **Install Dependencies**:
-   ```bash
-   python3 install_deps.py
-   ```
+For CI-style development installs, use:
 
-2. **Test the System**:
-   ```bash
-   python3 test_system.py
-   ```
+```bash
+pip install -e ".[dev,dashboard]"
+```
 
-3. **Run Full Demo**:
-   ```bash
-   python3 examples/full_simulation_demo.py
-   ```
+## Basic Order Book Usage
 
-### Key Features
-
-- **High Throughput**: Processes thousands of orders per second
-- **JIT-Compiled Matching**: FIFO and Pro-Rata algorithms optimized with Numba
-- **Magic-Trace Integration**: Nanosecond-precision profiling with Jane Street's magic-trace
-- **Real-Time Dashboard**: Interactive performance visualization
-- **Comprehensive Benchmarking**: Detailed performance analysis and optimization recommendations
-
-### Quick Examples
-
-#### Basic Order Book Usage
 ```python
-from src.core.orderbook import OrderBook
-from src.core.order import OrderFactory, OrderSide, OrderType
+from tracebook.core.order import OrderSide
+from tracebook.core.orderbook import OrderBook
 
-# Create order book
 order_book = OrderBook("BTCUSD")
 
-# Create orders
-factory = OrderFactory()
-buy_order = factory.create_order("BTCUSD", OrderSide.BUY, OrderType.LIMIT, 50000.0, 1.0)
-sell_order = factory.create_order("BTCUSD", OrderSide.SELL, OrderType.LIMIT, 49999.0, 0.5)
-
-# Add orders and get trades
-trades = order_book.add_order(buy_order)
-trades = order_book.add_order(sell_order)
+order_book.add_limit_order(OrderSide.BUY, 50000.0, 1.0)
+trades = order_book.add_limit_order(OrderSide.SELL, 49999.0, 0.5)
 
 print(f"Executed {len(trades)} trades")
+print(order_book.get_statistics())
 ```
 
-#### Run Benchmark Simulation
+Use `submit_*` APIs when you need a structured result:
+
 ```python
-from src.simulation.simulation_engine import run_benchmark_simulation
-
-results = run_benchmark_simulation(
-    duration=60.0,      # 60 seconds
-    throughput=1000.0,  # 1000 orders/sec
-    algorithm="FIFO"    # or "PRO_RATA"
-)
+result = order_book.submit_limit_order(OrderSide.BUY, 49950.0, 0.25)
+print(result.order.order_id, result.rested, result.cancelled)
 ```
 
-#### Start Real-Time Dashboard
-```python
-from src.visualization.dashboard import create_dashboard
+## Order Type Semantics
 
-dashboard = create_dashboard(port=8050)
-dashboard.run()  # Visit http://localhost:8050
+- Limit orders may rest when partially or fully unfilled.
+- Market orders execute against available opposite-side liquidity and never rest.
+- IOC orders execute immediately up to available liquidity and cancel the remainder.
+- FOK orders execute only if the full quantity is immediately available.
+
+## Run A Benchmark-Style Simulation
+
+```bash
+python -m tracebook.simulation.simulation_engine \
+  --duration 10 \
+  --throughput 500 \
+  --algorithm FIFO \
+  --seed 1337 \
+  --cancel-ratio 0.05 \
+  --replace-ratio 0.02
 ```
 
-### Performance Targets
+Use `--algorithm PRO_RATA` to compare the pro-rata path.
 
-- **Latency**: Sub-millisecond order processing
-- **Throughput**: 10,000+ orders/second
-- **Memory**: Efficient memory usage with minimal allocations
-- **Profiling Overhead**: <5% performance impact
+## Start The Dashboard
 
-### Architecture
-
-```
-src/
-├── core/           # Core order book components
-├── algorithms/     # Matching algorithms (FIFO, Pro-Rata)
-├── profiling/      # Performance monitoring and magic-trace
-├── simulation/     # Order generation and simulation engine
-├── visualization/  # Real-time dashboards
-└── utils/          # Utility functions
+```bash
+tracebook-dashboard --port 8050 --demo-simulation
 ```
 
-### Next Steps
+Then open `http://localhost:8050`.
 
-1. **Explore Examples**: Check `examples/full_simulation_demo.py` for comprehensive demos
-2. **Run Benchmarks**: Use the Makefile commands for standardized benchmarking
-3. **Customize Algorithms**: Implement your own matching algorithms
-4. **Add Magic-Trace**: Install Jane Street's magic-trace for advanced profiling
+## Run Reproducible Benchmarks
 
-For detailed documentation, see `README.md` and the `docs/` directory.
+```bash
+tracebook-benchmark \
+  --scenario smoke \
+  --seed 1337 \
+  --warmup-seconds 0.05 \
+  --output benchmark_results/smoke.json
+```

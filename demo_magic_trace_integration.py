@@ -17,12 +17,12 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from profiling.magic_trace_wrapper import MagicTraceProfiler, MagicTraceConfig
-from profiling.trace_analyzer import get_tracer, profile_function
-from profiling.trace_visualizer import TraceVisualizer
-from core.orderbook import OrderBook, OrderBookManager
-from core.order import OrderFactory, OrderSide, OrderType
-from simulation.simulation_engine import SimulationEngine, SimulationConfig
+from tracebook.profiling.magic_trace_wrapper import MagicTraceProfiler, MagicTraceConfig
+from tracebook.profiling.trace_analyzer import get_tracer, profile_function
+from tracebook.profiling.trace_visualizer import TraceVisualizer
+from tracebook.core.orderbook import OrderBook, OrderBookManager
+from tracebook.core.order import OrderFactory, OrderSide, OrderType
+from tracebook.simulation.simulation_engine import SimulationEngine, SimulationConfig
 
 
 def demo_basic_profiling():
@@ -93,7 +93,7 @@ def demo_basic_profiling():
     export_file = "demo_traces/basic_demo_trace.json"
     
     import json
-    from profiling.trace_analyzer import NumpyJSONEncoder
+    from tracebook.profiling.trace_analyzer import NumpyJSONEncoder
     with open(export_file, 'w') as f:
         json.dump(analysis, f, indent=2, cls=NumpyJSONEncoder)
     
