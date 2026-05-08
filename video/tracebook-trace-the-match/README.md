@@ -12,6 +12,7 @@ HyperFrames companion video source for `tracebook`.
 - Narration script: `script.txt`
 - Timed voiceover source segments: `voiceover/scene-*.txt`
 - Rendered narration asset: `media/narration.wav`
+- Generated background music bed: `media/background-music.wav`
 
 ## Local Checks
 

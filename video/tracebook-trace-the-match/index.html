@@ -425,16 +425,18 @@
       .baseline-table {
         display: grid;
         grid-template-columns: 1.2fr repeat(4, 1fr);
+        align-content: start;
         gap: 0;
-        overflow: hidden;
+        min-height: 286px;
+        overflow: visible;
         border: 1px solid rgba(142, 164, 170, 0.18);
       }
 
       .baseline-cell {
-        padding: 14px 16px;
+        padding: 12px 16px;
         border-bottom: 1px solid rgba(142, 164, 170, 0.14);
         font-family: "JetBrains Mono", monospace;
-        font-size: 19px;
+        font-size: 18px;
       }
 
       .baseline-head {
@@ -765,14 +767,14 @@
         </div>
       </section>
 
-      <div id="t12" class="clip transition" data-start="7.65" data-duration="0.7" data-track-index="30"></div>
-      <div id="t23" class="clip transition" data-start="16.65" data-duration="0.7" data-track-index="31"></div>
-      <div id="t34" class="clip transition" data-start="29.65" data-duration="0.7" data-track-index="30"></div>
-      <div id="t45" class="clip transition" data-start="41.65" data-duration="0.7" data-track-index="31"></div>
-      <div id="t56" class="clip transition" data-start="54.65" data-duration="0.7" data-track-index="30"></div>
-      <div id="t67" class="clip transition" data-start="65.65" data-duration="0.7" data-track-index="31"></div>
-      <div id="t78" class="clip transition" data-start="75.65" data-duration="0.7" data-track-index="30"></div>
-      <div id="t89" class="clip transition" data-start="85.65" data-duration="0.7" data-track-index="31"></div>
+      <div id="t12" class="clip transition" data-start="7.75" data-duration="0.5" data-track-index="30"></div>
+      <div id="t23" class="clip transition" data-start="16.75" data-duration="0.5" data-track-index="31"></div>
+      <div id="t34" class="clip transition" data-start="29.75" data-duration="0.5" data-track-index="30"></div>
+      <div id="t45" class="clip transition" data-start="41.75" data-duration="0.5" data-track-index="31"></div>
+      <div id="t56" class="clip transition" data-start="54.75" data-duration="0.5" data-track-index="30"></div>
+      <div id="t67" class="clip transition" data-start="65.75" data-duration="0.5" data-track-index="31"></div>
+      <div id="t78" class="clip transition" data-start="75.75" data-duration="0.5" data-track-index="30"></div>
+      <div id="t89" class="clip transition" data-start="85.75" data-duration="0.5" data-track-index="31"></div>
 
       <div id="cap1" class="clip caption" data-start="0.5" data-duration="7" data-track-index="20">
         Most order book demos start with speed. tracebook starts with evidence.
@@ -809,6 +811,14 @@
         data-track-index="40"
         src="media/narration.wav"
         data-volume="0.95"
+      ></audio>
+      <audio
+        id="music-bed"
+        data-start="0"
+        data-duration="92"
+        data-track-index="41"
+        src="media/background-music.wav"
+        data-volume="0.33"
       ></audio>
     </div>
 
@@ -975,7 +985,7 @@
 
       document.querySelectorAll(".transition").forEach((transition) => {
         const blocks = Array.from({ length: 8 }, (_, i) => `<div class="block" style="left:${i * 12.5}%"></div>`);
-        transition.innerHTML = `${blocks.join("")}<div class="trace-line"></div>`;
+        transition.innerHTML = `${blocks.join("")}<div class="trace-line" data-layout-allow-overflow></div>`;
       });
 
       window.__timelines = window.__timelines || {};
@@ -1044,14 +1054,14 @@
       tl.from("#s9 .closing-title", { y: 44, autoAlpha: 0, duration: 0.65, ease: "expo.out" }, 86.65);
       tl.from("#s9 .closing-line", { y: 30, autoAlpha: 0, duration: 0.55, ease: "power3.out" }, 87.05);
       tl.from("#s9 .github-url", { y: 24, autoAlpha: 0, duration: 0.5, ease: "sine.out" }, 87.45);
-      tl.to("#s9 .scene-content, #ambient, .caption", { autoAlpha: 0, duration: 0.7, ease: "sine.inOut" }, 91.15);
+      tl.to("#s9 .scene-content, #ambient, .caption", { autoAlpha: 0, duration: 0.5, ease: "sine.inOut" }, 91.35);
 
-      const transitionStarts = [7.65, 16.65, 29.65, 41.65, 54.65, 65.65, 75.65, 85.65];
+      const transitionStarts = [7.75, 16.75, 29.75, 41.75, 54.75, 65.75, 75.75, 85.75];
       ["#t12", "#t23", "#t34", "#t45", "#t56", "#t67", "#t78", "#t89"].forEach((selector, index) => {
         const at = transitionStarts[index];
-        tl.from(`${selector} .block`, { scaleY: 0, stagger: 0.025, duration: 0.26, ease: "power3.inOut" }, at);
-        tl.to(`${selector} .block`, { yPercent: -100, stagger: 0.025, duration: 0.28, ease: "power3.inOut" }, at + 0.32);
-        tl.fromTo(`${selector} .trace-line`, { xPercent: 0 }, { xPercent: 420, duration: 0.54, ease: "expo.inOut" }, at + 0.04);
+        tl.from(`${selector} .block`, { scaleY: 0, stagger: 0.012, duration: 0.15, ease: "power3.inOut" }, at);
+        tl.to(`${selector} .block`, { yPercent: -100, stagger: 0.012, duration: 0.15, ease: "power3.inOut" }, at + 0.24);
+        tl.fromTo(`${selector} .trace-line`, { xPercent: 0 }, { xPercent: 420, duration: 0.42, ease: "expo.inOut" }, at + 0.03);
       });
 
       document.querySelectorAll(".caption").forEach((caption) => {
