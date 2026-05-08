@@ -1,1 +1,1 @@
-It is a latency-focused Python order book simulator for matching semantics, synthetic flow, lifecycle events, and profiling.
+It is a Python order-book workbench for matching, event simulation, profiling, and reproducible benchmarks.

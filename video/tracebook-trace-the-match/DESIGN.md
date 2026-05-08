@@ -25,7 +25,7 @@ Trace Terminal is a cinematic systems-engineering identity for `tracebook`: dark
 ## Motion Rules
 
 - Entrances use GSAP `from()` only for scene content.
-- Primary transitions are staggered-block and grid-dissolve overlays with a consistent half-second cadence.
+- Primary transitions are staggered-block and grid-dissolve overlays with a consistent sub-half-second cadence.
 - Use `expo.out`, `power3.out`, `back.out(1.4)`, and `sine.inOut`.
 - Ambient movement is finite, low amplitude, and trace-like.
 - Every multi-scene change is covered by a transition overlay.
@@ -33,8 +33,8 @@ Trace Terminal is a cinematic systems-engineering identity for `tracebook`: dark
 ## Audio Direction
 
 - Narration stays forward and intelligible.
-- Background music is a generated low synth bed with restrained pulses, mixed under voiceover as texture rather than a lead.
-- No stock music or hype-trailer percussion.
+- Background music is generated, but it should behave like actual music: chord movement, rhythm, bass, arpeggios, and transition accents.
+- The mix stays controlled and technical: narration leads, music adds momentum, and no stock loops are used.
 
 ## What NOT To Do
 

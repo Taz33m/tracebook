@@ -1,1 +1,1 @@
-The repo is built around review surfaces: tests, smoke commands, package builds, CI, and bounded claims.
+The repo gives reviewers proof: tests, smoke commands, package builds, CI, and bounded claims.

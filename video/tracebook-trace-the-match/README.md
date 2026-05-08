@@ -6,7 +6,7 @@ HyperFrames companion video source for `tracebook`.
 
 - Title: `Trace The Match`
 - Composition id: `tracebook-video`
-- Format: `1920x1080`, `30fps`, `92s`
+- Format: `1920x1080`, `30fps`, `62s`
 - Visual identity: see `DESIGN.md`
 - Main source: `index.html`
 - Narration script: `script.txt`

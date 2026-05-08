@@ -1,1 +1,1 @@
-No performance claim is treated as universal. Each report carries seed, warmup, machine metadata, dependencies, and latency percentiles.
+Reports include seed, warmup, machine metadata, dependencies, percentiles, memory, and overhead. Local baselines stay local.
