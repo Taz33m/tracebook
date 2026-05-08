@@ -1,0 +1,1 @@
+No performance claim is treated as universal. Each report carries seed, warmup, machine metadata, dependencies, and latency percentiles.

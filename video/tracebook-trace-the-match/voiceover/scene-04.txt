@@ -1,0 +1,1 @@
+The simulation path does not stop at new orders. It interleaves cancellations and replacements against active resting IDs.

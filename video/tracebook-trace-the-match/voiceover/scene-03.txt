@@ -1,0 +1,1 @@
+Orders are validated, matched, filled, partially rested, or cancelled according to explicit semantics.

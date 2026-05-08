@@ -1,0 +1,17 @@
+Most order book demos start with speed. tracebook starts with evidence.
+
+It is a latency-focused Python order book simulator for matching semantics, synthetic flow, lifecycle events, and profiling.
+
+Orders are validated, matched, filled, partially rested, or cancelled according to explicit semantics.
+
+The simulation path does not stop at new orders. It interleaves cancellations and replacements against active resting IDs.
+
+Benchmark reports separate generation time from book-processing latency, so the numbers stay inspectable.
+
+No performance claim is treated as universal. Each report carries seed, warmup, machine metadata, dependencies, and latency percentiles.
+
+A local dashboard turns the same simulation into live depth and telemetry.
+
+The repo is built around review surfaces: tests, smoke commands, package builds, CI, and bounded claims.
+
+tracebook: inspect the book, benchmark the path, trace the system.

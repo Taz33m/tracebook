@@ -23,6 +23,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 ENV/
 env/
@@ -46,6 +47,7 @@ Thumbs.db
 *.log
 *.sql
 *.sqlite
+node_modules/
 
 # Local development
 .env
@@ -60,3 +62,7 @@ demo_traces/
 demo_visualizations/
 trace_reports/
 benchmark_results/
+video/**/renders/
+video/**/media/voiceover-*.wav
+video/**/*.mp4
+video/**/*.webm
