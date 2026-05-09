@@ -79,10 +79,11 @@ All checks below were run during the latest production repo pass in this checkou
 | Unit tests | `70` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
+| Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
 | Package build | sdist and wheel build successfully |
 | Simulation CLI | deterministic FIFO smoke run completes |
 | Benchmark CLI | smoke scenario writes JSON report |
-| Dashboard CLI | `tracebook-dashboard --demo-simulation --help` completes |
+| Dashboard loop | dashboard factory/import works, help completes, and local demo server returns `HTTP 200` on loopback |
 | Remote CI | GitHub Actions passes on Python 3.10 and 3.11 |
 
 ## What It Implements

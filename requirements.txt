@@ -1,29 +1,25 @@
 # Core dependencies
 numba>=0.65.1
 numpy>=2.2.6
-pandas>=2.3.3
-pyarrow>=24.0.0
-
-# Profiling and performance
 psutil>=7.2.2
 
-# Visualization
-plotly>=6.7.0
+# Dashboard dependencies
 dash>=4.1.0
+pandas>=2.3.3
+plotly>=6.7.0
+
+# Analysis dependencies
+h5py>=3.16.0
 matplotlib>=3.10.9
+pyarrow>=24.0.0
 seaborn>=0.13.2
+tables>=3.10.1
 
-# Testing and benchmarking
-pytest>=9.0.3
-pytest-benchmark>=5.2.3
-pytest-cov>=7.1.0
-
-# Development tools
+# Development and benchmark tooling
 bandit>=1.8.0
 build>=1.5.0
 black>=26.3.1
 flake8>=7.3.0
-
-# Data export and analysis
-h5py>=3.16.0
-tables>=3.10.1
+pytest>=9.0.3
+pytest-benchmark>=5.2.3
+pytest-cov>=7.1.0

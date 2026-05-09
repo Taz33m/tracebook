@@ -41,6 +41,9 @@ jobs:
       - name: Run security static analysis
         run: python -m bandit -q -r src
 
+      - name: Run compile check
+        run: python -m compileall -q src tests examples install_deps.py
+
       - name: Run pytest
         run: python -m pytest
 
@@ -55,6 +58,9 @@ jobs:
 
       - name: Build package artifacts
         run: python -m build --sdist --wheel --outdir dist
+
+      - name: Check installed dependencies
+        run: python -m pip check
 
       - name: Dashboard import and help smoke
         run: |

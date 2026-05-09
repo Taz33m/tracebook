@@ -19,3 +19,4 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 - Made simulation lifecycle replacement IDs thread-safe and documented analyzer output as not yet collected.
 - Refreshed local benchmark sample numbers from the current benchmark runner.
 - Removed the unused mypy dev dependency/config until typed-package support has a real passing baseline.
+- Added compile and dependency consistency checks to CI and clarified dependency grouping.
