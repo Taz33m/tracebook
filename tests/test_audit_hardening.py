@@ -4,6 +4,7 @@ import pytest
 
 from tracebook.core.order import OrderFactory, OrderSide
 from tracebook.core.orderbook import OrderBook
+from tracebook.profiling.magic_trace_wrapper import MagicTraceConfig, MagicTraceSession
 from tracebook.profiling.performance_monitor import PerformanceMonitor
 from tracebook.profiling.trace_visualizer import TraceVisualizer
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
@@ -72,3 +73,17 @@ def test_trace_html_report_escapes_insights_and_embeds_plotly(tmp_path: Path):
     assert "<script>alert('xss')</script>" not in content
     assert "plotly-latest" not in content
     assert '<script src="https://cdn.plot.ly' not in content
+
+
+def test_magic_trace_raw_artifact_analysis_is_honest(tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path)
+    session = MagicTraceSession(config, "raw_trace")
+    session.trace_file.write_bytes(b"trace-data")
+
+    session._analyze_trace()
+
+    content = session.analysis_file.read_text(encoding="utf-8")
+
+    assert "raw_trace_collected" in content
+    assert "would be performed here" not in content

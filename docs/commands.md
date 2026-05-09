@@ -22,8 +22,9 @@ make setup
 | --- | --- |
 | `python -m pytest` | Run the unit test suite |
 | `python test_system.py` | Run integration smoke checks |
-| `python -m flake8 src tests` | Run lint checks |
-| `python -m compileall -q src tests` | Check source compilation |
+| `python -m black --check src tests examples install_deps.py` | Check formatting |
+| `python -m flake8 src tests examples install_deps.py` | Run lint checks |
+| `python -m compileall -q src tests examples install_deps.py` | Check source compilation |
 | `python -m build --sdist --wheel --outdir dist` | Build package artifacts |
 | `python -m pip check` | Validate installed dependency consistency |
 

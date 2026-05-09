@@ -13,8 +13,9 @@
 
 ```bash
 python -m pip install -e ".[dev,dashboard]"
-python -m black src tests
-python -m flake8 src tests
+python -m black --check src tests examples install_deps.py
+python -m flake8 src tests examples install_deps.py
+python -m bandit -q -r src
 python -m pytest
 python test_system.py
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --warmup-seconds 0.01

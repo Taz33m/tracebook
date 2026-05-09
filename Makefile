@@ -56,11 +56,11 @@ demo:
 
 # Code formatting with black
 format:
-	$(PYTHON_VENV) -m black src/ tests/ examples/
+	$(PYTHON_VENV) -m black src/ tests/ examples/ install_deps.py
 
 # Lint code with flake8
 lint:
-	$(PYTHON_VENV) -m flake8 src/ tests/ examples/
+	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ install_deps.py
 
 # Run code quality checks used for the alpha CI gate
 quality: format lint

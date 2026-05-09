@@ -11,7 +11,6 @@ import subprocess
 import sys
 from typing import List
 
-
 EXTRAS = ("dev", "dashboard", "analysis", "all")
 
 

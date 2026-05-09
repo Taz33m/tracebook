@@ -4,7 +4,8 @@
 
 ## Testing
 
-- [ ] `python -m flake8 src tests`
+- [ ] `python -m black --check src tests examples install_deps.py`
+- [ ] `python -m flake8 src tests examples install_deps.py`
 - [ ] `python -m pytest`
 - [ ] `python test_system.py`
 - [ ] benchmark/dashboard smoke when relevant

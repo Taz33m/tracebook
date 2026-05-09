@@ -7,6 +7,7 @@ profiling into the order book simulator with minimal performance overhead.
 
 import os
 import shutil
+
 # subprocess is limited to the optional magic-trace profiler path.
 import subprocess  # nosec B404
 import time
@@ -286,7 +287,7 @@ class MagicTraceSession:
         """Save session metadata to file."""
         metadata = self.get_session_info()
         try:
-            with open(self.metadata_file, "w") as f:
+            with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
         except Exception as e:
             print(f"Failed to save metadata: {e}")
@@ -301,14 +302,22 @@ class MagicTraceSession:
             # Basic trace analysis
             analysis = {
                 "session_name": self.session_name,
+                "status": "raw_trace_collected",
                 "trace_file_size": self.trace_file.stat().st_size,
                 "analysis_timestamp": time.time_ns(),
-                "summary": "Trace analysis would be performed here with magic-trace tools",
-                "recommendations": [],
+                "summary": (
+                    "Raw magic-trace artifact collected. Open the .fxt file with "
+                    "magic-trace-compatible tooling for timeline analysis."
+                ),
+                "trace_file": str(self.trace_file),
+                "recommendations": [
+                    "Inspect the raw trace in magic-trace before publishing profiler claims.",
+                    "Pair trace findings with benchmark JSON from tracebook-benchmark.",
+                ],
             }
 
             # Save analysis results
-            with open(self.analysis_file, "w") as f:
+            with open(self.analysis_file, "w", encoding="utf-8") as f:
                 json.dump(analysis, f, indent=2)
 
             print(f"Trace analysis saved to: {self.analysis_file}")
