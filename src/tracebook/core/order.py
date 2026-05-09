@@ -5,6 +5,7 @@ High-performance order data structures optimized for Numba JIT compilation.
 from numba import types
 from numba.experimental import jitclass
 from enum import IntEnum
+from numbers import Real
 import math
 import time
 
@@ -23,6 +24,18 @@ class OrderType(IntEnum):
     LIMIT = 2
     IOC = 3  # Immediate or Cancel
     FOK = 4  # Fill or Kill
+
+
+def normalize_symbol(symbol: str) -> str:
+    """Validate and normalize a trading symbol."""
+    if not isinstance(symbol, str):
+        raise ValueError(f"Order symbol must be a non-empty string: {symbol!r}")
+
+    normalized_symbol = symbol.strip()
+    if not normalized_symbol:
+        raise ValueError("Order symbol must be a non-empty string")
+
+    return normalized_symbol
 
 
 # Numba-compatible order specification
@@ -182,13 +195,21 @@ class OrderFactory:
 
     def _validate_quantity(self, quantity: float):
         """Validate that quantity is positive."""
+        if isinstance(quantity, bool) or not isinstance(quantity, Real):
+            raise ValueError(f"Order quantity must be positive: {quantity!r}")
+        quantity = float(quantity)
         if not math.isfinite(quantity) or quantity <= 0:
             raise ValueError(f"Order quantity must be positive: {quantity}")
+        return quantity
 
     def _validate_price(self, price: float):
         """Validate that limit-style order price is positive."""
+        if isinstance(price, bool) or not isinstance(price, Real):
+            raise ValueError(f"Order price must be positive: {price!r}")
+        price = float(price)
         if not math.isfinite(price) or price <= 0:
             raise ValueError(f"Order price must be positive: {price}")
+        return price
 
     def create_order(
         self, symbol: str, side: OrderSide, order_type: OrderType, price: float, quantity: float
@@ -210,9 +231,10 @@ class OrderFactory:
         self, symbol: str, side: OrderSide, price: float, quantity: float
     ) -> Order:
         """Create a limit order."""
+        symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
-        self._validate_price(price)
-        self._validate_quantity(quantity)
+        price = self._validate_price(price)
+        quantity = self._validate_quantity(quantity)
         order_id = self._next_id
         self._next_id += 1
         timestamp = time.time_ns()
@@ -229,8 +251,9 @@ class OrderFactory:
 
     def create_market_order(self, symbol: str, side: OrderSide, quantity: float) -> Order:
         """Create a market order."""
+        symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
-        self._validate_quantity(quantity)
+        quantity = self._validate_quantity(quantity)
         order_id = self._next_id
         self._next_id += 1
         timestamp = time.time_ns()
@@ -249,9 +272,10 @@ class OrderFactory:
         self, symbol: str, side: OrderSide, price: float, quantity: float
     ) -> Order:
         """Create an Immediate or Cancel order."""
+        symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
-        self._validate_price(price)
-        self._validate_quantity(quantity)
+        price = self._validate_price(price)
+        quantity = self._validate_quantity(quantity)
         order_id = self._next_id
         self._next_id += 1
         timestamp = time.time_ns()
@@ -270,9 +294,10 @@ class OrderFactory:
         self, symbol: str, side: OrderSide, price: float, quantity: float
     ) -> Order:
         """Create a Fill or Kill order."""
+        symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
-        self._validate_price(price)
-        self._validate_quantity(quantity)
+        price = self._validate_price(price)
+        quantity = self._validate_quantity(quantity)
         order_id = self._next_id
         self._next_id += 1
         timestamp = time.time_ns()

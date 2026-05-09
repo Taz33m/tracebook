@@ -10,12 +10,23 @@ from dash import dcc, html, Input, Output
 import plotly.graph_objs as go
 import time
 import threading
+import ipaddress
 from typing import Dict, List, Any
 from collections import deque
 
 from .. import __version__
 from ..profiling.performance_monitor import get_performance_monitor
 from ..core.orderbook import OrderBookManager
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return True when a dashboard host is loopback-only."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 class DashboardData:
@@ -525,8 +536,14 @@ class PerformanceDashboard:
                 print(f"Error in dashboard update loop: {e}")
                 time.sleep(1.0)
 
-    def run(self, debug: bool = False, host: str = "127.0.0.1"):
+    def run(self, debug: bool = False, host: str = "127.0.0.1", allow_remote: bool = False):
         """Run the dashboard server."""
+        if not _is_loopback_host(host) and not allow_remote:
+            raise ValueError(
+                "Non-loopback dashboard hosts require allow_remote=True because "
+                "the dashboard has no authentication"
+            )
+
         print(f"Starting dashboard server on http://{host}:{self.port}")
 
         # Start data updates
@@ -576,6 +593,11 @@ def main() -> int:
     parser.add_argument("--version", action="version", version=f"tracebook {__version__}")
     parser.add_argument("--port", type=int, default=8050)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Allow binding the unauthenticated dashboard to a non-loopback host.",
+    )
     parser.add_argument("--update-interval", type=int, default=1000)
     parser.add_argument(
         "--demo-simulation",
@@ -595,6 +617,12 @@ def main() -> int:
         "--seed", type=int, default=1337, help="Seed for demo simulation order flow."
     )
     args = parser.parse_args()
+
+    if not _is_loopback_host(args.host) and not args.allow_remote:
+        parser.error(
+            "--host with a non-loopback address requires --allow-remote because "
+            "the dashboard has no authentication"
+        )
 
     engine = None
     performance_monitor = None
@@ -623,7 +651,7 @@ def main() -> int:
         simulation_thread = threading.Thread(target=engine.run_simulation, daemon=True)
         simulation_thread.start()
 
-    dashboard.run(host=args.host)
+    dashboard.run(host=args.host, allow_remote=args.allow_remote)
     return 0
 
 

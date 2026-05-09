@@ -12,7 +12,7 @@ import time
 import threading
 from collections import defaultdict
 
-from .order import Order, Trade, OrderFactory, OrderSide, OrderType
+from .order import Order, Trade, OrderFactory, OrderSide, OrderType, normalize_symbol
 from .matching_engine import MatchingEngine
 from .price_level import MarketDataSnapshot
 
@@ -48,11 +48,11 @@ class OrderBook:
             symbol: Trading symbol (e.g., 'AAPL', 'BTCUSD')
             matching_algorithm: 'fifo' or 'pro_rata'
         """
-        self.symbol = symbol
+        self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
 
         # Core components
-        self.matching_engine = MatchingEngine(symbol, matching_algorithm)
+        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm)
         self.order_factory = OrderFactory()
 
         # Thread safety
@@ -78,6 +78,7 @@ class OrderBook:
             "max_processing_time_ns": 0,
             "min_processing_time_ns": float("inf"),
         }
+        self._seen_order_ids = set()
 
     def add_limit_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
         """
@@ -184,6 +185,10 @@ class OrderBook:
 
         with self._lock:
             self._validate_order(order)
+            order_id = int(order.order_id)
+            self._seen_order_ids.add(order_id)
+            if order_id >= self.order_factory._next_id:
+                self.order_factory._next_id = order_id + 1
 
             # Execute order through matching engine
             trades = self.matching_engine.add_order(order)
@@ -386,17 +391,28 @@ class OrderBook:
 
     def set_snapshot_interval(self, interval_ms: float):
         """Set market data snapshot interval in milliseconds."""
+        if interval_ms <= 0:
+            raise ValueError("snapshot interval must be positive")
         self._snapshot_interval_ns = int(interval_ms * 1_000_000)
 
     def _validate_order(self, order: Order):
         """Validate an incoming order before matching."""
-        if order.symbol != self.symbol:
+        order_symbol = normalize_symbol(order.symbol)
+        if order_symbol != self.symbol:
             raise ValueError(
                 f"Order symbol {order.symbol!r} does not match book symbol {self.symbol!r}"
             )
+        order.symbol = order_symbol
+
+        order_id = int(order.order_id)
+        if order_id <= 0:
+            raise ValueError("Order id must be positive")
 
         if self.get_order(order.order_id) is not None:
             raise ValueError(f"Order id {order.order_id} is already active")
+
+        if order_id in self._seen_order_ids:
+            raise ValueError(f"Order id {order.order_id} has already been processed")
 
         if int(order.side) not in (int(OrderSide.BUY), int(OrderSide.SELL)):
             raise ValueError(f"Unsupported order side: {order.side}")
@@ -442,6 +458,7 @@ class OrderBook:
                 "min_processing_time_ns": float("inf"),
             }
             self._start_time = time.time_ns()
+            self._seen_order_ids.clear()
 
     def _update_processing_time_stats(self, processing_time_ns: int):
         """Update processing time statistics."""
@@ -555,6 +572,7 @@ class OrderBookManager:
 
     def create_order_book(self, symbol: str, matching_algorithm: str = "fifo") -> OrderBook:
         """Create a new order book for a symbol."""
+        symbol = normalize_symbol(symbol)
         with self._lock:
             if symbol in self.order_books:
                 raise ValueError(f"Order book for {symbol} already exists")
@@ -565,18 +583,27 @@ class OrderBookManager:
 
     def add_order_book(self, symbol: str, order_book: OrderBook):
         """Add an existing order book for a symbol."""
+        symbol = normalize_symbol(symbol)
         with self._lock:
             if symbol in self.order_books:
                 raise ValueError(f"Order book for {symbol} already exists")
+            if order_book.symbol != symbol:
+                raise ValueError(
+                    f"Order book symbol {order_book.symbol!r} does not match "
+                    f"registry key {symbol!r}"
+                )
             self.order_books[symbol] = order_book
 
     def get_order_book(self, symbol: str) -> Optional[OrderBook]:
         """Get order book for a symbol."""
-        return self.order_books.get(symbol)
+        symbol = normalize_symbol(symbol)
+        with self._lock:
+            return self.order_books.get(symbol)
 
     def get_all_symbols(self) -> List[str]:
         """Get all available symbols."""
-        return list(self.order_books.keys())
+        with self._lock:
+            return list(self.order_books.keys())
 
     def get_all_order_books(self) -> Dict[str, OrderBook]:
         """Get a shallow copy of all managed order books keyed by symbol."""
@@ -651,6 +678,7 @@ class OrderBookManager:
 
     def remove_order_book(self, symbol: str) -> bool:
         """Remove an order book."""
+        symbol = normalize_symbol(symbol)
         with self._lock:
             if symbol in self.order_books:
                 del self.order_books[symbol]

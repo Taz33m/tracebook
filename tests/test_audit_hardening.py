@@ -1,8 +1,9 @@
 from pathlib import Path
+import time
 
 import pytest
 
-from tracebook.core.order import OrderFactory, OrderSide
+from tracebook.core.order import Order, OrderFactory, OrderSide, OrderType
 from tracebook.core.orderbook import OrderBook
 from tracebook.profiling.magic_trace_wrapper import MagicTraceConfig, MagicTraceSession
 from tracebook.profiling.performance_monitor import PerformanceMonitor
@@ -20,6 +21,99 @@ def test_order_factory_rejects_non_numeric_side_and_order_type():
         factory.create_order("BTCUSD", OrderSide.BUY, "LIMIT", 100.0, 1.0)
 
 
+def test_submit_apis_return_structured_rejections_for_non_numeric_inputs():
+    book = OrderBook("BTCUSD")
+    factory = OrderFactory()
+
+    with pytest.raises(ValueError, match="Order price must be positive"):
+        factory.create_limit_order("BTCUSD", OrderSide.BUY, "100", 1.0)
+
+    with pytest.raises(ValueError, match="Order quantity must be positive"):
+        factory.create_market_order("BTCUSD", OrderSide.BUY, "1")
+
+    rejected_price = book.submit_limit_order(OrderSide.BUY, "100", 1.0)
+    rejected_quantity = book.submit_market_order(OrderSide.BUY, "1")
+    rejected_bool = book.submit_ioc_order(OrderSide.BUY, True, 1.0)
+
+    assert "Order price must be positive" in rejected_price.rejected_reason
+    assert "Order quantity must be positive" in rejected_quantity.rejected_reason
+    assert "Order price must be positive" in rejected_bool.rejected_reason
+    assert book.get_active_order_ids() == []
+
+
+def test_symbols_are_non_empty_and_normalized():
+    factory = OrderFactory()
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        OrderBook("")
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        factory.create_limit_order("   ", OrderSide.BUY, 100.0, 1.0)
+
+    book = OrderBook(" BTCUSD ")
+    order = factory.create_limit_order(" BTCUSD ", OrderSide.BUY, 100.0, 1.0)
+    result = book.submit_order(order)
+
+    assert book.symbol == "BTCUSD"
+    assert order.symbol == "BTCUSD"
+    assert result.rejected_reason is None
+    assert result.rested is True
+
+    manual_order = Order(
+        99,
+        " BTCUSD ",
+        int(OrderSide.SELL),
+        int(OrderType.LIMIT),
+        101.0,
+        1.0,
+        time.time_ns(),
+    )
+    manual_result = book.submit_order(manual_order)
+
+    assert manual_result.rejected_reason is None
+    assert manual_order.symbol == "BTCUSD"
+
+
+def test_reused_order_ids_are_rejected_after_cancel():
+    book = OrderBook("BTCUSD")
+    first = book.submit_limit_order(OrderSide.BUY, 100.0, 1.0)
+
+    assert book.cancel_order(first.order.order_id) is True
+
+    duplicate = OrderFactory().create_limit_order("BTCUSD", OrderSide.SELL, 101.0, 1.0)
+    rejected = book.submit_order(duplicate)
+    next_order = book.submit_limit_order(OrderSide.BUY, 99.0, 1.0)
+
+    assert "already been processed" in rejected.rejected_reason
+    assert next_order.rejected_reason is None
+    assert next_order.order.order_id == first.order.order_id + 1
+
+
+def test_reused_order_ids_are_rejected_after_fills_and_immediate_cancels():
+    filled_book = OrderBook("BTCUSD")
+    resting = filled_book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)
+    taker = filled_book.submit_limit_order(OrderSide.BUY, 100.0, 1.0)
+    duplicate_resting = OrderFactory().create_limit_order("BTCUSD", OrderSide.SELL, 101.0, 1.0)
+
+    assert len(taker.trades) == 1
+    assert filled_book.get_order(resting.order.order_id) is None
+    assert "already been processed" in filled_book.submit_order(duplicate_resting).rejected_reason
+
+    ioc_book = OrderBook("BTCUSD")
+    ioc = ioc_book.submit_ioc_order(OrderSide.BUY, 100.0, 1.0)
+    duplicate_ioc = OrderFactory().create_limit_order("BTCUSD", OrderSide.BUY, 99.0, 1.0)
+
+    assert ioc.cancelled is True
+    assert "already been processed" in ioc_book.submit_order(duplicate_ioc).rejected_reason
+
+    fok_book = OrderBook("BTCUSD")
+    fok = fok_book.submit_fok_order(OrderSide.BUY, 100.0, 1.0)
+    duplicate_fok = OrderFactory().create_limit_order("BTCUSD", OrderSide.BUY, 99.0, 1.0)
+
+    assert fok.rejected_reason == "FOK order could not be fully filled"
+    assert "already been processed" in fok_book.submit_order(duplicate_fok).rejected_reason
+
+
 def test_depth_and_recent_trade_inputs_do_not_slice_surprisingly():
     book = OrderBook("BTCUSD")
     book.add_limit_order(OrderSide.SELL, 100.0, 1.0)
@@ -30,6 +124,16 @@ def test_depth_and_recent_trade_inputs_do_not_slice_surprisingly():
 
     with pytest.raises(ValueError, match="levels must be non-negative"):
         book.get_order_book_depth(-1)
+
+
+def test_snapshot_interval_must_be_positive():
+    book = OrderBook("BTCUSD")
+
+    with pytest.raises(ValueError, match="snapshot interval must be positive"):
+        book.set_snapshot_interval(0)
+
+    with pytest.raises(ValueError, match="snapshot interval must be positive"):
+        book.set_snapshot_interval(-1)
 
 
 def test_simulation_export_creates_parent_directories(tmp_path: Path):

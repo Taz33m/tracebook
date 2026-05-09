@@ -7,6 +7,7 @@ to provide comprehensive simulation capabilities.
 
 import argparse
 import json
+import math
 import time
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
@@ -119,17 +120,22 @@ class SimulationEngine:
         """Setup order streams for each symbol."""
         for index, symbol in enumerate(self.config.symbols):
             stream_seed = None if self.config.seed is None else self.config.seed + index
+            stream_throughput = self.config.target_throughput / len(self.config.symbols)
+            stream_batch_size = min(
+                self.config.batch_size,
+                max(1, math.ceil(stream_throughput * 0.1)),
+            )
             market_params = MarketParameters(
                 symbol=symbol,
-                order_arrival_rate=self.config.target_throughput / len(self.config.symbols),
+                order_arrival_rate=stream_throughput,
                 cancel_ratio=self.config.cancel_ratio,
             )
 
             stream_config = OrderGenerationConfig(
                 pattern=self.config.order_pattern,
                 duration_seconds=self.config.duration_seconds,
-                target_throughput=self.config.target_throughput / len(self.config.symbols),
-                batch_size=self.config.batch_size,
+                target_throughput=stream_throughput,
+                batch_size=stream_batch_size,
                 seed=stream_seed,
             )
 
@@ -138,6 +144,10 @@ class SimulationEngine:
 
             # Setup order book for symbol
             order_book = OrderBook(symbol=symbol, matching_algorithm=self.config.matching_algorithm)
+            # Share ID allocation between generated new orders and book-created replacements.
+            # Otherwise a replacement created while processing a prefetched batch can collide
+            # with a generated order that has not reached the book yet.
+            order_book.order_factory = stream.order_factory
 
             # Register callbacks
             order_book.register_trade_callback(self._on_trade)
@@ -228,7 +238,7 @@ class SimulationEngine:
                 events = stream.get_events(self.config.batch_size)
 
                 if events:
-                    order_book = self.order_book_manager.get_order_book(symbol)
+                    order_book = self._get_order_book(symbol)
                     self._process_events(symbol, order_book, events)
 
             # Brief sleep to prevent CPU spinning
@@ -337,6 +347,13 @@ class SimulationEngine:
             if self.config.warmup_seconds < 0.05:
                 break
 
+    def _get_order_book(self, symbol: str) -> OrderBook:
+        """Return a configured order book or fail with a clear simulation error."""
+        order_book = self.order_book_manager.get_order_book(symbol)
+        if order_book is None:
+            raise RuntimeError(f"No order book configured for symbol {symbol!r}")
+        return order_book
+
     def _on_trade(self, trades: List):
         """Handle trade events."""
         self.total_trades_executed += len(trades)
@@ -368,7 +385,7 @@ class SimulationEngine:
         # Order book statistics
         order_book_stats = {}
         for symbol in self.config.symbols:
-            order_book = self.order_book_manager.get_order_book(symbol)
+            order_book = self._get_order_book(symbol)
             order_book_stats[symbol] = order_book.get_statistics()
 
         # Stream statistics
@@ -379,7 +396,7 @@ class SimulationEngine:
         # Algorithm analysis
         algorithm_analysis = {}
         for symbol in self.config.symbols:
-            order_book = self.order_book_manager.get_order_book(symbol)
+            order_book = self._get_order_book(symbol)
 
             if self.config.matching_algorithm == "FIFO":
                 analyzer = FIFOAnalyzer()

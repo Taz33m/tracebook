@@ -88,6 +88,44 @@ def test_simulation_processes_cancel_and_replace_events_with_seed():
     assert "order_generation_latency_ms" in results["performance_data"]["performance_metrics"]
 
 
+def test_simulation_reports_missing_configured_order_book_clearly():
+    config = SimulationConfig(
+        duration_seconds=0.0,
+        target_throughput=1.0,
+        matching_algorithm="FIFO",
+        enable_magic_trace=False,
+        symbols=["BTCUSD"],
+    )
+    engine = SimulationEngine(config)
+    engine.order_book_manager.remove_order_book("BTCUSD")
+
+    try:
+        engine.run_simulation()
+    except RuntimeError as exc:
+        assert "No order book configured for symbol 'BTCUSD'" in str(exc)
+    else:
+        raise AssertionError("Expected missing order book to raise RuntimeError")
+
+
+def test_simulation_adapts_batch_size_for_low_throughput_short_runs():
+    config = SimulationConfig(
+        duration_seconds=0.1,
+        target_throughput=10.0,
+        matching_algorithm="FIFO",
+        enable_magic_trace=False,
+        seed=5,
+        batch_size=100,
+        warmup_seconds=0.0,
+    )
+    engine = SimulationEngine(config)
+
+    stream = engine.order_streams["BTCUSD"]
+    results = engine.run_simulation()
+
+    assert stream.config.batch_size == 1
+    assert results["summary_metrics"]["total_orders_processed"] <= 5
+
+
 def test_benchmark_smoke_report_has_latency_schema(tmp_path: Path):
     report = run_benchmarks(
         ["smoke"],
@@ -107,3 +145,19 @@ def test_benchmark_smoke_report_has_latency_schema(tmp_path: Path):
     output_path = tmp_path / "benchmark.json"
     assert write_report(report, str(output_path)) == str(output_path)
     assert output_path.exists()
+
+
+def test_cancellation_mix_benchmark_handles_replace_ids_without_collisions():
+    report = run_benchmarks(
+        ["cancellation_mix"],
+        seed=23,
+        warmup_seconds=0.0,
+        duration_override=0.25,
+        throughput_override=40.0,
+    )
+
+    scenario = report["scenarios"][0]
+
+    assert scenario["name"] == "cancellation_mix"
+    assert scenario["summary"]["orders_processed"] > 0
+    assert scenario["summary"]["events_processed"] >= scenario["summary"]["orders_processed"]

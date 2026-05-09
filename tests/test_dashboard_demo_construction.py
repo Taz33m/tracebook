@@ -2,16 +2,26 @@ import importlib
 import sys
 import types
 
+import pytest
+
 
 def _install_dashboard_dependency_stubs(monkeypatch):
     dash_module = types.ModuleType("dash")
 
+    class FakeComponentFactory:
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: (name, args, kwargs)
+
     class FakeDash:
-        pass
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def callback(self, *args, **kwargs):
+            return lambda func: func
 
     dash_module.Dash = FakeDash
-    dash_module.dcc = types.SimpleNamespace()
-    dash_module.html = types.SimpleNamespace()
+    dash_module.dcc = FakeComponentFactory()
+    dash_module.html = FakeComponentFactory()
     dash_module.Input = lambda *args, **kwargs: (args, kwargs)
     dash_module.Output = lambda *args, **kwargs: (args, kwargs)
     dash_module.callback = lambda *args, **kwargs: lambda func: func
@@ -81,12 +91,14 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
         def __init__(self):
             self.manager = None
             self.run_host = None
+            self.allow_remote = None
 
         def set_order_book_manager(self, manager):
             self.manager = manager
 
-        def run(self, host):
+        def run(self, host, allow_remote=False):
             self.run_host = host
+            self.allow_remote = allow_remote
 
     created = {}
 
@@ -108,6 +120,7 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
             "9001",
             "--host",
             "0.0.0.0",
+            "--allow-remote",
             "--update-interval",
             "250",
             "--demo-simulation",
@@ -138,7 +151,42 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
     assert created["performance_monitor"] is FakeSimulationEngine.last.performance_monitor
     assert created["dashboard"].manager is FakeSimulationEngine.last.order_book_manager
     assert created["dashboard"].run_host == "0.0.0.0"
+    assert created["dashboard"].allow_remote is True
     assert FakeThread.last.daemon is True
     assert FakeThread.last.target == FakeSimulationEngine.last.run_simulation
     assert FakeThread.last.started is True
     assert FakeSimulationEngine.last.run_called is False
+
+
+def test_dashboard_rejects_non_loopback_host_without_explicit_override(monkeypatch):
+    _install_dashboard_dependency_stubs(monkeypatch)
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tracebook-dashboard",
+            "--host",
+            "0.0.0.0",
+        ],
+    )
+
+    try:
+        with pytest.raises(SystemExit):
+            dashboard_module.main()
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)
+
+
+def test_dashboard_run_rejects_non_loopback_host_without_explicit_override(monkeypatch):
+    _install_dashboard_dependency_stubs(monkeypatch)
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+
+    try:
+        dashboard = dashboard_module.PerformanceDashboard()
+        with pytest.raises(ValueError, match="Non-loopback dashboard hosts require"):
+            dashboard.run(host="0.0.0.0")
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)

@@ -105,11 +105,15 @@ Options:
 | --- | --- |
 | `--port` | Local dashboard port |
 | `--host` | Bind host |
+| `--allow-remote` | Allow the unauthenticated dashboard to bind to a non-loopback host |
 | `--update-interval` | Dashboard update interval in milliseconds |
 | `--demo-simulation` | Start a background simulation for live data |
 | `--demo-duration` | Demo simulation duration |
 | `--demo-throughput` | Demo target orders per second |
 | `--seed` | Demo simulation seed |
+
+The dashboard binds to loopback by default. Binding to a non-loopback address requires
+`--allow-remote` because the demo dashboard does not provide authentication.
 
 ## Benchmark Claim Checklist
 

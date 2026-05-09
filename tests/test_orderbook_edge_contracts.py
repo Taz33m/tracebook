@@ -136,6 +136,17 @@ def test_manager_global_statistics_do_not_sum_rates_or_averages():
     assert stats["last_trade_time"] == 20
 
 
+def test_manager_rejects_symbol_mismatch_for_existing_book():
+    manager = OrderBookManager()
+    order_book = OrderBook("BTCUSD")
+
+    with pytest.raises(ValueError, match="does not match registry key"):
+        manager.add_order_book("ETHUSD", order_book)
+
+    assert manager.get_all_symbols() == []
+    assert manager.get_order_book("ETHUSD") is None
+
+
 def test_order_callbacks_run_after_book_lock_is_released():
     order_book = OrderBook("BTCUSD")
     callback_observed_blocking = []
