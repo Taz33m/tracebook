@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from tracebook.benchmarks.runner import run_benchmarks, write_report
 from tracebook.simulation.order_generator import (
     MarketParameters,
@@ -86,6 +88,49 @@ def test_simulation_processes_cancel_and_replace_events_with_seed():
     assert summary["total_orders_processed"] > 0
     assert summary["total_events_processed"] >= summary["total_orders_processed"]
     assert "order_generation_latency_ms" in results["performance_data"]["performance_metrics"]
+
+
+def test_simulation_algorithm_analysis_is_explicitly_not_collected():
+    config = SimulationConfig(
+        duration_seconds=0.05,
+        target_throughput=20.0,
+        matching_algorithm="FIFO",
+        enable_magic_trace=False,
+        seed=13,
+        warmup_seconds=0.0,
+    )
+    engine = SimulationEngine(config)
+
+    results = engine.run_simulation()
+    analysis = results["algorithm_analysis"]["BTCUSD"]
+
+    assert analysis["algorithm"] == "FIFO"
+    assert analysis["status"] == "not_collected"
+    assert "recommendations" not in analysis
+    assert analysis["matches_observed"] >= 0
+
+
+def test_simulation_and_market_parameters_normalize_symbols():
+    config = SimulationConfig(
+        duration_seconds=0.0,
+        target_throughput=1.0,
+        matching_algorithm="FIFO",
+        enable_magic_trace=False,
+        symbols=[" BTCUSD "],
+    )
+    engine = SimulationEngine(config)
+    market_params = MarketParameters(symbol=" ETHUSD ")
+
+    assert config.symbols == ["BTCUSD"]
+    assert engine.order_book_manager.get_all_symbols() == ["BTCUSD"]
+    assert list(engine.order_streams.keys()) == ["BTCUSD"]
+    assert market_params.symbol == "ETHUSD"
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        SimulationConfig(symbols=["   "])
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        MarketParameters(symbol="")
 
 
 def test_simulation_reports_missing_configured_order_book_clearly():

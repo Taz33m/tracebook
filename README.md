@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-62%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-70%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -55,18 +55,18 @@ The goal is a credible open-source alpha: small enough to audit, complete enough
 
 ## Current Local Benchmark Snapshot
 
-The sample below is a local smoke baseline, not a portable performance claim. It was measured on May 7, 2026 with Python 3.13.0 on macOS 15.4.1 using:
+The sample below is a local smoke baseline, not a portable performance claim. It was measured on May 9, 2026 with Python 3.11.5 on macOS 15.4.1 using:
 
 ```bash
-tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /private/tmp/tracebook-benchmark-doc-baseline.json
+tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /private/tmp/tracebook-benchmark-doc-baseline-current.json
 ```
 
 | Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `smoke` | 200 | 199.95 | 1.390 | 0.032 | 0.115 | 0.205 | 5.307 | 0.000 | 168.98 |
-| `fifo_baseline` | 200 | 199.91 | 0.063 | 0.048 | 0.156 | 0.262 | 4.804 | 0.000 | 130.95 |
-| `pro_rata_baseline` | 200 | 194.37 | 0.195 | 0.052 | 0.249 | 1.539 | 3.109 | 0.000 | 124.52 |
-| `cancellation_mix` | 103 | 102.96 | 0.041 | 0.026 | 0.097 | 0.115 | 2.006 | 0.022 | 124.75 |
+| `smoke` | 100 | 99.93 | 2.922 | 0.060 | 0.219 | 3.186 | 0.855 | 0.000 | 134.28 |
+| `fifo_baseline` | 110 | 109.98 | 0.139 | 0.112 | 0.363 | 0.512 | 1.181 | 0.000 | 134.31 |
+| `pro_rata_baseline` | 100 | 99.93 | 0.124 | 0.095 | 0.398 | 0.630 | 0.868 | 0.000 | 134.19 |
+| `cancellation_mix` | 112 | 111.53 | 0.130 | 0.087 | 0.369 | 0.590 | 1.752 | 0.036 | 100.03 |
 
 See [`docs/performance.md`](docs/performance.md) before adding or changing benchmark claims.
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `62` pytest tests passing |
+| Unit tests | `70` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Package build | sdist and wheel build successfully |

@@ -7,6 +7,7 @@ from numba.experimental import jitclass
 from enum import IntEnum
 from numbers import Real
 import math
+import threading
 import time
 
 
@@ -164,9 +165,25 @@ class OrderFactory:
 
     def __init__(self):
         self._next_id = 1
+        self._lock = threading.Lock()
+
+    def _allocate_order_id(self) -> int:
+        """Allocate a unique order id."""
+        with self._lock:
+            order_id = self._next_id
+            self._next_id += 1
+            return order_id
+
+    def advance_past(self, order_id: int):
+        """Advance the allocator beyond a caller-supplied order id."""
+        with self._lock:
+            if order_id >= self._next_id:
+                self._next_id = order_id + 1
 
     def _validate_side(self, side: OrderSide):
         """Validate and normalize an order side."""
+        if isinstance(side, bool):
+            raise ValueError(f"Unsupported order side: {side}")
         try:
             side_value = int(side)
         except (TypeError, ValueError) as exc:
@@ -178,6 +195,8 @@ class OrderFactory:
 
     def _validate_order_type(self, order_type: OrderType):
         """Validate and normalize an order type."""
+        if isinstance(order_type, bool):
+            raise ValueError(f"Unsupported order type: {order_type}")
         try:
             order_type_value = int(order_type)
         except (TypeError, ValueError) as exc:
@@ -235,8 +254,7 @@ class OrderFactory:
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
-        order_id = self._next_id
-        self._next_id += 1
+        order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
         return Order(
@@ -254,8 +272,7 @@ class OrderFactory:
         symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
         quantity = self._validate_quantity(quantity)
-        order_id = self._next_id
-        self._next_id += 1
+        order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
         return Order(
@@ -276,8 +293,7 @@ class OrderFactory:
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
-        order_id = self._next_id
-        self._next_id += 1
+        order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
         return Order(
@@ -298,8 +314,7 @@ class OrderFactory:
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
-        order_id = self._next_id
-        self._next_id += 1
+        order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
         return Order(

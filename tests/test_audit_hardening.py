@@ -1,12 +1,19 @@
 from pathlib import Path
+import os
+import subprocess
+import threading
 import time
 
 import pytest
 
 from tracebook.core.order import Order, OrderFactory, OrderSide, OrderType
 from tracebook.core.orderbook import OrderBook
-from tracebook.profiling.magic_trace_wrapper import MagicTraceConfig, MagicTraceSession
-from tracebook.profiling.performance_monitor import PerformanceMonitor
+from tracebook.profiling.magic_trace_wrapper import (
+    MagicTraceConfig,
+    MagicTraceProfiler,
+    MagicTraceSession,
+)
+from tracebook.profiling.performance_monitor import MetricsCollector, PerformanceMonitor
 from tracebook.profiling.trace_visualizer import TraceVisualizer
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
 
@@ -17,8 +24,14 @@ def test_order_factory_rejects_non_numeric_side_and_order_type():
     with pytest.raises(ValueError, match="Unsupported order side"):
         factory.create_limit_order("BTCUSD", "BUY", 100.0, 1.0)
 
+    with pytest.raises(ValueError, match="Unsupported order side"):
+        factory.create_limit_order("BTCUSD", True, 100.0, 1.0)
+
     with pytest.raises(ValueError, match="Unsupported order type"):
         factory.create_order("BTCUSD", OrderSide.BUY, "LIMIT", 100.0, 1.0)
+
+    with pytest.raises(ValueError, match="Unsupported order type"):
+        factory.create_order("BTCUSD", OrderSide.BUY, True, 100.0, 1.0)
 
 
 def test_submit_apis_return_structured_rejections_for_non_numeric_inputs():
@@ -39,6 +52,29 @@ def test_submit_apis_return_structured_rejections_for_non_numeric_inputs():
     assert "Order quantity must be positive" in rejected_quantity.rejected_reason
     assert "Order price must be positive" in rejected_bool.rejected_reason
     assert book.get_active_order_ids() == []
+
+
+def test_order_factory_allocates_unique_ids_across_threads():
+    factory = OrderFactory()
+    ids = []
+    ids_lock = threading.Lock()
+
+    def create_orders():
+        local_ids = [
+            factory.create_limit_order("BTCUSD", OrderSide.BUY, 100.0, 1.0).order_id
+            for _ in range(100)
+        ]
+        with ids_lock:
+            ids.extend(local_ids)
+
+    threads = [threading.Thread(target=create_orders) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(ids) == 800
+    assert sorted(ids) == list(range(1, 801))
 
 
 def test_symbols_are_non_empty_and_normalized():
@@ -155,6 +191,17 @@ def test_performance_monitor_export_creates_parent_directories(tmp_path: Path):
     assert output_path.exists()
 
 
+def test_metrics_collector_exposes_current_value_for_dashboard():
+    collector = MetricsCollector()
+
+    collector.record_metric("throughput_ops_per_sec", 10.0)
+    collector.record_metric("throughput_ops_per_sec", 25.0)
+    stats = collector.get_metric_statistics("throughput_ops_per_sec")
+
+    assert stats["current"] == 25.0
+    assert stats["latest_timestamp"] > 0
+
+
 def test_trace_html_report_escapes_insights_and_embeds_plotly(tmp_path: Path):
     visualizer = TraceVisualizer(
         {
@@ -191,3 +238,64 @@ def test_magic_trace_raw_artifact_analysis_is_honest(tmp_path: Path):
 
     assert "raw_trace_collected" in content
     assert "would be performed here" not in content
+
+
+def test_magic_trace_session_name_cannot_escape_output_directory(tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path / "traces")
+
+    session = MagicTraceSession(config, "../outside/<script>")
+
+    assert session.session_name == "script"
+    for artifact_path in (session.trace_file, session.metadata_file, session.analysis_file):
+        assert artifact_path.parent.resolve() == session.output_path.resolve()
+        assert ".." not in artifact_path.name
+        assert "/" not in artifact_path.name
+
+
+def test_magic_trace_export_skips_symlinks(tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path / "traces")
+    trace_dir = Path(config.output_dir)
+    trace_dir.mkdir()
+    (trace_dir / "real_trace.json").write_text("{}", encoding="utf-8")
+    outside_file = tmp_path / "outside.json"
+    outside_file.write_text('{"secret": true}', encoding="utf-8")
+
+    try:
+        os.symlink(outside_file, trace_dir / "linked_trace.json")
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+
+    export_dir = tmp_path / "exports"
+    profiler = MagicTraceProfiler(config)
+
+    assert profiler.export_traces(str(export_dir)) is True
+    assert (export_dir / "real_trace.json").exists()
+    assert not (export_dir / "linked_trace.json").exists()
+
+
+def test_magic_trace_uses_thread_safe_subprocess_options(monkeypatch, tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path)
+    session = MagicTraceSession(config, "thread_safe_launch")
+    popen_calls = []
+
+    class FakeProcess:
+        pid = 12345
+
+    def fake_popen(cmd, **kwargs):
+        popen_calls.append((cmd, kwargs))
+        return FakeProcess()
+
+    monkeypatch.setattr(session, "_check_magic_trace_available", lambda: True)
+    monkeypatch.setattr(session, "_build_magic_trace_command", lambda: ["magic-trace", "attach"])
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    assert session.start() is True
+    assert popen_calls
+
+    _, kwargs = popen_calls[0]
+    assert kwargs["start_new_session"] is True
+    assert kwargs["stdout"] is subprocess.DEVNULL
+    assert kwargs["stderr"] is subprocess.DEVNULL

@@ -187,8 +187,7 @@ class OrderBook:
             self._validate_order(order)
             order_id = int(order.order_id)
             self._seen_order_ids.add(order_id)
-            if order_id >= self.order_factory._next_id:
-                self.order_factory._next_id = order_id + 1
+            self.order_factory.advance_past(order_id)
 
             # Execute order through matching engine
             trades = self.matching_engine.add_order(order)

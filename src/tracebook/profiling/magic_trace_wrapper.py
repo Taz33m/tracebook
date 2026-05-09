@@ -6,6 +6,7 @@ profiling into the order book simulator with minimal performance overhead.
 """
 
 import os
+import re
 import shutil
 
 # subprocess is limited to the optional magic-trace profiler path.
@@ -18,6 +19,13 @@ import numpy as np
 from typing import Dict, List, Any, Callable
 from contextlib import contextmanager
 from pathlib import Path
+
+
+def _safe_artifact_stem(value: str) -> str:
+    """Return a path-safe artifact stem for trace session files."""
+    candidate = Path(str(value or "trace_session")).name
+    candidate = re.sub(r"[^A-Za-z0-9._-]+", "_", candidate).strip("._")
+    return candidate or "trace_session"
 
 
 class NumpyJSONEncoder(json.JSONEncoder):
@@ -88,7 +96,9 @@ class MagicTraceSession:
 
     def __init__(self, config: MagicTraceConfig, session_name: str = None):
         self.config = config
-        self.session_name = session_name or f"orderbook_trace_{int(time.time())}"
+        self.session_name = _safe_artifact_stem(
+            session_name or f"orderbook_trace_{int(time.time())}"
+        )
         self.session_id = None
         self.start_time = None
         self.end_time = None
@@ -124,9 +134,9 @@ class MagicTraceSession:
             # The command uses a resolved profiler path and never invokes a shell.
             self.process = subprocess.Popen(  # nosec B603
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                preexec_fn=os.setsid,  # Create new process group
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
             )
 
             self.start_time = time.time_ns()
@@ -371,6 +381,7 @@ class MagicTraceProfiler:
             if session_name is None:
                 self.session_counter += 1
                 session_name = f"session_{self.session_counter}"
+            session_name = _safe_artifact_stem(session_name)
 
             session = MagicTraceSession(self.config, session_name)
             self.active_sessions[session_name] = session
@@ -476,7 +487,7 @@ class MagicTraceProfiler:
             import shutil
 
             for trace_file in trace_dir.glob("*"):
-                if trace_file.is_file():
+                if trace_file.is_file() and not trace_file.is_symlink():
                     shutil.copy2(trace_file, export_path / trace_file.name)
 
             print(f"Traces exported to: {export_path}")

@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from enum import IntEnum
 from abc import ABC, abstractmethod
 
-from ..core.order import Order, OrderSide, OrderType, OrderFactory
+from ..core.order import Order, OrderSide, OrderType, OrderFactory, normalize_symbol
 from ..profiling.performance_monitor import get_performance_monitor
 
 
@@ -77,6 +77,9 @@ class MarketParameters:
     mm_spread_multiplier: float = 1.5
     mm_quantity_multiplier: float = 2.0
     mm_order_ratio: float = 0.2  # 20% market making orders
+
+    def __post_init__(self):
+        self.symbol = normalize_symbol(self.symbol)
 
 
 @dataclass

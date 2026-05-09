@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 import psutil
 
-from .magic_trace_wrapper import MagicTraceProfiler, profile_function
+from .magic_trace_wrapper import MagicTraceProfiler
 
 
 @dataclass
@@ -96,9 +96,12 @@ class MetricsCollector:
 
             values = [m.value for m in recent_metrics]
             values_array = np.array(values)
+            current_metric = recent_metrics[-1]
 
             return {
                 "count": len(values),
+                "current": float(current_metric.value),
+                "latest_timestamp": current_metric.timestamp,
                 "mean": float(np.mean(values_array)),
                 "median": float(np.median(values_array)),
                 "std": float(np.std(values_array)),
@@ -302,7 +305,6 @@ class PerformanceMonitor:
 
         print("Performance monitoring stopped")
 
-    @profile_function("record_order_processing")
     def record_order_processing(self, processing_time_ns: int, order_count: int = 1):
         """Record order processing performance."""
         with self._lock:
@@ -338,7 +340,6 @@ class PerformanceMonitor:
             # Check for alerts
             self._check_performance_alerts(latency_ms, throughput if uptime_seconds > 0 else 0)
 
-    @profile_function("record_trade_execution")
     def record_trade_execution(self, trade_count: int, total_volume: float):
         """Record trade execution metrics."""
         with self._lock:

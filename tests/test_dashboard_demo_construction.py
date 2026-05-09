@@ -190,3 +190,32 @@ def test_dashboard_run_rejects_non_loopback_host_without_explicit_override(monke
             dashboard.run(host="0.0.0.0")
     finally:
         sys.modules.pop("tracebook.visualization.dashboard", None)
+
+
+def test_dashboard_data_uses_current_throughput_metric(monkeypatch):
+    _install_dashboard_dependency_stubs(monkeypatch)
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+
+    try:
+        data = dashboard_module.DashboardData()
+        data.update_metrics(
+            {
+                "performance_metrics": {
+                    "throughput_ops_per_sec": {"current": 42.0, "mean": 10.0},
+                    "order_processing_latency_ms": {"mean": 0.25, "p99": 0.75},
+                },
+                "system_resources": {"process_cpu_percent": 1.0, "process_memory_mb": 64.0},
+                "session_metrics": {
+                    "orders_processed": 10,
+                    "trades_executed": 4,
+                    "total_volume": 123.0,
+                    "peak_throughput_ops_per_sec": 50.0,
+                },
+            }
+        )
+
+        assert data.get_time_series_data()["throughput"] == [42.0]
+        assert data.get_summary_stats()["current_throughput"] == 42.0
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)

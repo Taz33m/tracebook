@@ -16,9 +16,7 @@ import numpy as np
 
 from .. import __version__
 from ..core.orderbook import OrderBook, OrderBookManager
-from ..core.order import Order, Trade, OrderSide
-from ..algorithms.fifo import FIFOAnalyzer
-from ..algorithms.pro_rata import ProRataAnalyzer
+from ..core.order import Order, Trade, OrderSide, normalize_symbol
 from ..profiling.performance_monitor import PerformanceMonitor
 from .order_generator import (
     SyntheticOrderStream,
@@ -54,6 +52,7 @@ class SimulationConfig:
             self.symbols = ["BTCUSD"]
         if not self.symbols:
             raise ValueError("symbols must contain at least one symbol")
+        self.symbols = [normalize_symbol(symbol) for symbol in self.symbols]
 
         self.order_pattern = OrderPattern(self.order_pattern)
         self.matching_algorithm = self.matching_algorithm.upper()
@@ -393,21 +392,17 @@ class SimulationEngine:
         for symbol, stream in self.order_streams.items():
             stream_stats[symbol] = stream.get_stream_stats()
 
-        # Algorithm analysis
-        algorithm_analysis = {}
-        for symbol in self.config.symbols:
-            order_book = self._get_order_book(symbol)
-
-            if self.config.matching_algorithm == "FIFO":
-                analyzer = FIFOAnalyzer()
-                algorithm_analysis[symbol] = analyzer.analyze_performance(
-                    order_book.get_statistics(), performance_summary
-                )
-            elif self.config.matching_algorithm == "PRO_RATA":
-                analyzer = ProRataAnalyzer()
-                algorithm_analysis[symbol] = analyzer.analyze_performance(
-                    order_book.get_statistics(), performance_summary
-                )
+        # Algorithm analyzers are available as standalone helpers, but the live
+        # matching path does not yet emit the per-match records they require.
+        algorithm_analysis = {
+            symbol: {
+                "algorithm": self.config.matching_algorithm,
+                "status": "not_collected",
+                "reason": "Per-match analyzer instrumentation is not wired into the simulator.",
+                "matches_observed": order_book_stats[symbol].get("total_matches", 0),
+            }
+            for symbol in self.config.symbols
+        }
 
         return {
             "simulation_config": {
