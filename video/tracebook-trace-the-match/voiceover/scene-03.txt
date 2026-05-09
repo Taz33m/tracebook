@@ -1,1 +1,0 @@
-The core validates orders, crosses the spread, applies FIFO priority, and can split pro-rata fills by resting size.

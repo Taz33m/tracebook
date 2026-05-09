@@ -10,6 +10,7 @@ import json
 import time
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
+from pathlib import Path
 import numpy as np
 
 from .. import __version__
@@ -467,11 +468,15 @@ class SimulationEngine:
             filename = f"simulation_results_{timestamp}.json"
 
         try:
-            with open(filename, "w") as f:
+            output_path = Path(filename)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
                 json.dump(results, f, indent=2, default=str)
 
-            print(f"Results exported to: {filename}")
-            return filename
+            print(f"Results exported to: {output_path}")
+            return str(output_path)
 
         except Exception as e:
             print(f"Failed to export results: {e}")

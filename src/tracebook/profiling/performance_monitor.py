@@ -12,6 +12,7 @@ from typing import Dict, Any, Callable
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import json
+from pathlib import Path
 import psutil
 
 from .magic_trace_wrapper import MagicTraceProfiler, profile_function
@@ -476,11 +477,15 @@ class PerformanceMonitor:
         summary = self.get_performance_summary()
 
         try:
-            with open(filename, "w") as f:
+            output_path = Path(filename)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
                 json.dump(summary, f, indent=2, default=str)
 
-            print(f"Metrics exported to: {filename}")
-            return filename
+            print(f"Metrics exported to: {output_path}")
+            return str(output_path)
 
         except Exception as e:
             print(f"Failed to export metrics: {e}")

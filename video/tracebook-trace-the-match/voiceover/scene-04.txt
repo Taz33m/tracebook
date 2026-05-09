@@ -1,1 +1,0 @@
-Simulation events include new, cancel, and replace, all aimed at active resting order IDs.

@@ -6,7 +6,9 @@ profiling into the order book simulator with minimal performance overhead.
 """
 
 import os
-import subprocess
+import shutil
+# subprocess is limited to the optional magic-trace profiler path.
+import subprocess  # nosec B404
 import time
 import json
 import threading
@@ -92,6 +94,7 @@ class MagicTraceSession:
         self.trace_file = None
         self.is_active = False
         self.process = None
+        self.magic_trace_executable = None
 
         # Create output directory
         self.output_path = Path(config.output_dir)
@@ -117,7 +120,8 @@ class MagicTraceSession:
             cmd = self._build_magic_trace_command()
 
             # Start magic-trace process
-            self.process = subprocess.Popen(
+            # The command uses a resolved profiler path and never invokes a shell.
+            self.process = subprocess.Popen(  # nosec B603
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -205,16 +209,32 @@ class MagicTraceSession:
 
     def _check_magic_trace_available(self) -> bool:
         """Check if magic-trace is available on the system."""
+        executable = shutil.which("magic-trace")
+        if executable is None:
+            return False
+
         try:
-            result = subprocess.run(["magic-trace", "--version"], capture_output=True, timeout=5)
-            return result.returncode == 0
+            # The executable path is resolved with shutil.which and no shell is used.
+            result = subprocess.run(  # nosec B603
+                [executable, "--version"],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                self.magic_trace_executable = executable
+                return True
+            return False
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
     def _build_magic_trace_command(self) -> List[str]:
         """Build the magic-trace command line."""
+        executable = self.magic_trace_executable or shutil.which("magic-trace")
+        if executable is None:
+            raise FileNotFoundError("magic-trace executable not found")
+
         cmd = [
-            "magic-trace",
+            executable,
             "attach",
             "-p",
             str(os.getpid()),  # Attach to current process

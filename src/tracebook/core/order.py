@@ -154,10 +154,31 @@ class OrderFactory:
 
     def _validate_side(self, side: OrderSide):
         """Validate and normalize an order side."""
-        side_value = int(side)
+        try:
+            side_value = int(side)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Unsupported order side: {side}") from exc
+
         if side_value not in (int(OrderSide.BUY), int(OrderSide.SELL)):
             raise ValueError(f"Unsupported order side: {side}")
         return OrderSide(side_value)
+
+    def _validate_order_type(self, order_type: OrderType):
+        """Validate and normalize an order type."""
+        try:
+            order_type_value = int(order_type)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Unsupported order type: {order_type}") from exc
+
+        valid_types = (
+            int(OrderType.MARKET),
+            int(OrderType.LIMIT),
+            int(OrderType.IOC),
+            int(OrderType.FOK),
+        )
+        if order_type_value not in valid_types:
+            raise ValueError(f"Unsupported order type: {order_type}")
+        return OrderType(order_type_value)
 
     def _validate_quantity(self, quantity: float):
         """Validate that quantity is positive."""
@@ -173,6 +194,7 @@ class OrderFactory:
         self, symbol: str, side: OrderSide, order_type: OrderType, price: float, quantity: float
     ) -> Order:
         """Create an order of the specified type."""
+        order_type = self._validate_order_type(order_type)
         if order_type == OrderType.LIMIT:
             return self.create_limit_order(symbol, side, price, quantity)
         elif order_type == OrderType.MARKET:

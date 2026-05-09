@@ -1,1 +1,0 @@
-A local dashboard turns the same simulation into live depth and telemetry.

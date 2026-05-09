@@ -1,1 +1,0 @@
-Reports include seed, warmup, machine metadata, dependencies, percentiles, memory, and overhead. Local baselines stay local.

@@ -44,6 +44,7 @@ ANALYSIS_REQUIREMENTS = [
 ]
 
 DEV_REQUIREMENTS = [
+    "bandit>=1.8.0",
     "build>=1.5.0",
     "black>=26.3.1",
     "flake8>=7.3.0",

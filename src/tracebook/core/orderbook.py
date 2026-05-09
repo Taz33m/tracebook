@@ -344,11 +344,15 @@ class OrderBook:
 
     def get_order_book_depth(self, levels: int = 5) -> Dict[str, Any]:
         """Get order book depth."""
+        if levels < 0:
+            raise ValueError("levels must be non-negative")
         with self._lock:
             return self.matching_engine.get_order_book_depth(levels)
 
     def get_recent_trades(self, count: int = 10) -> List[Trade]:
         """Get recent trades."""
+        if count <= 0:
+            return []
         with self._lock:
             return self.matching_engine.trades[-count:] if self.matching_engine.trades else []
 

@@ -35,6 +35,9 @@ jobs:
       - name: Run lint
         run: python -m flake8 src tests
 
+      - name: Run security static analysis
+        run: python -m bandit -q -r src
+
       - name: Run pytest
         run: python -m pytest
 

@@ -359,6 +359,9 @@ class MatchingEngine:
 
     def get_order_book_depth(self, levels: int = 5) -> dict:
         """Get order book depth up to specified levels."""
+        if levels < 0:
+            raise ValueError("levels must be non-negative")
+
         bid_levels = self.buy_side.get_price_levels_snapshot()[:levels]
         ask_levels = self.sell_side.get_price_levels_snapshot()[:levels]
 

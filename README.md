@@ -13,11 +13,21 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-45%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-50%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
 > **TL;DR:** `tracebook` is an alpha Python market microstructure workbench for testing order book matching semantics, synthetic order flow, cancellations, replacements, benchmark latency, and profiling instrumentation. It is built for systems engineers and quant-minded developers who want inspectable behavior before making performance claims.
+
+## Video Walkthrough
+
+<p align="center">
+  <a href="https://youtu.be/RXOcB2k7qTQ">
+    <img src="https://img.youtube.com/vi/RXOcB2k7qTQ/maxresdefault.jpg" alt="Trace The Match video walkthrough" width="820"/>
+  </a>
+</p>
+
+Watch **Trace The Match** on YouTube: https://youtu.be/RXOcB2k7qTQ
 
 ## Best Way To Review
 
@@ -66,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `45` pytest tests passing |
+| Unit tests | `50` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Lint | `python -m flake8 src tests` reports `0` issues |
 | Package build | sdist and wheel build successfully |

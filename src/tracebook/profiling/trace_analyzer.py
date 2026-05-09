@@ -11,6 +11,7 @@ import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from collections import defaultdict, deque
+from pathlib import Path
 import numpy as np
 
 
@@ -404,7 +405,11 @@ class HighResolutionTracer:
             analysis["raw_events"] = [event.to_dict() for event in self.events]
             analysis["completed_calls"] = [call.to_dict() for call in self.completed_calls]
 
-            with open(output_file, "w") as f:
+            output_path = Path(output_file)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
                 json.dump(analysis, f, indent=2, cls=NumpyJSONEncoder)
 
             return True

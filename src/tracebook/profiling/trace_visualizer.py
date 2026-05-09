@@ -6,6 +6,7 @@ similar to magic-trace's visualization capabilities.
 """
 
 import json
+import html
 import pandas as pd
 from typing import Dict, Any
 from pathlib import Path
@@ -345,8 +346,8 @@ class TraceVisualizer:
             <!DOCTYPE html>
             <html>
             <head>
+                <meta charset="utf-8">
                 <title>Trace Analysis Report</title>
-                <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
                 <style>
                     body { font-family: Arial, sans-serif; margin: 20px; }
                     .chart-container { margin: 20px 0; }
@@ -360,20 +361,28 @@ class TraceVisualizer:
 
             # Add insights report
             insights_text = self.create_insights_report()
+            safe_insights_text = html.escape(insights_text)
             html_content.append(f"""
                 <div class="insights">
                     <h2>Performance Insights</h2>
-                    <pre>{insights_text}</pre>
+                    <pre>{safe_insights_text}</pre>
                 </div>
             """)
 
             # Add charts
+            plotly_js_included = False
             for chart_name, fig in self.figures.items():
                 if fig:
-                    chart_html = pyo.plot(fig, output_type="div", include_plotlyjs=False)
+                    chart_html = pyo.plot(
+                        fig,
+                        output_type="div",
+                        include_plotlyjs=not plotly_js_included,
+                    )
+                    plotly_js_included = True
+                    chart_title = html.escape(chart_name.replace("_", " ").title())
                     html_content.append(f"""
                         <div class="chart-container">
-                            <h2>{chart_name.replace('_', ' ').title()}</h2>
+                            <h2>{chart_title}</h2>
                             {chart_html}
                         </div>
                     """)
@@ -381,7 +390,11 @@ class TraceVisualizer:
             html_content.append("</body></html>")
 
             # Write to file
-            with open(output_file, "w") as f:
+            output_path = Path(output_file)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
                 f.write("\n".join(html_content))
 
             return True

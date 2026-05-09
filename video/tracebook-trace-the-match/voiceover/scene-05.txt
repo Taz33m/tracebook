@@ -1,1 +1,0 @@
-Benchmarks separate generation time from book-processing latency, so the numbers stay inspectable.
