@@ -16,7 +16,7 @@ seaborn>=0.13.2
 tables>=3.10.1
 
 # Development and benchmark tooling
-bandit>=1.8.0
+bandit>=1.9.4
 build>=1.5.0
 black>=26.3.1
 flake8>=7.3.0
