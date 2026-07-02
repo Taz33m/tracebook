@@ -79,14 +79,18 @@ matching path substantially.
 
 | Scenario | ns/op original (n=5k) | ns/op now (n=5k) | ns/op original (n=20k) | ns/op now (n=20k) |
 | --- | ---: | ---: | ---: | ---: |
-| `cancel_deep` | 2,974 | 1,672 | 6,243 | 1,564 |
-| `match` | 3,523,378 | 81,534 | 14,112,117 | 139,396 |
-| `add_wide` | 687,178 | 89,034 | 3,484,626 | 1,569,972 |
-| `add_deep` | 40,497 | 39,242 | 42,659 | 40,667 |
+| `cancel_deep` | 2,974 | 1,648 | 6,243 | 1,664 |
+| `match` | 3,523,378 | 64,662 | 14,112,117 | 69,650 |
+| `add_wide` | 687,178 | 91,677 | 3,484,626 | 1,594,838 |
+| `add_deep` | 40,497 | 39,666 | 42,659 | 41,208 |
 
-Two changes produced these numbers: keying each level's orders by an
-insertion-ordered dict (O(1) removal, and dropping the Numba boundary cost), and
-replacing the price-level index's O(n) Python linear scan with `bisect`.
+Three changes produced these numbers: keying each level's orders by an
+insertion-ordered dict (O(1) removal, and dropping the Numba boundary cost);
+replacing the price-level index's O(n) Python linear scan with `bisect`; and
+iterating the FIFO match loop by repeatedly taking the O(1) level head instead
+of copying the whole level per aggressive order. `cancel_deep` and `match` are
+now flat in the number of orders on a level (O(1) per operation); `add_wide`
+stays super-linear in the number of distinct price levels (`list` memmove).
 
 ### Why `bisect` and not a sorted-container dependency
 

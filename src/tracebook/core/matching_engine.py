@@ -186,14 +186,23 @@ class MatchingEngine:
 
         trades = []
         progressed = False
-        order_ids = list(price_level.orders)  # Copy to avoid modification during iteration
 
-        for order_id in order_ids:
-            if incoming_order.remaining_quantity <= EPSILON:
+        # Iterate by repeatedly taking the FIFO head (O(1)) rather than copying
+        # the whole level per aggressive order. A matched head is removed by
+        # update_order_quantity when fully filled, advancing the head; a partial
+        # fill of the incoming order exits the loop with the head still resting.
+        while incoming_order.remaining_quantity > EPSILON:
+            order_id = price_level.get_first_order_id()
+            if order_id == -1:
                 break
 
             resting_order = side_manager.get_order(order_id)
             if resting_order is None or resting_order.remaining_quantity <= EPSILON:
+                # Stale/spent head (unreachable under the level/orders invariant):
+                # evict it, cleaning the index if the level empties, then keep
+                # matching the depth behind it rather than stalling at this price.
+                side_manager.discard_from_level(order_id, price_level)
+                progressed = True
                 continue
 
             if self._is_self_trade(incoming_order, resting_order):
@@ -210,17 +219,14 @@ class MatchingEngine:
                 break
 
             trade = self._execute_fifo_match(incoming_order, resting_order)
+            if trade is None:
+                break  # no progress possible (guards against a stuck head)
 
-            if trade is not None:
-                trades.append(trade)
-
-                # Update order quantities
-                fill_qty = trade.quantity
-                incoming_order.fill(fill_qty)
-
-                # Update price level
-                side_manager.update_order_quantity(order_id, fill_qty)
-                progressed = True
+            trades.append(trade)
+            fill_qty = trade.quantity
+            incoming_order.fill(fill_qty)
+            side_manager.update_order_quantity(order_id, fill_qty)
+            progressed = True
 
         return trades, progressed
 
