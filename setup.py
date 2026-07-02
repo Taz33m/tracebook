@@ -27,8 +27,8 @@ CORE_REQUIREMENTS = [
 ]
 
 DASHBOARD_REQUIREMENTS = [
-    "dash>=4.1.0",
-    "plotly>=6.7.0",
+    "dash>=4.3.0",
+    "plotly>=6.8.0",
     "pandas>=2.3.3",
 ]
 
@@ -36,20 +36,20 @@ ANALYSIS_REQUIREMENTS = [
     "h5py>=3.16.0",
     "matplotlib>=3.10.9",
     "pandas>=2.3.3",
-    "plotly>=6.7.0",
+    "plotly>=6.8.0",
     "pyarrow>=24.0.0",
     "seaborn>=0.13.2",
     "tables>=3.10.1",
 ]
 
 DEV_REQUIREMENTS = [
-    "bandit>=1.8.0",
+    "bandit>=1.9.4",
     "build>=1.5.0",
-    "black>=26.3.1",
+    "black>=26.5.1",
     "flake8>=7.3.0",
-    "hypothesis>=6.0.0",
-    "mypy>=1.5.0",
-    "pytest>=9.0.3",
+    "hypothesis>=6.155.7",
+    "mypy>=2.1.0",
+    "pytest>=9.1.1",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",
 ]
