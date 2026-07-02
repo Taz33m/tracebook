@@ -58,11 +58,19 @@ judge data-structure changes in isolation, a deterministic single-threaded
 microbenchmark measures individual operations:
 
 ```bash
+python tests/benchmarks/microbench.py --n 5000
 python tests/benchmarks/microbench.py --n 20000
 ```
 
-The `ns/op` figures below are local and illustrative, not portable claims. What
-is portable is the **scaling**: keying each price level's orders by an
+The `ns/op` figures below were measured locally and are illustrative, not
+portable claims:
+
+- Python: 3.10.5
+- Platform: macOS-15.4.1-arm64-arm-64bit
+- Harness: `tests/benchmarks/microbench.py` (deterministic, single-threaded,
+  1,000-op warmup), at `--n 5000` and `--n 20000`
+
+What is portable is the **scaling**: keying each price level's orders by an
 insertion-ordered dict makes in-level removal O(1), so `cancel_deep` is now flat
 in the number of orders on a level instead of growing with it. Moving the level
 off the Numba `jitclass` (whose typed containers were driven from the pure-Python
@@ -95,6 +103,7 @@ isolated comparison of the index insert (random ticks) shows the crossover:
 | 20,000 | 5,583 | 2,709 |
 | 50,000 | 11,856 | 2,766 |
 
-For realistic level counts (hundreds to a few thousand) `bisect` + list is
-faster than `SortedList` and adds no dependency; the sorted container only wins
-for pathologically deep books. So no dependency was taken.
+(Isolated index-insert comparison of random ticks, same machine and Python as
+above, 1,000-op warmup.) For realistic level counts (hundreds to a few thousand)
+`bisect` + list is faster than `SortedList` and adds no dependency; the sorted
+container only wins for pathologically deep books. So no dependency was taken.
