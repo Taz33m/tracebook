@@ -360,7 +360,7 @@ Non-claims:
 - Not a trading venue, broker, market data vendor, or exchange connector.
 - Not investment advice.
 - Not a guarantee of live low-latency performance.
-- Not a fixed-point/tick-index implementation yet.
+- Not a full fixed-point implementation yet; prices snap to an integer tick grid but quantities remain float64.
 - Not a complete market microstructure research platform.
 - Not proof that a listed benchmark number will reproduce on another machine.
 
@@ -368,7 +368,7 @@ Non-claims:
 
 - Alpha software; APIs may still evolve before a stable v1 release.
 - Current storage uses Python dictionaries and lists around Numba-accelerated helper paths, not a final low-latency memory layout.
-- Prices and quantities are float64-style values; fixed-point accounting is a later performance phase.
+- Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.

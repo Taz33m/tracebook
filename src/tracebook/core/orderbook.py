@@ -40,19 +40,23 @@ class OrderBook:
     - Event-driven architecture for callbacks
     """
 
-    def __init__(self, symbol: str, matching_algorithm: str = "fifo"):
+    def __init__(self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01):
         """
         Initialize order book.
 
         Args:
             symbol: Trading symbol (e.g., 'AAPL', 'BTCUSD')
             matching_algorithm: 'fifo' or 'pro_rata'
+            tick_size: Minimum price increment; prices are snapped onto this grid
         """
+        if not math.isfinite(tick_size) or tick_size <= 0:
+            raise ValueError("tick_size must be a positive, finite number")
         self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
+        self.tick_size = tick_size
 
         # Core components
-        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm)
+        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm, tick_size)
         self.order_factory = OrderFactory()
 
         # Thread safety
@@ -569,14 +573,16 @@ class OrderBookManager:
         self._global_stats = defaultdict(int)
         self._lock = threading.RLock()
 
-    def create_order_book(self, symbol: str, matching_algorithm: str = "fifo") -> OrderBook:
+    def create_order_book(
+        self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01
+    ) -> OrderBook:
         """Create a new order book for a symbol."""
         symbol = normalize_symbol(symbol)
         with self._lock:
             if symbol in self.order_books:
                 raise ValueError(f"Order book for {symbol} already exists")
 
-            order_book = OrderBook(symbol, matching_algorithm)
+            order_book = OrderBook(symbol, matching_algorithm, tick_size)
             self.order_books[symbol] = order_book
             return order_book
 

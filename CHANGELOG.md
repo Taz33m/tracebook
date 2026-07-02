@@ -6,6 +6,9 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Keyed price levels by integer ticks (configurable `tick_size`, default `0.01`); prices now snap to a canonical grid, removing the float-identity hazard of dict-keying on raw prices.
+- Consolidated execution pricing to a single rule (matches fill at the resting/maker price) and removed the unused JIT `match_orders_fifo` helper and the divergent timestamp-based `calculate_match_price`.
+- Added property-based matching invariants (quantity conservation, no crossed book, level consistency) and tick-grid tests; added `hypothesis` as a dev dependency.
 - Moved package code under the `tracebook` namespace.
 - Added structured order submission results and richer order book lifecycle APIs.
 - Added event-based simulation with new, cancel, and replace events.

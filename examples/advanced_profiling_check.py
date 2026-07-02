@@ -103,8 +103,8 @@ def run_order_book_profiling_check():
     config = MagicTraceConfig()
     config.profile_functions = [
         "add_order",
-        "match_orders_fifo",
-        "execute_matches_at_level",
+        "_execute_fifo_match",
+        "_execute_matches_at_level",
         "get_statistics",
     ]
 

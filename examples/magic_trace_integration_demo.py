@@ -108,7 +108,7 @@ def demo_order_book_profiling():
 
     # Configure magic-trace profiler
     config = MagicTraceConfig()
-    config.profile_functions = ["add_order", "match_orders_fifo", "execute_matches_at_level"]
+    config.profile_functions = ["add_order", "_execute_fifo_match", "_execute_matches_at_level"]
 
     profiler = MagicTraceProfiler(config)
 
