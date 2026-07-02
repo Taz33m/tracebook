@@ -6,6 +6,7 @@ orders at each price level with minimal memory allocations.
 """
 
 import math
+from decimal import Decimal
 
 from numba import types, typed
 from numba.experimental import jitclass
@@ -14,11 +15,14 @@ from .order import Order
 
 
 def infer_price_decimals(tick_size: float) -> int:
-    """Return the number of decimal places implied by a tick size (0.01 -> 2)."""
-    text = f"{tick_size:.12f}".rstrip("0")
-    if "." in text:
-        return min(len(text.split(".", 1)[1]), 12)
-    return 0
+    """Return the number of decimal places implied by a tick size (0.01 -> 2).
+
+    Uses the tick's exact decimal representation so fine grids (e.g. 1e-6 or
+    smaller) are not truncated to whole numbers, which would collapse distinct
+    price levels onto the same canonical price.
+    """
+    exponent = Decimal(str(tick_size)).normalize().as_tuple().exponent
+    return -exponent if exponent < 0 else 0
 
 
 # Price level specification for Numba JIT

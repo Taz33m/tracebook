@@ -20,13 +20,19 @@ from .replay import EventLog
 
 @dataclass
 class OrderResult:
-    """Structured outcome for richer order-submission APIs."""
+    """Structured outcome for richer order-submission APIs.
+
+    `accepted` is True when the order passed validation and was processed by the
+    matching engine (even if it did not fill, e.g. an unfillable FOK). It is
+    False only for a hard rejection where the order never entered the book.
+    """
 
     order: Optional[Order]
     trades: List[Trade]
     rested: bool
     cancelled: bool
     rejected_reason: Optional[str] = None
+    accepted: bool = True
 
 
 class OrderBook:
@@ -157,7 +163,7 @@ class OrderBook:
         try:
             return self._process_order(order)
         except ValueError as exc:
-            return OrderResult(order, [], False, False, str(exc))
+            return OrderResult(order, [], False, False, str(exc), accepted=False)
 
     def _submit_new_order(self, create, *args) -> OrderResult:
         """Build an order via the factory and submit it.
@@ -168,7 +174,7 @@ class OrderBook:
         try:
             order = create(self.symbol, *args)
         except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+            return OrderResult(None, [], False, False, str(exc), accepted=False)
         return self.submit_order(order)
 
     def _process_order(self, order: Order) -> OrderResult:
@@ -299,7 +305,7 @@ class OrderBook:
         with self._lock:
             existing_order = self.get_order(order_id)
             if existing_order is None:
-                return OrderResult(None, [], False, False, "Order not found")
+                return OrderResult(None, [], False, False, "Order not found", accepted=False)
 
             replacement_price = existing_order.price if price is None else price
             replacement_quantity = (
@@ -315,10 +321,12 @@ class OrderBook:
                 )
             except ValueError as exc:
                 # Invalid replacement: original order is left untouched.
-                return OrderResult(None, [], False, False, str(exc))
+                return OrderResult(None, [], False, False, str(exc), accepted=False)
 
             if not self.cancel_order(order_id):
-                return OrderResult(None, [], False, False, "Order could not be cancelled")
+                return OrderResult(
+                    None, [], False, False, "Order could not be cancelled", accepted=False
+                )
 
             result = self.submit_order(replacement_order)
             if result.rejected_reason is not None:

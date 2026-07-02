@@ -104,7 +104,9 @@ def replay(event_log: EventLog):
     Every recorded submission is re-applied exactly as captured. A soft outcome
     such as an unfillable FOK is reproduced faithfully (it is a normal result,
     not a divergence), so the reconstructed trades and book state match the
-    original run.
+    original run. A hard rejection (an order that fails validation) or a cancel
+    that finds no order signals that the log is malformed or incompatible; both
+    raise ValueError so replay fails fast instead of diverging silently.
     """
     from .orderbook import OrderBook  # local import to avoid an import cycle
 
@@ -125,9 +127,22 @@ def replay(event_log: EventLog):
                 quantity=event.quantity,
                 timestamp=event.timestamp or 0,
             )
-            book.submit_order(order)
+            result = book.submit_order(order)
+            # A soft rejection (e.g. unfillable FOK) keeps accepted=True and is
+            # a faithful outcome; only a hard validation rejection diverges.
+            if not result.accepted:
+                raise ValueError(
+                    f"Replay diverged: submission of order {event.order_id} "
+                    f"was rejected: {result.rejected_reason}"
+                )
         elif event.op == "cancel":
-            book.cancel_order(event.order_id)
+            # Only successful cancels are ever recorded, so a faithful replay
+            # always finds the order; a failure means the log has diverged.
+            if not book.cancel_order(event.order_id):
+                raise ValueError(
+                    f"Replay diverged: cancel of order {event.order_id} "
+                    "found no matching resting order"
+                )
         else:
             raise ValueError(f"Unknown recorded op: {event.op!r}")
 

@@ -80,3 +80,22 @@ def test_infer_price_decimals():
     assert infer_price_decimals(0.5) == 1
     assert infer_price_decimals(1.0) == 0
     assert infer_price_decimals(0.001) == 3
+
+
+def test_infer_price_decimals_handles_fine_and_scientific_ticks():
+    # Fine grids must not be truncated to whole numbers.
+    assert infer_price_decimals(1e-6) == 6
+    assert infer_price_decimals(1e-9) == 9
+    assert infer_price_decimals(0.00025) == 5
+
+
+def test_fine_grid_preserves_distinct_sub_cent_levels():
+    book = OrderBook("XYZ", tick_size=1e-6)
+
+    book.add_limit_order(OrderSide.SELL, 100.000001, 1.0)
+    book.add_limit_order(OrderSide.SELL, 100.000002, 1.0)
+
+    depth = book.get_order_book_depth(10)
+    prices = [lvl[0] for lvl in depth["asks"]]
+    # Two distinct levels survive instead of collapsing onto 100.0.
+    assert prices == pytest.approx([100.000001, 100.000002])

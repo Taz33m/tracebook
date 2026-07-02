@@ -6,6 +6,9 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Made replay fail fast on a malformed or incompatible log: a hard-rejected submission (via a new `OrderResult.accepted` flag) or a cancel that finds no order now raises instead of diverging silently; soft outcomes such as an unfillable FOK still replay faithfully.
+- Computed rolling throughput with an O(1) running window total instead of re-summing the deque on every order.
+- Made `infer_price_decimals` use the tick's exact decimal representation so fine or scientific-notation tick sizes no longer collapse canonical prices to whole numbers.
 - Added deterministic record/replay: `OrderBook.start_recording()`/`stop_recording()` capture a serializable `EventLog`, and `replay()` reconstructs the identical trade sequence and final book state (also across a JSON round-trip). Exported `EventLog` and `replay` from the package root.
 - Reported throughput as a rolling one-second window rate instead of a lifetime cumulative average, so the dashboard shows an instantaneous rate.
 - Removed the synchronous psutil sweep from the order-processing hot path; alerts and summaries now read the background-sampled resource snapshot.

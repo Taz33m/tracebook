@@ -279,6 +279,7 @@ class PerformanceMonitor:
         # rather than a lifetime cumulative average that only ever smooths.
         self._throughput_window_ns = 1_000_000_000
         self._recent_orders: deque = deque()
+        self._recent_orders_total = 0  # running sum of counts in the window
 
         # Alert thresholds
         self.alert_thresholds = {
@@ -337,11 +338,13 @@ class PerformanceMonitor:
             # of orders processed within the last window, divided by the window.
             current_time = time.time_ns()
             self._recent_orders.append((current_time, order_count))
+            self._recent_orders_total += order_count
             window_start = current_time - self._throughput_window_ns
             while self._recent_orders and self._recent_orders[0][0] < window_start:
-                self._recent_orders.popleft()
+                _, evicted_count = self._recent_orders.popleft()
+                self._recent_orders_total -= evicted_count
 
-            orders_in_window = sum(count for _, count in self._recent_orders)
+            orders_in_window = self._recent_orders_total
             window_seconds = self._throughput_window_ns / 1_000_000_000
             throughput = orders_in_window / window_seconds
 

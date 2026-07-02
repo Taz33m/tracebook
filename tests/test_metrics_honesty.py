@@ -35,6 +35,16 @@ def test_alerts_do_not_call_psutil_on_the_hot_path(monkeypatch):
     monitor.record_order_processing(1_000_000, 1)
 
 
+def test_throughput_running_total_stays_consistent_with_window():
+    monitor = PerformanceMonitor(enable_magic_trace=False)
+
+    for _ in range(20):
+        monitor.record_order_processing(500_000, 2)
+
+    # The O(1) running total equals a full re-sum of the window contents.
+    assert monitor._recent_orders_total == sum(c for _, c in monitor._recent_orders)
+
+
 def test_latest_resources_snapshot_is_returned_without_psutil():
     monitor = PerformanceMonitor(enable_magic_trace=False)
     monitor.system_monitor.latest_resources = {"process_memory_mb": 42.0}

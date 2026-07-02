@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 
 from tracebook import EventLog, OrderBook, OrderSide, replay
 from tracebook.core.order import OrderType
+from tracebook.core.replay import RecordedEvent
 
 _PRICES = st.sampled_from([98.0, 99.0, 100.0, 101.0, 102.0])
 _QUANTITIES = st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False)
@@ -92,6 +93,58 @@ def test_event_log_survives_json_round_trip():
     assert _trade_keys(replayed) == _trade_keys(live)
     assert replayed.get_best_bid() == live.get_best_bid()
     assert replayed.get_best_ask() == live.get_best_ask()
+
+
+def test_unfillable_fok_replays_without_diverging():
+    live = OrderBook("BTCUSD")
+    live.start_recording()
+    live.add_limit_order(OrderSide.SELL, 100.0, 1.0)
+    # FOK needs more than is available -> soft rejection, no fill, no rest.
+    live.add_fok_order(OrderSide.BUY, 100.0, 5.0)
+    log = live.stop_recording()
+
+    replayed = replay(log)  # must not raise on the soft FOK outcome
+
+    assert _trade_keys(replayed) == _trade_keys(live)
+    assert replayed.get_order_book_depth(10)["asks"] == live.get_order_book_depth(10)["asks"]
+
+
+def test_replay_raises_on_hard_rejection_from_malformed_log():
+    # Two submit events reuse the same order id: the second is a hard rejection.
+    log = EventLog("BTCUSD")
+    log.events = [
+        RecordedEvent(
+            op="submit",
+            order_id=7,
+            side=int(OrderSide.BUY),
+            order_type=int(OrderType.LIMIT),
+            price=100.0,
+            quantity=1.0,
+            symbol="BTCUSD",
+            timestamp=0,
+        ),
+        RecordedEvent(
+            op="submit",
+            order_id=7,
+            side=int(OrderSide.BUY),
+            order_type=int(OrderType.LIMIT),
+            price=100.0,
+            quantity=1.0,
+            symbol="BTCUSD",
+            timestamp=0,
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="Replay diverged"):
+        replay(log)
+
+
+def test_replay_raises_on_cancel_with_no_matching_order():
+    log = EventLog("BTCUSD")
+    log.events = [RecordedEvent(op="cancel", order_id=999)]
+
+    with pytest.raises(ValueError, match="Replay diverged"):
+        replay(log)
 
 
 def test_recording_can_be_restarted_and_stopped():
