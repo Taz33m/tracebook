@@ -290,7 +290,7 @@ class PerformanceMonitor:
         }
 
         # Alert callbacks
-        self.alert_callbacks: List[Callable] = []
+        self.alert_callbacks: List[Callable[[str, Dict], None]] = []
 
         # Lock for thread safety
         self._lock = threading.RLock()
@@ -521,7 +521,7 @@ class PerformanceMonitor:
 
     def _check_performance_alerts(self, latency_ms: float, throughput_ops_per_sec: float):
         """Check for performance alerts and trigger callbacks."""
-        alerts = []
+        alerts: List[Dict[str, Any]] = []
 
         # Check latency
         if latency_ms > self.alert_thresholds.get("latency_p99_ms", float("inf")):

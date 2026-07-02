@@ -567,7 +567,7 @@ class SyntheticOrderStream:
         self.generation_times: List[float] = []
 
         # Callbacks
-        self.order_callbacks: List[Callable] = []
+        self.order_callbacks: List[Callable[[List[Order]], None]] = []
 
     def _create_generators(self) -> List[OrderGenerator]:
         """Create order generators based on configuration."""

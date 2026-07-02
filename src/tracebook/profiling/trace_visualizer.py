@@ -8,7 +8,7 @@ similar to magic-trace's visualization capabilities.
 import json
 import html
 import pandas as pd
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 from pathlib import Path
 import plotly.graph_objects as go
 import plotly.express as px
@@ -193,7 +193,7 @@ class TraceVisualizer:
         calls = self.trace_data["completed_calls"]
 
         # Analyze call depths
-        depth_data: Dict[str, Any] = {}
+        depth_data: Dict[int, Dict[str, int]] = {}
         for call in calls:
             depth = call["call_depth"]
             func_name = call["function_name"]
@@ -208,7 +208,7 @@ class TraceVisualizer:
         fig = go.Figure()
 
         depths = sorted(depth_data.keys())
-        all_functions = set()
+        all_functions: Set[str] = set()
         for depth_funcs in depth_data.values():
             all_functions.update(depth_funcs.keys())
 

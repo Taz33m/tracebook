@@ -108,9 +108,9 @@ class HighResolutionTracer:
 
     def __init__(self, buffer_size: int = 1000000):
         self.buffer_size = buffer_size
-        self.events: Deque = deque(maxlen=buffer_size)
-        self.call_stack: Dict[int, list] = defaultdict(list)  # Per-thread call stacks
-        self.active_calls: Dict[int, dict] = defaultdict(dict)  # Per-thread active calls
+        self.events: Deque[TraceEvent] = deque(maxlen=buffer_size)
+        self.call_stack: Dict[int, List[str]] = defaultdict(list)  # Per-thread call stacks
+        self.active_calls: Dict[int, Dict[str, Any]] = defaultdict(dict)  # Per-thread active
         self.completed_calls: List[FunctionCall] = []
         self.is_tracing = False
         self.start_time_ns: int = 0
