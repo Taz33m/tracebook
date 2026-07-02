@@ -46,7 +46,7 @@ class OrderResult:
 
 class OrderBook:
     """
-    High-performance order book with JIT-compiled matching engine.
+    Order book with a FIFO / pro-rata matching engine.
 
     Features:
     - Multiple matching algorithms (FIFO, Pro-Rata)

@@ -1,9 +1,13 @@
 """
-High-performance order data structures optimized for Numba JIT compilation.
+Order data structures.
+
+Order and Trade are plain ``__slots__`` classes. They were previously Numba
+``jitclass`` types, but the order book drives them from pure Python -- every
+construction paid ``inspect``-based argument binding and every field access was
+boxed across the Python/Numba boundary -- so the JIT wrapper was a net cost. See
+docs/performance.md for the measured before/after.
 """
 
-from numba import types
-from numba.experimental import jitclass
 from enum import IntEnum
 from numbers import Real
 import math
@@ -59,29 +63,21 @@ def normalize_symbol(symbol: str) -> str:
     return normalized_symbol
 
 
-# Numba-compatible order specification
-order_spec = [
-    ("order_id", types.int64),
-    ("symbol", types.unicode_type),
-    ("side", types.int8),
-    ("order_type", types.int8),
-    ("price", types.float64),
-    ("quantity", types.float64),
-    ("remaining_quantity", types.float64),
-    ("timestamp", types.int64),
-    ("priority", types.int64),
-    ("owner", types.int64),
-]
-
-
-@jitclass(order_spec)
 class Order:
-    """
-    High-performance order structure optimized for JIT compilation.
+    """A single order. Plain ``__slots__`` class for cheap construction and access."""
 
-    All fields are primitive types to ensure maximum performance
-    and compatibility with Numba's JIT compiler.
-    """
+    __slots__ = (
+        "order_id",
+        "symbol",
+        "side",
+        "order_type",
+        "price",
+        "quantity",
+        "remaining_quantity",
+        "timestamp",
+        "priority",
+        "owner",
+    )
 
     def __init__(self, order_id, symbol, side, order_type, price, quantity, timestamp, owner):
         self.order_id = order_id
@@ -160,19 +156,10 @@ class Order:
         return fill_qty
 
 
-# Trade execution result
-trade_spec = [
-    ("buy_order_id", types.int64),
-    ("sell_order_id", types.int64),
-    ("price", types.float64),
-    ("quantity", types.float64),
-    ("timestamp", types.int64),
-]
-
-
-@jitclass(trade_spec)
 class Trade:
-    """Trade execution result."""
+    """Trade execution result. Plain ``__slots__`` class."""
+
+    __slots__ = ("buy_order_id", "sell_order_id", "price", "quantity", "timestamp")
 
     def __init__(self, buy_order_id, sell_order_id, price, quantity, timestamp):
         self.buy_order_id = buy_order_id

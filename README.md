@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-118%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-119%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `118` pytest tests passing |
+| Unit tests | `119` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
@@ -430,7 +430,7 @@ Non-claims:
 ## Limitations
 
 - Alpha software; APIs may still evolve before a stable v1 release.
-- Current storage uses Python dictionaries and lists around Numba-accelerated helper paths, not a final low-latency memory layout.
+- Current storage uses plain Python dicts and lists (orders per level are an insertion-ordered dict; price levels are a bisect-indexed list), not a final low-latency memory layout.
 - Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
