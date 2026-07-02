@@ -125,8 +125,18 @@ class PriceLevelManager:
         already gone from either structure.
         """
         order = self.orders.pop(order_id, None)
-        quantity = order.remaining_quantity if order is not None else 0.0
-        price_level.remove_order(order_id, quantity)
+        if order is not None:
+            price_level.remove_order(order_id, order.remaining_quantity)
+        else:
+            # The order object is gone, so its quantity is unknown. Remove the id
+            # and recompute the level total from the orders that remain, so the
+            # cached total is not left overstated.
+            price_level.remove_order(order_id, 0.0)
+            price_level.total_quantity = sum(
+                self.orders[oid].remaining_quantity
+                for oid in price_level.orders
+                if oid in self.orders
+            )
         if price_level.is_empty():
             tick = self.price_to_tick(price_level.price)
             if tick in self.price_levels:

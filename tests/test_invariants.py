@@ -189,6 +189,25 @@ def test_matching_recovers_past_a_stale_level_head():
     assert book.get_best_ask() is None
 
 
+def test_stale_head_recovery_leaves_level_total_correct():
+    book = OrderBook("X", matching_algorithm="fifo")
+    stale = book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)
+    book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)  # first real
+    book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)  # second real, survives
+
+    sell = book.matching_engine.sell_side
+    del sell.orders[stale.order.order_id]  # corrupt: id lingers in the level
+
+    # Buy 1.0: skip stale, fill one real; one real (1.0) remains resting.
+    book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
+
+    level = sell.price_levels[sell.price_to_tick(100.0)]
+    # The cached level total is recomputed from the surviving order, not left
+    # overstated by the evicted stale id's phantom quantity.
+    assert level.total_quantity == pytest.approx(1.0)
+    assert level.order_count == 1
+
+
 def test_matches_execute_at_the_resting_order_price():
     book = OrderBook("X", matching_algorithm="fifo")
     book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
