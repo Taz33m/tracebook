@@ -79,18 +79,26 @@ matching path substantially.
 
 | Scenario | ns/op original (n=5k) | ns/op now (n=5k) | ns/op original (n=20k) | ns/op now (n=20k) |
 | --- | ---: | ---: | ---: | ---: |
-| `cancel_deep` | 2,974 | 1,648 | 6,243 | 1,664 |
-| `match` | 3,523,378 | 64,662 | 14,112,117 | 69,650 |
-| `add_wide` | 687,178 | 91,677 | 3,484,626 | 1,594,838 |
-| `add_deep` | 40,497 | 39,666 | 42,659 | 41,208 |
+| `cancel_deep` | 2,974 | 1,283 | 6,243 | 1,265 |
+| `match` | 3,523,378 | 21,968 | 14,112,117 | 26,284 |
+| `add_wide` | 687,178 | 62,035 | 3,484,626 | 1,510,401 |
+| `add_deep` | 40,497 | 13,710 | 42,659 | 13,554 |
 
-Three changes produced these numbers: keying each level's orders by an
-insertion-ordered dict (O(1) removal, and dropping the Numba boundary cost);
-replacing the price-level index's O(n) Python linear scan with `bisect`; and
-iterating the FIFO match loop by repeatedly taking the O(1) level head instead
-of copying the whole level per aggressive order. `cancel_deep` and `match` are
-now flat in the number of orders on a level (O(1) per operation); `add_wide`
-stays super-linear in the number of distinct price levels (`list` memmove).
+Four changes produced these numbers:
+
+1. Keying each level's orders by an insertion-ordered dict (O(1) removal).
+2. Replacing the price-level index's O(n) Python linear scan with `bisect`.
+3. Iterating the FIFO match loop by taking the O(1) level head instead of
+   copying the whole level per aggressive order.
+4. Making `Order` and `Trade` plain `__slots__` classes instead of Numba
+   `jitclass` types. Profiling the per-order path showed the jitclass was ~half
+   the cost: `inspect`-based argument binding on every construction plus boxing
+   on every field access, all paid because the matching loop is pure Python.
+   This roughly tripled `add_deep` and `match` throughput.
+
+`cancel_deep` and `match` are flat in the number of orders on a level (O(1) per
+operation); `add_wide` stays super-linear in the number of distinct price levels
+(`list` memmove). Numba is no longer used on the order-book path at all.
 
 ### Why `bisect` and not a sorted-container dependency
 

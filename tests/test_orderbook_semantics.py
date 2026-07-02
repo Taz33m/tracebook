@@ -298,6 +298,29 @@ def test_snapshot_stays_consistent_after_cancel_and_replace():
     assert snapshot.best_ask == pytest.approx(102.0)
 
 
+def test_order_and_trade_are_slotted_plain_objects():
+    from tracebook.core.order import OrderFactory, Trade
+
+    order = OrderFactory().create_limit_order("BTCUSD", OrderSide.BUY, 100.0, 2.0, owner=5)
+
+    # Plain __slots__ objects: no per-instance __dict__, attributes are stored directly.
+    assert not hasattr(order, "__dict__")
+    assert order.owner == 5
+    assert order.remaining_quantity == pytest.approx(2.0)
+    assert order.is_buy() and order.is_limit_order() and order.can_rest()
+    assert order.fill(0.5) == pytest.approx(0.5)
+    assert order.remaining_quantity == pytest.approx(1.5)
+    assert order.can_match_price(99.0) and not order.can_match_price(101.0)
+
+    market = OrderFactory().create_market_order("BTCUSD", OrderSide.SELL, 1.0)
+    assert market.is_market_order() and not market.can_rest()
+    assert market.can_match_price(50.0)  # market matches any price
+
+    trade = Trade(1, 2, 100.0, 0.5, 123)
+    assert not hasattr(trade, "__dict__")
+    assert (trade.buy_order_id, trade.sell_order_id, trade.quantity) == (1, 2, pytest.approx(0.5))
+
+
 def test_price_level_missing_remove_is_noop():
     level = PriceLevel(100.0)
     level.add_order(1, 2.0)

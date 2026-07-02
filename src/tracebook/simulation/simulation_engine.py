@@ -174,7 +174,7 @@ class SimulationEngine:
         )
 
         if self.config.warmup_seconds > 0:
-            self._warm_up_numba()
+            self._warm_up()
 
         # Start monitoring
         self.performance_monitor.start_monitoring()
@@ -340,8 +340,8 @@ class SimulationEngine:
 
         return None
 
-    def _warm_up_numba(self):
-        """Warm up JIT-compiled matching paths outside measured simulation."""
+    def _warm_up(self):
+        """Exercise the matching paths (warming interpreter caches) before measuring."""
         deadline = time.time() + self.config.warmup_seconds
         while time.time() < deadline:
             for algorithm in ("FIFO", "PRO_RATA"):

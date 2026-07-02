@@ -1,8 +1,10 @@
 """
-High-performance matching engine with JIT-compiled algorithms.
+Order matching engine.
 
-This module implements the core order matching logic optimized for
-maximum throughput and minimum latency using Numba JIT compilation.
+Implements the core FIFO and pro-rata matching logic in plain Python over
+dict-backed price levels. (Earlier versions used Numba; profiling showed the
+JIT wrapper was a net cost when driven from the Python matching loop -- see
+docs/performance.md.)
 """
 
 from typing import List, Optional, Tuple
@@ -22,12 +24,12 @@ EPSILON = 1e-12
 
 class MatchingEngine:
     """
-    High-performance matching engine supporting multiple algorithms.
+    Matching engine supporting multiple algorithms.
 
     Features:
-    - JIT-compiled matching algorithms
-    - Configurable matching logic (FIFO, Pro-Rata)
-    - Minimal memory allocations
+    - FIFO and pro-rata matching
+    - Integer-tick price levels with O(1) in-level insert/removal
+    - Optional self-trade prevention
     - Nanosecond-precision timing
     """
 
