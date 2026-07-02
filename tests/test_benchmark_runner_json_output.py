@@ -76,6 +76,7 @@ def test_benchmark_main_writes_valid_json_report_with_event_summary(tmp_path, mo
             "cancel_ratio": 0.15,
             "replace_ratio": 0.05,
             "warmup_seconds": 0.25,
+            "symbols": ["BTCUSD"],
         }
     ]
     assert capsys.readouterr().out.strip() == f"Benchmark report written to: {output_path}"

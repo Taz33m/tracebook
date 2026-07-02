@@ -6,6 +6,7 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Added benchmark scenarios: `deep_book` (deep resting liquidity), `high_cancellation` (heavier cancel/replace mix), `pro_rata_cancellation` (pro-rata with lifecycle events), and `multi_symbol` (independent books per symbol). `BenchmarkScenario` gained a `symbols` field threaded through to the simulation.
 - Added artifact-level schema tests that lock the structure of the public JSON outputs (benchmark report, simulation results, and the replay `EventLog`), round-tripped through `json` the way the CLIs write them, so a refactor cannot silently change the output contract.
 - Extended the mypy type-check baseline to the whole `src/tracebook` package and widened the CI gate to `mypy src/tracebook`. Fixed a real type-contract gap (the `OrderGenerator` ABC now declares the `order_factory`/`price_model` attributes its subclasses set and the stream assigns), made `SimulationConfig.symbols` a non-optional field with a default factory, and annotated the profiling/dashboard/simulation collections and implicit-`Optional` parameters.
 - Established a mypy type-check baseline on the `core` package and enforce it in CI (initially `mypy src/tracebook/core`, clean). Added the annotations to get there, guarded `infer_price_decimals` against non-int `Decimal` exponents, and restored `mypy` as a dev dependency.
