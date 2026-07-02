@@ -50,3 +50,32 @@ These are local smoke baselines only. They are useful for regression checks on t
 | fifo_baseline | 110 | 109.98 | 0.139 | 0.112 | 0.363 | 0.512 | 1.181 | 0.000 | 134.31 |
 | pro_rata_baseline | 100 | 99.93 | 0.124 | 0.095 | 0.398 | 0.630 | 0.868 | 0.000 | 134.19 |
 | cancellation_mix | 112 | 111.53 | 0.130 | 0.087 | 0.369 | 0.590 | 1.752 | 0.036 | 100.03 |
+
+## Operation Microbenchmarks
+
+The simulation benchmark above is wall-clock and thread-scheduling dependent. To
+judge data-structure changes in isolation, a deterministic single-threaded
+microbenchmark measures individual operations:
+
+```bash
+python tests/benchmarks/microbench.py --n 20000
+```
+
+The `ns/op` figures below are local and illustrative, not portable claims. What
+is portable is the **scaling**: keying each price level's orders by an
+insertion-ordered dict makes in-level removal O(1), so `cancel_deep` is now flat
+in the number of orders on a level instead of growing with it. Moving the level
+off the Numba `jitclass` (whose typed containers were driven from the pure-Python
+matching loop, paying boundary cost on every access) additionally sped up the
+matching path substantially.
+
+| Scenario | ns/op before (n=5k) | ns/op after (n=5k) | ns/op before (n=20k) | ns/op after (n=20k) |
+| --- | ---: | ---: | ---: | ---: |
+| `cancel_deep` | 2,974 | 1,621 | 6,243 | 1,607 |
+| `match` | 3,523,378 | 82,573 | 14,112,117 | 139,231 |
+| `add_wide` | 687,178 | 321,972 | 3,484,626 | 2,030,707 |
+| `add_deep` | 40,497 | 38,795 | 42,659 | 40,579 |
+
+`add_wide` remains super-linear because the price-level index (`sorted_ticks`)
+still inserts in O(number of levels); replacing it with an O(log n) sorted
+container is separate follow-up work.
