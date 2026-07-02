@@ -13,5 +13,4 @@ target-version = ["py310"]
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true
-# The type-check baseline currently covers the core package (the matching
-# engine). CI runs `mypy src/tracebook/core`; broader coverage is incremental.
+# CI type-checks the whole package: `mypy src/tracebook`.

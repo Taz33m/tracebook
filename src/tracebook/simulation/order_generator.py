@@ -221,6 +221,11 @@ class PriceModel:
 class OrderGenerator(ABC):
     """Abstract base class for order generators."""
 
+    # Concrete generators set these in their __init__; declared here so the
+    # shared stream code that assigns/reads them type-checks against the base.
+    order_factory: OrderFactory
+    price_model: "PriceModel"
+
     @abstractmethod
     def generate_orders(self, count: int) -> List[Order]:
         """Generate a batch of orders."""
@@ -549,8 +554,8 @@ class SyntheticOrderStream:
         # Stream control
         self.is_running = False
         self.stream_thread = None
-        self.orders_queue = []
-        self.events_queue = []
+        self.orders_queue: List[Order] = []
+        self.events_queue: List[SimulationEvent] = []
         self.queue_lock = threading.Lock()
 
         # Performance monitoring
@@ -559,10 +564,10 @@ class SyntheticOrderStream:
         # Statistics
         self.total_orders_generated = 0
         self.generation_start_time = 0
-        self.generation_times = []
+        self.generation_times: List[float] = []
 
         # Callbacks
-        self.order_callbacks = []
+        self.order_callbacks: List[Callable] = []
 
     def _create_generators(self) -> List[OrderGenerator]:
         """Create order generators based on configuration."""
@@ -668,7 +673,7 @@ class SyntheticOrderStream:
 
         print("Order stream stopped")
 
-    def get_orders(self, max_count: int = None) -> List[Order]:
+    def get_orders(self, max_count: Optional[int] = None) -> List[Order]:
         """Get generated orders from the queue."""
         with self.queue_lock:
             if max_count is None:
@@ -682,7 +687,7 @@ class SyntheticOrderStream:
 
             return orders
 
-    def get_events(self, max_count: int = None) -> List[SimulationEvent]:
+    def get_events(self, max_count: Optional[int] = None) -> List[SimulationEvent]:
         """Get generated events from the queue."""
         with self.queue_lock:
             if max_count is None:
