@@ -1,6 +1,9 @@
 """Tests for the benchmark scenario catalog."""
 
+import pytest
+
 from tracebook.benchmarks import runner
+from tracebook.simulation.simulation_engine import run_benchmark_simulation
 
 
 def test_new_scenarios_are_registered():
@@ -34,6 +37,13 @@ def test_multi_symbol_scenario_runs_independent_books_per_symbol():
 
     assert set(stats) == {"BTCUSD", "ETHUSD", "SOLUSD"}
     assert list(scenario["config"]["symbols"]) == ["BTCUSD", "ETHUSD", "SOLUSD"]
+
+
+def test_explicit_empty_symbols_is_rejected():
+    # Unset symbols default to a single book, but an explicit empty list is a
+    # user error and must surface, not be silently defaulted.
+    with pytest.raises(ValueError, match="at least one symbol"):
+        run_benchmark_simulation(duration=0.1, throughput=10.0, symbols=[], warmup_seconds=0.0)
 
 
 def test_single_symbol_scenarios_default_to_one_book():

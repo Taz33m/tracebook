@@ -535,8 +535,9 @@ def run_benchmark_simulation(
         replace_ratio=replace_ratio,
         warmup_seconds=warmup_seconds,
         output_path=output_path,
-        # Fall back to the config's single-book default when none are given.
-        symbols=list(symbols) if symbols else ["BTCUSD"],
+        # Default to a single book only when symbols is unset; an explicit empty
+        # list is passed through so SimulationConfig's validation rejects it.
+        symbols=list(symbols) if symbols is not None else ["BTCUSD"],
     )
 
     engine = SimulationEngine(config)
