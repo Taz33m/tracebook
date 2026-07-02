@@ -5,6 +5,7 @@ This module implements cache-friendly data structures for managing
 orders at each price level with minimal memory allocations.
 """
 
+import bisect
 import math
 from decimal import Decimal
 
@@ -90,6 +91,10 @@ class PriceLevelManager:
         self.price_levels = {}  # tick (int) -> PriceLevel
         self.sorted_ticks = []  # ticks in book order (buy: desc, sell: asc)
         self.orders = {}  # order_id -> Order (shared storage)
+        # Bisect key that keeps sorted_ticks best-first for this side: buy is
+        # descending (negate), sell is ascending (identity). Used for O(log n)
+        # index lookups instead of a linear scan.
+        self._tick_key = (lambda t: -t) if is_buy_side else (lambda t: t)
 
     def price_to_tick(self, price: float) -> int:
         """Map a price onto the integer tick grid (round to nearest tick)."""
@@ -129,7 +134,7 @@ class PriceLevelManager:
             # Remove empty price level
             if price_level.is_empty():
                 del self.price_levels[tick]
-                self.sorted_ticks.remove(tick)
+                self._remove_tick_sorted(tick)
 
         del self.orders[order_id]
         return True
@@ -197,21 +202,14 @@ class PriceLevelManager:
         return result
 
     def _insert_tick_sorted(self, tick: int):
-        """Insert a tick into the sorted list maintaining book order."""
-        if self.is_buy_side:
-            # Buy side: highest price (tick) first
-            for i, existing_tick in enumerate(self.sorted_ticks):
-                if tick > existing_tick:
-                    self.sorted_ticks.insert(i, tick)
-                    return
-            self.sorted_ticks.append(tick)
-        else:
-            # Sell side: lowest price (tick) first
-            for i, existing_tick in enumerate(self.sorted_ticks):
-                if tick < existing_tick:
-                    self.sorted_ticks.insert(i, tick)
-                    return
-            self.sorted_ticks.append(tick)
+        """Insert a tick into the sorted list maintaining best-first order."""
+        bisect.insort(self.sorted_ticks, tick, key=self._tick_key)
+
+    def _remove_tick_sorted(self, tick: int):
+        """Remove a tick from the sorted list via binary search (best-first)."""
+        index = bisect.bisect_left(self.sorted_ticks, self._tick_key(tick), key=self._tick_key)
+        if index < len(self.sorted_ticks) and self.sorted_ticks[index] == tick:
+            self.sorted_ticks.pop(index)
 
     def clear(self):
         """Clear all orders and price levels."""

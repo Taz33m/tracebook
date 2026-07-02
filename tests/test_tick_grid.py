@@ -75,6 +75,42 @@ def test_invalid_tick_size_is_rejected():
         PriceLevelManager(is_buy_side=True, tick_size=0.0)
 
 
+def test_level_index_stays_ordered_through_out_of_order_inserts_and_removals():
+    book = OrderBook("XYZ", tick_size=1.0)
+    sell = book.matching_engine.sell_side
+    buy = book.matching_engine.buy_side
+
+    # Insert asks and bids out of price order.
+    for price in (105.0, 101.0, 108.0, 103.0, 102.0):
+        book.add_limit_order(OrderSide.SELL, price, 1.0)
+    for price in (90.0, 95.0, 88.0, 93.0):
+        book.add_limit_order(OrderSide.BUY, price, 1.0)
+
+    # Sell index ascending (best = lowest), buy index descending (best = highest).
+    assert sell.sorted_ticks == sorted(sell.sorted_ticks)
+    assert buy.sorted_ticks == sorted(buy.sorted_ticks, reverse=True)
+    assert book.get_best_ask() == pytest.approx(101.0)
+    assert book.get_best_bid() == pytest.approx(95.0)
+
+    # Cancel a middle ask (103) and a middle bid (93) by locating them by price.
+    def cancel_at(side, price):
+        for order_id in book.get_active_order_ids(side):
+            if book.get_order(order_id).price == pytest.approx(price):
+                book.cancel_order(order_id)
+                return
+
+    cancel_at(OrderSide.SELL, 103.0)
+    cancel_at(OrderSide.BUY, 93.0)
+
+    assert sell.sorted_ticks == sorted(sell.sorted_ticks)
+    assert buy.sorted_ticks == sorted(buy.sorted_ticks, reverse=True)
+    assert 103 not in sell.sorted_ticks
+    assert 93 not in buy.sorted_ticks
+    # Best prices are unaffected by the middle-level removals.
+    assert book.get_best_ask() == pytest.approx(101.0)
+    assert book.get_best_bid() == pytest.approx(95.0)
+
+
 def test_infer_price_decimals():
     assert infer_price_decimals(0.01) == 2
     assert infer_price_decimals(0.5) == 1
