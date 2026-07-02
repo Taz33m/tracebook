@@ -50,7 +50,7 @@ class MatchingEngine:
         self.sell_side = PriceLevelManager(is_buy_side=False, tick_size=tick_size)
 
         # Trade history
-        self.trades = []
+        self.trades: List[Trade] = []
         self.trade_count = 0
 
         # Performance metrics
@@ -80,7 +80,7 @@ class MatchingEngine:
             List[Trade]: List of executed trades
         """
         self.total_orders_processed += 1
-        trades = []
+        trades: List[Trade] = []
 
         # FOK orders must be completely executable before touching resting liquidity.
         if order.is_fok_order() and not self._can_fully_fill(order):
@@ -242,7 +242,7 @@ class MatchingEngine:
         CANCEL_RESTING); CANCEL_INCOMING drops the aggressor's remainder once it
         has contacted any same-owner order at the level.
         """
-        trades = []
+        trades: List[Trade] = []
         progressed = False
         resting_orders = []
         self_trade_seen = False
