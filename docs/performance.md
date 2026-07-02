@@ -69,13 +69,32 @@ off the Numba `jitclass` (whose typed containers were driven from the pure-Pytho
 matching loop, paying boundary cost on every access) additionally sped up the
 matching path substantially.
 
-| Scenario | ns/op before (n=5k) | ns/op after (n=5k) | ns/op before (n=20k) | ns/op after (n=20k) |
+| Scenario | ns/op original (n=5k) | ns/op now (n=5k) | ns/op original (n=20k) | ns/op now (n=20k) |
 | --- | ---: | ---: | ---: | ---: |
-| `cancel_deep` | 2,974 | 1,621 | 6,243 | 1,607 |
-| `match` | 3,523,378 | 82,573 | 14,112,117 | 139,231 |
-| `add_wide` | 687,178 | 321,972 | 3,484,626 | 2,030,707 |
-| `add_deep` | 40,497 | 38,795 | 42,659 | 40,579 |
+| `cancel_deep` | 2,974 | 1,672 | 6,243 | 1,564 |
+| `match` | 3,523,378 | 81,534 | 14,112,117 | 139,396 |
+| `add_wide` | 687,178 | 89,034 | 3,484,626 | 1,569,972 |
+| `add_deep` | 40,497 | 39,242 | 42,659 | 40,667 |
 
-`add_wide` remains super-linear because the price-level index (`sorted_ticks`)
-still inserts in O(number of levels); replacing it with an O(log n) sorted
-container is separate follow-up work.
+Two changes produced these numbers: keying each level's orders by an
+insertion-ordered dict (O(1) removal, and dropping the Numba boundary cost), and
+replacing the price-level index's O(n) Python linear scan with `bisect`.
+
+### Why `bisect` and not a sorted-container dependency
+
+`add_wide` is still super-linear at large level counts: `bisect` gives an
+O(log n) search but `list` insert/remove is an O(n) memmove. A true O(log n)
+structure (`sortedcontainers.SortedList`) would fix that -- but only helps once a
+single book holds thousands of distinct price levels, which is unrealistic. An
+isolated comparison of the index insert (random ticks) shows the crossover:
+
+| Distinct levels | `bisect` + list ns/op | `SortedList` ns/op |
+| ---: | ---: | ---: |
+| 2,000 | 1,455 | 2,094 |
+| 5,000 | 2,177 | 2,428 |
+| 20,000 | 5,583 | 2,709 |
+| 50,000 | 11,856 | 2,766 |
+
+For realistic level counts (hundreds to a few thousand) `bisect` + list is
+faster than `SortedList` and adds no dependency; the sorted container only wins
+for pathologically deep books. So no dependency was taken.
