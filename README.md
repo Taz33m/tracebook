@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-70%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-100%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `70` pytest tests passing |
+| Unit tests | `100` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
@@ -224,6 +224,35 @@ Enable magic-trace integration or fallback tracing:
 tracebook-sim --duration 5 --throughput 500 --algorithm FIFO --magic-trace
 ```
 
+## Record And Replay
+
+Record every mutating operation on a book to a serializable event log, then
+replay it against a fresh book to reconstruct the identical sequence of trades
+and the identical final book state. This makes bug reproduction, regression
+fixtures, and deterministic experiments trivial.
+
+```python
+from tracebook import OrderBook, OrderSide, EventLog, replay
+
+book = OrderBook("BTCUSD")
+log = book.start_recording()
+
+book.add_limit_order(OrderSide.BUY, 50_000.0, 1.0)
+book.add_limit_order(OrderSide.SELL, 49_999.0, 0.5)
+book.stop_recording()
+
+# Persist and restore across processes.
+restored = EventLog.from_json(log.to_json())
+rebuilt = replay(restored)
+
+assert rebuilt.get_best_bid() == book.get_best_bid()
+```
+
+Matching does not depend on wall-clock time (execution price is the resting
+price and FIFO priority is insertion order), so a fixed event log always
+reproduces the same trades and resting book. Per-trade wall-clock timestamps are
+metadata and are excluded from the determinism guarantee.
+
 ## Reproducible Benchmarks
 
 ```bash
@@ -312,6 +341,8 @@ Public top-level exports:
 | `OrderSide` | `BUY` and `SELL` enum |
 | `OrderType` | `MARKET`, `LIMIT`, `IOC`, `FOK` enum |
 | `Trade` | Executed trade record |
+| `EventLog` | Serializable record of book operations for replay |
+| `replay` | Reconstruct a book from a recorded `EventLog` |
 
 ## Outputs
 
@@ -360,7 +391,7 @@ Non-claims:
 - Not a trading venue, broker, market data vendor, or exchange connector.
 - Not investment advice.
 - Not a guarantee of live low-latency performance.
-- Not a fixed-point/tick-index implementation yet.
+- Not a full fixed-point implementation yet; prices snap to an integer tick grid but quantities remain float64.
 - Not a complete market microstructure research platform.
 - Not proof that a listed benchmark number will reproduce on another machine.
 
@@ -368,7 +399,7 @@ Non-claims:
 
 - Alpha software; APIs may still evolve before a stable v1 release.
 - Current storage uses Python dictionaries and lists around Numba-accelerated helper paths, not a final low-latency memory layout.
-- Prices and quantities are float64-style values; fixed-point accounting is a later performance phase.
+- Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.

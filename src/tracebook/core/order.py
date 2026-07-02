@@ -359,32 +359,6 @@ def orders_can_match(buy_order: Order, sell_order: Order) -> bool:
     return buy_order.price >= sell_order.price
 
 
-def calculate_match_price(buy_order: Order, sell_order: Order) -> float:
-    """
-    Calculate the execution price for matching orders.
-
-    Uses price-time priority: the order that arrived first gets their price.
-
-    Args:
-        buy_order: Buy order
-        sell_order: Sell order
-
-    Returns:
-        float: Execution price
-    """
-    # Market orders execute at the limit order's price
-    if buy_order.is_market_order():
-        return sell_order.price
-    if sell_order.is_market_order():
-        return buy_order.price
-
-    # For limit orders, use the price of the order that arrived first
-    if buy_order.timestamp <= sell_order.timestamp:
-        return buy_order.price
-    else:
-        return sell_order.price
-
-
 def calculate_match_quantity(buy_order: Order, sell_order: Order) -> float:
     """
     Calculate the execution quantity for matching orders.

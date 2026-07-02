@@ -281,13 +281,19 @@ class SimulationEngine:
             trades = result.trades
             self.total_replace_events += 1
             processing_time = time.time_ns() - processing_start
-            self.performance_monitor.metrics_collector.record_metric(
-                name="order_event_latency_ms",
-                value=processing_time / 1_000_000,
-                unit="milliseconds",
-                category="performance",
-                metadata={"event_type": "replace"},
-            )
+            if trades:
+                # A replacement that crosses the book is matching work; count it
+                # as matching latency so replace-heavy scenarios don't hide the
+                # matching cost under lifecycle-event latency.
+                self.performance_monitor.record_order_processing(processing_time, 1)
+            else:
+                self.performance_monitor.metrics_collector.record_metric(
+                    name="order_event_latency_ms",
+                    value=processing_time / 1_000_000,
+                    unit="milliseconds",
+                    category="performance",
+                    metadata={"event_type": "replace"},
+                )
         else:
             return
 

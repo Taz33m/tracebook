@@ -5,48 +5,12 @@ This module implements the core order matching logic optimized for
 maximum throughput and minimum latency using Numba JIT compilation.
 """
 
-from numba import jit
-from typing import List, Tuple, Optional
+from typing import List, Optional
 import time
-from .order import Order, Trade, orders_can_match, calculate_match_price, calculate_match_quantity
+from .order import Order, Trade, orders_can_match, calculate_match_quantity
 from .price_level import PriceLevelManager, MarketDataSnapshot
 
 EPSILON = 1e-12
-
-
-@jit(nopython=True, cache=True)
-def match_orders_fifo(
-    buy_price: float,
-    buy_quantity: float,
-    buy_timestamp: int,
-    sell_price: float,
-    sell_quantity: float,
-    sell_timestamp: int,
-) -> Tuple[float, float]:
-    """
-    JIT-compiled FIFO matching logic.
-
-    Args:
-        buy_price, buy_quantity, buy_timestamp: Buy order details
-        sell_price, sell_quantity, sell_timestamp: Sell order details
-
-    Returns:
-        Tuple[float, float]: (execution_price, execution_quantity)
-    """
-    # Check if orders can match
-    if buy_price < sell_price:
-        return 0.0, 0.0
-
-    # Calculate execution price (price-time priority)
-    if buy_timestamp <= sell_timestamp:
-        execution_price = buy_price
-    else:
-        execution_price = sell_price
-
-    # Calculate execution quantity
-    execution_quantity = min(buy_quantity, sell_quantity)
-
-    return execution_price, execution_quantity
 
 
 class MatchingEngine:
@@ -60,13 +24,14 @@ class MatchingEngine:
     - Nanosecond-precision timing
     """
 
-    def __init__(self, symbol: str, matching_algorithm: str = "fifo"):
+    def __init__(self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01):
         self.symbol = symbol
         self.matching_algorithm = matching_algorithm.lower()
+        self.tick_size = tick_size
 
         # Price level managers for each side
-        self.buy_side = PriceLevelManager(is_buy_side=True)
-        self.sell_side = PriceLevelManager(is_buy_side=False)
+        self.buy_side = PriceLevelManager(is_buy_side=True, tick_size=tick_size)
+        self.sell_side = PriceLevelManager(is_buy_side=False, tick_size=tick_size)
 
         # Trade history
         self.trades = []
@@ -261,14 +226,11 @@ class MatchingEngine:
                 buy_order_id = resting_order.order_id
                 sell_order_id = incoming_order.order_id
 
-            execution_price = (
-                calculate_match_price(
-                    incoming_order if incoming_order.is_buy() else resting_order,
-                    resting_order if resting_order.is_sell() else incoming_order,
-                )
-                if incoming_order.is_market_order() or resting_order.is_market_order()
-                else resting_order.price
-            )
+            # Matches always execute at the resting (maker) order's price. When a
+            # market order is involved the resting side is always the limit order,
+            # so this yields the same value the old price-time rule produced --
+            # the book now has a single, consistent execution-price rule.
+            execution_price = resting_order.price
 
             trade = Trade(
                 buy_order_id=buy_order_id,
@@ -327,11 +289,11 @@ class MatchingEngine:
         remaining_needed = order.remaining_quantity
         side_manager = self.sell_side if order.is_buy() else self.buy_side
 
-        for price in list(side_manager.sorted_prices):
-            if not order.can_match_price(price):
+        for tick in list(side_manager.sorted_ticks):
+            level = side_manager.price_levels[tick]
+            if not order.can_match_price(level.price):
                 break
 
-            level = side_manager.price_levels[price]
             remaining_needed -= level.total_quantity
             if remaining_needed <= EPSILON:
                 return True

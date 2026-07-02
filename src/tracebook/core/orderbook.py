@@ -10,22 +10,29 @@ from dataclasses import dataclass
 import math
 import time
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from .order import Order, Trade, OrderFactory, OrderSide, OrderType, normalize_symbol
 from .matching_engine import MatchingEngine
 from .price_level import MarketDataSnapshot
+from .replay import EventLog
 
 
 @dataclass
 class OrderResult:
-    """Structured outcome for richer order-submission APIs."""
+    """Structured outcome for richer order-submission APIs.
+
+    `accepted` is True when the order passed validation and was processed by the
+    matching engine (even if it did not fill, e.g. an unfillable FOK). It is
+    False only for a hard rejection where the order never entered the book.
+    """
 
     order: Optional[Order]
     trades: List[Trade]
     rested: bool
     cancelled: bool
     rejected_reason: Optional[str] = None
+    accepted: bool = True
 
 
 class OrderBook:
@@ -40,19 +47,23 @@ class OrderBook:
     - Event-driven architecture for callbacks
     """
 
-    def __init__(self, symbol: str, matching_algorithm: str = "fifo"):
+    def __init__(self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01):
         """
         Initialize order book.
 
         Args:
             symbol: Trading symbol (e.g., 'AAPL', 'BTCUSD')
             matching_algorithm: 'fifo' or 'pro_rata'
+            tick_size: Minimum price increment; prices are snapped onto this grid
         """
+        if not math.isfinite(tick_size) or tick_size <= 0:
+            raise ValueError("tick_size must be a positive, finite number")
         self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
+        self.tick_size = tick_size
 
         # Core components
-        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm)
+        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm, tick_size)
         self.order_factory = OrderFactory()
 
         # Thread safety
@@ -78,52 +89,40 @@ class OrderBook:
             "max_processing_time_ns": 0,
             "min_processing_time_ns": float("inf"),
         }
+        # Replay/duplicate guard. Bounded so long-running books don't leak: only
+        # the most recent `_seen_id_cap` processed ids are remembered. Ids evicted
+        # beyond that window may be reused (a degenerate case for real workloads).
+        self._seen_id_cap = 1_000_000
         self._seen_order_ids = set()
+        self._seen_order_id_queue: deque = deque()
+
+        # Optional event recorder for deterministic replay (see start_recording).
+        self._recorder: Optional[EventLog] = None
+
+    # The book exposes two submission surfaces over one core (`_process_order`):
+    #   * submit_* -> OrderResult (canonical): never raises; input and validation
+    #     errors surface as `rejected_reason`.
+    #   * add_*    -> List[Trade] (terse convenience): raises ValueError on invalid
+    #     input, and returns the executed trades otherwise. Note that an
+    #     unfillable FOK is a normal empty result here, not an error.
 
     def add_limit_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
-        """
-        Add a limit order to the book.
-
-        Args:
-            side: OrderSide.BUY or OrderSide.SELL
-            price: Limit price
-            quantity: Order quantity
-
-        Returns:
-            List[Trade]: Executed trades
-        """
+        """Add a limit order to the book and return executed trades."""
         order = self.order_factory.create_limit_order(self.symbol, side, price, quantity)
         return self.add_order(order)
 
     def submit_limit_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit a limit order and return a structured result."""
-        try:
-            order = self.order_factory.create_limit_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_limit_order, side, price, quantity)
 
     def add_market_order(self, side: OrderSide, quantity: float) -> List[Trade]:
-        """
-        Add a market order to the book.
-
-        Args:
-            side: OrderSide.BUY or OrderSide.SELL
-            quantity: Order quantity
-
-        Returns:
-            List[Trade]: Executed trades
-        """
+        """Add a market order to the book and return executed trades."""
         order = self.order_factory.create_market_order(self.symbol, side, quantity)
         return self.add_order(order)
 
     def submit_market_order(self, side: OrderSide, quantity: float) -> OrderResult:
         """Submit a market order and return a structured result."""
-        try:
-            order = self.order_factory.create_market_order(self.symbol, side, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_market_order, side, quantity)
 
     def add_ioc_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
         """
@@ -136,11 +135,7 @@ class OrderBook:
 
     def submit_ioc_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit an Immediate-or-Cancel order and return a structured result."""
-        try:
-            order = self.order_factory.create_ioc_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_ioc_order, side, price, quantity)
 
     def add_fok_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
         """
@@ -153,30 +148,34 @@ class OrderBook:
 
     def submit_fok_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit a Fill-or-Kill order and return a structured result."""
-        try:
-            order = self.order_factory.create_fok_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_fok_order, side, price, quantity)
 
     def add_order(self, order: Order) -> List[Trade]:
         """
-        Add an order to the book.
+        Add an order to the book, returning executed trades.
 
-        Args:
-            order: Order to add
-
-        Returns:
-            List[Trade]: Executed trades
+        Raises ValueError if the order fails validation.
         """
         return self._process_order(order).trades
 
     def submit_order(self, order: Order) -> OrderResult:
-        """Submit an existing order and return a structured result."""
+        """Submit an existing order and return a structured result (never raises)."""
         try:
             return self._process_order(order)
         except ValueError as exc:
-            return OrderResult(order, [], False, False, str(exc))
+            return OrderResult(order, [], False, False, str(exc), accepted=False)
+
+    def _submit_new_order(self, create, *args) -> OrderResult:
+        """Build an order via the factory and submit it.
+
+        Construction errors (invalid side/price/quantity) are captured as a
+        structured rejection instead of raising, matching submit_* semantics.
+        """
+        try:
+            order = create(self.symbol, *args)
+        except ValueError as exc:
+            return OrderResult(None, [], False, False, str(exc), accepted=False)
+        return self.submit_order(order)
 
     def _process_order(self, order: Order) -> OrderResult:
         """Validate, process, and summarize an incoming order."""
@@ -186,8 +185,13 @@ class OrderBook:
         with self._lock:
             self._validate_order(order)
             order_id = int(order.order_id)
-            self._seen_order_ids.add(order_id)
+            self._mark_seen(order_id)
             self.order_factory.advance_past(order_id)
+
+            # Record the order as submitted, before matching mutates its price
+            # (tick snapping) or remaining quantity.
+            if self._recorder is not None:
+                self._recorder.record_submit(order)
 
             # Execute order through matching engine
             trades = self.matching_engine.add_order(order)
@@ -219,6 +223,16 @@ class OrderBook:
             self._trigger_market_data_callbacks(snapshot)
 
         return OrderResult(order, trades, rested, cancelled, rejected_reason)
+
+    def _mark_seen(self, order_id: int) -> None:
+        """Record a processed order id, evicting the oldest past the cap."""
+        if order_id in self._seen_order_ids:
+            return
+        self._seen_order_ids.add(order_id)
+        self._seen_order_id_queue.append(order_id)
+        if len(self._seen_order_id_queue) > self._seen_id_cap:
+            evicted = self._seen_order_id_queue.popleft()
+            self._seen_order_ids.discard(evicted)
 
     def process_orders_batch(self, orders: List[Order]) -> List[Trade]:
         """
@@ -252,7 +266,27 @@ class OrderBook:
             success = self.matching_engine.cancel_order(order_id)
             if success:
                 self.stats["orders_cancelled"] += 1
+                if self._recorder is not None:
+                    self._recorder.record_cancel(order_id)
             return success
+
+    def start_recording(self) -> EventLog:
+        """Begin recording mutating operations into a fresh event log.
+
+        Returns the log, which can later be serialized and replayed with
+        `tracebook.core.replay.replay` to reconstruct identical trades and book
+        state. Recording an already-recording book restarts the log.
+        """
+        with self._lock:
+            self._recorder = EventLog(self.symbol, self.matching_algorithm, self.tick_size)
+            return self._recorder
+
+    def stop_recording(self) -> Optional[EventLog]:
+        """Stop recording and return the accumulated event log (or None)."""
+        with self._lock:
+            log = self._recorder
+            self._recorder = None
+            return log
 
     def replace_order(
         self,
@@ -263,12 +297,15 @@ class OrderBook:
         """
         Replace a resting limit order by cancelling it and submitting a new order.
 
-        The replacement receives a new order id and timestamp.
+        The step is atomic: an invalid replacement is rejected before the original
+        is cancelled, and if the replacement fails to submit after cancellation the
+        original resting order is restored. A replace therefore never destroys
+        resting liquidity. The replacement receives a new order id and timestamp.
         """
         with self._lock:
             existing_order = self.get_order(order_id)
             if existing_order is None:
-                return OrderResult(None, [], False, False, "Order not found")
+                return OrderResult(None, [], False, False, "Order not found", accepted=False)
 
             replacement_price = existing_order.price if price is None else price
             replacement_quantity = (
@@ -283,12 +320,27 @@ class OrderBook:
                     replacement_quantity,
                 )
             except ValueError as exc:
-                return OrderResult(None, [], False, False, str(exc))
+                # Invalid replacement: original order is left untouched.
+                return OrderResult(None, [], False, False, str(exc), accepted=False)
 
             if not self.cancel_order(order_id):
-                return OrderResult(None, [], False, False, "Order could not be cancelled")
+                return OrderResult(
+                    None, [], False, False, "Order could not be cancelled", accepted=False
+                )
 
-            return self.submit_order(replacement_order)
+            result = self.submit_order(replacement_order)
+            if result.rejected_reason is not None:
+                # Replacement failed after cancellation: restore the original.
+                self._restore_resting_order(existing_order)
+                self.stats["orders_cancelled"] -= 1
+            return result
+
+    def _restore_resting_order(self, order: Order) -> None:
+        """Re-rest a previously cancelled order after a failed replacement."""
+        if int(order.side) == int(OrderSide.BUY):
+            self.matching_engine.buy_side.add_order(order)
+        else:
+            self.matching_engine.sell_side.add_order(order)
 
     def get_order(self, order_id: int) -> Optional[Order]:
         """Return a resting order by id, if it is currently active."""
@@ -458,6 +510,7 @@ class OrderBook:
             }
             self._start_time = time.time_ns()
             self._seen_order_ids.clear()
+            self._seen_order_id_queue.clear()
 
     def _update_processing_time_stats(self, processing_time_ns: int):
         """Update processing time statistics."""
@@ -569,14 +622,16 @@ class OrderBookManager:
         self._global_stats = defaultdict(int)
         self._lock = threading.RLock()
 
-    def create_order_book(self, symbol: str, matching_algorithm: str = "fifo") -> OrderBook:
+    def create_order_book(
+        self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01
+    ) -> OrderBook:
         """Create a new order book for a symbol."""
         symbol = normalize_symbol(symbol)
         with self._lock:
             if symbol in self.order_books:
                 raise ValueError(f"Order book for {symbol} already exists")
 
-            order_book = OrderBook(symbol, matching_algorithm)
+            order_book = OrderBook(symbol, matching_algorithm, tick_size)
             self.order_books[symbol] = order_book
             return order_book
 

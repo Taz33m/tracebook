@@ -58,9 +58,9 @@ class MagicTraceConfig:
         # Function-level profiling
         self.profile_functions = [
             "add_order",
-            "match_orders_fifo",
-            "match_orders_pro_rata",
-            "execute_matches_at_level",
+            "_execute_fifo_match",
+            "_execute_pro_rata_matches_at_level",
+            "_execute_matches_at_level",
             "_match_buy_order",
             "_match_sell_order",
         ]

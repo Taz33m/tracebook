@@ -5,10 +5,25 @@ This module implements cache-friendly data structures for managing
 orders at each price level with minimal memory allocations.
 """
 
+import math
+from decimal import Decimal
+
 from numba import types, typed
 from numba.experimental import jitclass
 from typing import List, Optional
 from .order import Order
+
+
+def infer_price_decimals(tick_size: float) -> int:
+    """Return the number of decimal places implied by a tick size (0.01 -> 2).
+
+    Uses the tick's exact decimal representation so fine grids (e.g. 1e-6 or
+    smaller) are not truncated to whole numbers, which would collapse distinct
+    price levels onto the same canonical price.
+    """
+    exponent = Decimal(str(tick_size)).normalize().as_tuple().exponent
+    return -exponent if exponent < 0 else 0
+
 
 # Price level specification for Numba JIT
 price_level_spec = [
@@ -74,27 +89,42 @@ class PriceLevelManager:
     """
     Manages price levels for one side of the order book.
 
-    Uses sorted arrays for efficient price-based operations
-    and maintains separate order storage for memory efficiency.
+    Price levels are keyed by integer ticks rather than raw floats. Two prices
+    that round to the same tick (e.g. 100.0 and 100.00000000001) therefore share
+    a single level, which removes the float-identity hazard of dict-keying on
+    prices. Resting orders are snapped onto the canonical grid price for their
+    tick so every consumer (execution price, snapshots) sees one value per level.
     """
 
-    def __init__(self, is_buy_side: bool):
+    def __init__(self, is_buy_side: bool, tick_size: float = 0.01):
+        if not math.isfinite(tick_size) or tick_size <= 0:
+            raise ValueError("tick_size must be a positive, finite number")
         self.is_buy_side = is_buy_side
-        self.price_levels = {}  # price -> PriceLevel
-        self.sorted_prices = []  # Maintained in sorted order
+        self.tick_size = tick_size
+        self._price_decimals = infer_price_decimals(tick_size)
+        self.price_levels = {}  # tick (int) -> PriceLevel
+        self.sorted_ticks = []  # ticks in book order (buy: desc, sell: asc)
         self.orders = {}  # order_id -> Order (shared storage)
+
+    def price_to_tick(self, price: float) -> int:
+        """Map a price onto the integer tick grid (round to nearest tick)."""
+        return int(round(price / self.tick_size))
+
+    def tick_to_price(self, tick: int) -> float:
+        """Map a tick back to its canonical grid price, free of FP dust."""
+        return round(tick * self.tick_size, self._price_decimals)
 
     def add_order(self, order: Order):
         """Add an order to the appropriate price level."""
-        price = order.price
+        tick = self.price_to_tick(order.price)
+        # Snap the resting order onto the canonical grid for its tick.
+        order.price = self.tick_to_price(tick)
 
-        # Create price level if it doesn't exist
-        if price not in self.price_levels:
-            self.price_levels[price] = PriceLevel(price)
-            self._insert_price_sorted(price)
+        if tick not in self.price_levels:
+            self.price_levels[tick] = PriceLevel(order.price)
+            self._insert_tick_sorted(tick)
 
-        # Add order to price level and storage
-        self.price_levels[price].add_order(order.order_id, order.remaining_quantity)
+        self.price_levels[tick].add_order(order.order_id, order.remaining_quantity)
         self.orders[order.order_id] = order
 
     def remove_order(self, order_id: int):
@@ -103,18 +133,18 @@ class PriceLevelManager:
             return False
 
         order = self.orders[order_id]
-        price = order.price
+        tick = self.price_to_tick(order.price)
 
-        if price in self.price_levels:
-            price_level = self.price_levels[price]
+        if tick in self.price_levels:
+            price_level = self.price_levels[tick]
             removed = price_level.remove_order(order_id, order.remaining_quantity)
             if not removed:
                 return False
 
             # Remove empty price level
             if price_level.is_empty():
-                del self.price_levels[price]
-                self.sorted_prices.remove(price)
+                del self.price_levels[tick]
+                self.sorted_ticks.remove(tick)
 
         del self.orders[order_id]
         return True
@@ -125,14 +155,14 @@ class PriceLevelManager:
             return False
 
         order = self.orders[order_id]
-        price = order.price
+        tick = self.price_to_tick(order.price)
 
         # Update order
         order.remaining_quantity -= quantity_filled
 
         # Update price level
-        if price in self.price_levels:
-            self.price_levels[price].update_quantity(-quantity_filled)
+        if tick in self.price_levels:
+            self.price_levels[tick].update_quantity(-quantity_filled)
 
         # Remove if fully filled
         if order.remaining_quantity <= 1e-12:
@@ -143,25 +173,22 @@ class PriceLevelManager:
 
     def get_best_price(self) -> Optional[float]:
         """Get the best price (highest for buy, lowest for sell)."""
-        if not self.sorted_prices:
+        if not self.sorted_ticks:
             return None
-
-        if self.is_buy_side:
-            return self.sorted_prices[0]  # Highest price
-        else:
-            return self.sorted_prices[0]  # Lowest price
+        # sorted_ticks[0] is the best tick for either side by construction.
+        return self.tick_to_price(self.sorted_ticks[0])
 
     def get_best_price_level(self) -> Optional[PriceLevel]:
         """Get the price level with the best price."""
-        best_price = self.get_best_price()
-        if best_price is not None:
-            return self.price_levels[best_price]
-        return None
+        if not self.sorted_ticks:
+            return None
+        return self.price_levels[self.sorted_ticks[0]]
 
     def get_orders_at_price(self, price: float) -> List[int]:
         """Get all order IDs at a specific price."""
-        if price in self.price_levels:
-            return list(self.price_levels[price].orders)
+        tick = self.price_to_tick(price)
+        if tick in self.price_levels:
+            return list(self.price_levels[tick].orders)
         return []
 
     def get_order(self, order_id: int) -> Optional[Order]:
@@ -179,32 +206,32 @@ class PriceLevelManager:
     def get_price_levels_snapshot(self) -> List[tuple]:
         """Get snapshot of all price levels (price, quantity, count)."""
         result = []
-        for price in self.sorted_prices:
-            level = self.price_levels[price]
-            result.append((price, level.total_quantity, level.order_count))
+        for tick in self.sorted_ticks:
+            level = self.price_levels[tick]
+            result.append((level.price, level.total_quantity, level.order_count))
         return result
 
-    def _insert_price_sorted(self, price: float):
-        """Insert price into sorted list maintaining order."""
+    def _insert_tick_sorted(self, tick: int):
+        """Insert a tick into the sorted list maintaining book order."""
         if self.is_buy_side:
-            # Buy side: highest price first
-            for i, existing_price in enumerate(self.sorted_prices):
-                if price > existing_price:
-                    self.sorted_prices.insert(i, price)
+            # Buy side: highest price (tick) first
+            for i, existing_tick in enumerate(self.sorted_ticks):
+                if tick > existing_tick:
+                    self.sorted_ticks.insert(i, tick)
                     return
-            self.sorted_prices.append(price)
+            self.sorted_ticks.append(tick)
         else:
-            # Sell side: lowest price first
-            for i, existing_price in enumerate(self.sorted_prices):
-                if price < existing_price:
-                    self.sorted_prices.insert(i, price)
+            # Sell side: lowest price (tick) first
+            for i, existing_tick in enumerate(self.sorted_ticks):
+                if tick < existing_tick:
+                    self.sorted_ticks.insert(i, tick)
                     return
-            self.sorted_prices.append(price)
+            self.sorted_ticks.append(tick)
 
     def clear(self):
         """Clear all orders and price levels."""
         self.price_levels.clear()
-        self.sorted_prices.clear()
+        self.sorted_ticks.clear()
         self.orders.clear()
 
 

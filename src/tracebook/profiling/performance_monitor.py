@@ -178,6 +178,10 @@ class SystemResourceMonitor:
         # Process handle for efficient monitoring
         self.process = psutil.Process()
 
+        # Most recent sampled resources, refreshed by the background loop. Reading
+        # this avoids a synchronous psutil sweep on latency-sensitive code paths.
+        self.latest_resources: Dict[str, float] = {}
+
     def start_monitoring(self):
         """Start system resource monitoring."""
         if self.is_monitoring:
@@ -219,11 +223,16 @@ class SystemResourceMonitor:
             print(f"Error getting resource metrics: {e}")
             return {}
 
+    def get_latest_resources(self) -> Dict[str, float]:
+        """Return the most recently sampled resources without touching psutil."""
+        return dict(self.latest_resources)
+
     def _monitor_loop(self):
         """Main monitoring loop."""
         while self.is_monitoring:
             try:
                 resources = self.get_current_resources()
+                self.latest_resources = resources
 
                 for metric_name, value in resources.items():
                     self.metrics_collector.record_metric(
@@ -265,6 +274,12 @@ class PerformanceMonitor:
             "peak_throughput_ops_per_sec": 0.0,
             "peak_memory_mb": 0.0,
         }
+
+        # Rolling window for instantaneous throughput (orders in the last second),
+        # rather than a lifetime cumulative average that only ever smooths.
+        self._throughput_window_ns = 1_000_000_000
+        self._recent_orders: deque = deque()
+        self._recent_orders_total = 0  # running sum of counts in the window
 
         # Alert thresholds
         self.alert_thresholds = {
@@ -319,26 +334,34 @@ class PerformanceMonitor:
                 category="performance",
             )
 
-            # Calculate and record throughput
+            # Calculate and record throughput as a rolling window rate: the number
+            # of orders processed within the last window, divided by the window.
             current_time = time.time_ns()
-            uptime_seconds = (current_time - self.start_time) / 1_000_000_000
+            self._recent_orders.append((current_time, order_count))
+            self._recent_orders_total += order_count
+            window_start = current_time - self._throughput_window_ns
+            while self._recent_orders and self._recent_orders[0][0] < window_start:
+                _, evicted_count = self._recent_orders.popleft()
+                self._recent_orders_total -= evicted_count
 
-            if uptime_seconds > 0:
-                throughput = self.session_metrics["orders_processed"] / uptime_seconds
-                self.metrics_collector.record_metric(
-                    name="throughput_ops_per_sec",
-                    value=throughput,
-                    unit="ops/sec",
-                    category="performance",
-                )
+            orders_in_window = self._recent_orders_total
+            window_seconds = self._throughput_window_ns / 1_000_000_000
+            throughput = orders_in_window / window_seconds
 
-                # Update peak throughput
-                self.session_metrics["peak_throughput_ops_per_sec"] = max(
-                    self.session_metrics["peak_throughput_ops_per_sec"], throughput
-                )
+            self.metrics_collector.record_metric(
+                name="throughput_ops_per_sec",
+                value=throughput,
+                unit="ops/sec",
+                category="performance",
+            )
+
+            # Update peak throughput
+            self.session_metrics["peak_throughput_ops_per_sec"] = max(
+                self.session_metrics["peak_throughput_ops_per_sec"], throughput
+            )
 
             # Check for alerts
-            self._check_performance_alerts(latency_ms, throughput if uptime_seconds > 0 else 0)
+            self._check_performance_alerts(latency_ms, throughput)
 
     def record_trade_execution(self, trade_count: int, total_volume: float):
         """Record trade execution metrics."""
@@ -373,8 +396,12 @@ class PerformanceMonitor:
             # Get metrics statistics
             metrics_summary = self.metrics_collector.get_all_metrics_summary(window_seconds=60)
 
-            # Get system resources
-            system_resources = self.system_monitor.get_current_resources()
+            # Prefer the background-sampled snapshot; fall back to a live read
+            # only when the monitor thread has not sampled yet.
+            system_resources = (
+                self.system_monitor.get_latest_resources()
+                or self.system_monitor.get_current_resources()
+            )
 
             # Get magic-trace performance data
             magic_trace_summary = {}
@@ -520,8 +547,9 @@ class PerformanceMonitor:
                 }
             )
 
-        # Check system resources
-        resources = self.system_monitor.get_current_resources()
+        # Check system resources using the last sampled snapshot -- never call
+        # psutil synchronously here, since this runs on the order-processing path.
+        resources = self.system_monitor.get_latest_resources()
 
         memory_mb = resources.get("process_memory_mb", 0)
         if memory_mb > self.alert_thresholds.get("memory_usage_mb", float("inf")):
