@@ -38,8 +38,8 @@ jobs:
       - name: Run lint
         run: python -m flake8 src tests examples install_deps.py
 
-      - name: Run type check (core)
-        run: python -m mypy src/tracebook/core
+      - name: Run type check
+        run: python -m mypy src/tracebook
 
       - name: Run security static analysis
         run: python -m bandit -q -r src

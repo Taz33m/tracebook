@@ -8,7 +8,7 @@ and real-time monitoring capabilities with minimal overhead.
 import time
 import threading
 import numpy as np
-from typing import Dict, Any, Callable
+from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import json
@@ -27,7 +27,7 @@ class PerformanceMetric:
     timestamp: int
     unit: str
     category: str
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class MetricsCollector:
@@ -40,12 +40,12 @@ class MetricsCollector:
 
     def __init__(self, max_samples: int = 10000):
         self.max_samples = max_samples
-        self.metrics = defaultdict(lambda: deque(maxlen=max_samples))
-        self.aggregated_metrics = {}
+        self.metrics: Dict[str, Deque] = defaultdict(lambda: deque(maxlen=max_samples))
+        self.aggregated_metrics: Dict[str, Any] = {}
         self._lock = threading.RLock()
 
         # Performance tracking
-        self.collection_overhead_ns = deque(maxlen=1000)
+        self.collection_overhead_ns: Deque = deque(maxlen=1000)
         self.last_aggregation_time = 0
         self.aggregation_interval_ns = 1_000_000_000  # 1 second
 
@@ -55,7 +55,7 @@ class MetricsCollector:
         value: float,
         unit: str = "",
         category: str = "general",
-        metadata: Dict = None,
+        metadata: Optional[Dict] = None,
     ):
         """Record a performance metric with minimal overhead."""
         start_time = time.time_ns()
@@ -151,7 +151,7 @@ class MetricsCollector:
                     "last_updated": time.time_ns(),
                 }
 
-    def clear_metrics(self, metric_name: str = None):
+    def clear_metrics(self, metric_name: Optional[str] = None):
         """Clear metrics data."""
         with self._lock:
             if metric_name:
@@ -290,7 +290,7 @@ class PerformanceMonitor:
         }
 
         # Alert callbacks
-        self.alert_callbacks = []
+        self.alert_callbacks: List[Callable[[str, Dict], None]] = []
 
         # Lock for thread safety
         self._lock = threading.RLock()
@@ -377,7 +377,7 @@ class PerformanceMonitor:
                 name="trade_volume", value=total_volume, unit="currency", category="trading"
             )
 
-    def profile_session(self, session_name: str = None):
+    def profile_session(self, session_name: Optional[str] = None):
         """Get a magic-trace profiling session context manager."""
         if self.magic_trace_profiler:
             return self.magic_trace_profiler.profile_session(session_name)
@@ -497,7 +497,7 @@ class PerformanceMonitor:
         """Set alert threshold for a metric."""
         self.alert_thresholds[metric] = threshold
 
-    def export_metrics(self, filename: str = None) -> str:
+    def export_metrics(self, filename: Optional[str] = None) -> str:
         """Export metrics to JSON file."""
         if filename is None:
             filename = f"performance_metrics_{int(time.time())}.json"
@@ -521,7 +521,7 @@ class PerformanceMonitor:
 
     def _check_performance_alerts(self, latency_ms: float, throughput_ops_per_sec: float):
         """Check for performance alerts and trigger callbacks."""
-        alerts = []
+        alerts: List[Dict[str, Any]] = []
 
         # Check latency
         if latency_ms > self.alert_thresholds.get("latency_p99_ms", float("inf")):

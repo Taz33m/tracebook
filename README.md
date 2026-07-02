@@ -79,7 +79,7 @@ All checks below were run during the latest production repo pass in this checkou
 | Unit tests | `115` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
-| Type check | `python -m mypy src/tracebook/core` reports `0` issues |
+| Type check | `python -m mypy src/tracebook` reports `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
 | Package build | sdist and wheel build successfully |
 | Simulation CLI | deterministic FIFO smoke run completes |
@@ -441,7 +441,7 @@ Non-claims:
 
 Near-term production hardening:
 
-- Expand the mypy type-check baseline beyond `core/` to the simulation, dashboard, and profiling modules.
+- Tighten the mypy baseline further (e.g. `--check-untyped-defs`, per-module strictness) now that the whole package type-checks.
 - Expand benchmark scenarios for deeper book sweeps, multi-symbol runs, and higher cancellation mixes.
 - Add more artifact-level tests around exported JSON schemas.
 - Introduce fixed-point price and quantity experiments behind benchmark evidence.

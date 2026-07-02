@@ -8,7 +8,7 @@ similar to magic-trace's visualization capabilities.
 import json
 import html
 import pandas as pd
-from typing import Dict, Any
+from typing import Any, Dict, Optional, Set
 from pathlib import Path
 import plotly.graph_objects as go
 import plotly.express as px
@@ -23,9 +23,9 @@ class TraceVisualizer:
     Creates detailed charts and reports from trace analysis data.
     """
 
-    def __init__(self, trace_data: Dict[str, Any] = None):
+    def __init__(self, trace_data: Optional[Dict[str, Any]] = None):
         self.trace_data = trace_data
-        self.figures = {}
+        self.figures: Dict[str, Any] = {}
 
     def load_trace_data(self, file_path: str) -> bool:
         """Load trace data from JSON file."""
@@ -159,7 +159,7 @@ class TraceVisualizer:
         calls = self.trace_data["completed_calls"]
 
         # Group by function
-        function_latencies = {}
+        function_latencies: Dict[str, Any] = {}
         for call in calls:
             func_name = call["function_name"]
             latency_ms = call["duration_ns"] / 1_000_000
@@ -193,7 +193,7 @@ class TraceVisualizer:
         calls = self.trace_data["completed_calls"]
 
         # Analyze call depths
-        depth_data = {}
+        depth_data: Dict[int, Dict[str, int]] = {}
         for call in calls:
             depth = call["call_depth"]
             func_name = call["function_name"]
@@ -208,7 +208,7 @@ class TraceVisualizer:
         fig = go.Figure()
 
         depths = sorted(depth_data.keys())
-        all_functions = set()
+        all_functions: Set[str] = set()
         for depth_funcs in depth_data.values():
             all_functions.update(depth_funcs.keys())
 
