@@ -12,7 +12,16 @@ import time
 import threading
 from collections import defaultdict, deque
 
-from .order import Order, Trade, OrderFactory, OrderSide, OrderType, normalize_symbol
+from .order import (
+    NO_OWNER,
+    Order,
+    OrderFactory,
+    OrderSide,
+    OrderType,
+    SelfTradePolicy,
+    Trade,
+    normalize_symbol,
+)
 from .matching_engine import MatchingEngine
 from .price_level import MarketDataSnapshot
 from .replay import EventLog
@@ -47,7 +56,13 @@ class OrderBook:
     - Event-driven architecture for callbacks
     """
 
-    def __init__(self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01):
+    def __init__(
+        self,
+        symbol: str,
+        matching_algorithm: str = "fifo",
+        tick_size: float = 0.01,
+        self_trade_policy: SelfTradePolicy = SelfTradePolicy.NONE,
+    ):
         """
         Initialize order book.
 
@@ -55,15 +70,21 @@ class OrderBook:
             symbol: Trading symbol (e.g., 'AAPL', 'BTCUSD')
             matching_algorithm: 'fifo' or 'pro_rata'
             tick_size: Minimum price increment; prices are snapped onto this grid
+            self_trade_policy: How to handle an order that would match its own
+                owner's resting order (see SelfTradePolicy); requires orders to
+                carry an owner id via the `owner` argument
         """
         if not math.isfinite(tick_size) or tick_size <= 0:
             raise ValueError("tick_size must be a positive, finite number")
         self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
         self.tick_size = tick_size
+        self.self_trade_policy = SelfTradePolicy(self_trade_policy)
 
         # Core components
-        self.matching_engine = MatchingEngine(self.symbol, matching_algorithm, tick_size)
+        self.matching_engine = MatchingEngine(
+            self.symbol, matching_algorithm, tick_size, self.self_trade_policy
+        )
         self.order_factory = OrderFactory()
 
         # Thread safety
@@ -106,49 +127,71 @@ class OrderBook:
     #     input, and returns the executed trades otherwise. Note that an
     #     unfillable FOK is a normal empty result here, not an error.
 
-    def add_limit_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
+    def add_limit_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> List[Trade]:
         """Add a limit order to the book and return executed trades."""
-        order = self.order_factory.create_limit_order(self.symbol, side, price, quantity)
+        order = self.order_factory.create_limit_order(self.symbol, side, price, quantity, owner)
         return self.add_order(order)
 
-    def submit_limit_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
+    def submit_limit_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> OrderResult:
         """Submit a limit order and return a structured result."""
-        return self._submit_new_order(self.order_factory.create_limit_order, side, price, quantity)
+        return self._submit_new_order(
+            self.order_factory.create_limit_order, side, price, quantity, owner
+        )
 
-    def add_market_order(self, side: OrderSide, quantity: float) -> List[Trade]:
+    def add_market_order(
+        self, side: OrderSide, quantity: float, owner: int = NO_OWNER
+    ) -> List[Trade]:
         """Add a market order to the book and return executed trades."""
-        order = self.order_factory.create_market_order(self.symbol, side, quantity)
+        order = self.order_factory.create_market_order(self.symbol, side, quantity, owner)
         return self.add_order(order)
 
-    def submit_market_order(self, side: OrderSide, quantity: float) -> OrderResult:
+    def submit_market_order(
+        self, side: OrderSide, quantity: float, owner: int = NO_OWNER
+    ) -> OrderResult:
         """Submit a market order and return a structured result."""
-        return self._submit_new_order(self.order_factory.create_market_order, side, quantity)
+        return self._submit_new_order(self.order_factory.create_market_order, side, quantity, owner)
 
-    def add_ioc_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
+    def add_ioc_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> List[Trade]:
         """
         Add an Immediate-or-Cancel order to the book.
 
         Any unfilled quantity is cancelled rather than resting.
         """
-        order = self.order_factory.create_ioc_order(self.symbol, side, price, quantity)
+        order = self.order_factory.create_ioc_order(self.symbol, side, price, quantity, owner)
         return self.add_order(order)
 
-    def submit_ioc_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
+    def submit_ioc_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> OrderResult:
         """Submit an Immediate-or-Cancel order and return a structured result."""
-        return self._submit_new_order(self.order_factory.create_ioc_order, side, price, quantity)
+        return self._submit_new_order(
+            self.order_factory.create_ioc_order, side, price, quantity, owner
+        )
 
-    def add_fok_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
+    def add_fok_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> List[Trade]:
         """
         Add a Fill-or-Kill order to the book.
 
         The order executes only when the full quantity is immediately available.
         """
-        order = self.order_factory.create_fok_order(self.symbol, side, price, quantity)
+        order = self.order_factory.create_fok_order(self.symbol, side, price, quantity, owner)
         return self.add_order(order)
 
-    def submit_fok_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
+    def submit_fok_order(
+        self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
+    ) -> OrderResult:
         """Submit a Fill-or-Kill order and return a structured result."""
-        return self._submit_new_order(self.order_factory.create_fok_order, side, price, quantity)
+        return self._submit_new_order(
+            self.order_factory.create_fok_order, side, price, quantity, owner
+        )
 
     def add_order(self, order: Order) -> List[Trade]:
         """
@@ -278,7 +321,12 @@ class OrderBook:
         state. Recording an already-recording book restarts the log.
         """
         with self._lock:
-            self._recorder = EventLog(self.symbol, self.matching_algorithm, self.tick_size)
+            self._recorder = EventLog(
+                self.symbol,
+                self.matching_algorithm,
+                self.tick_size,
+                int(self.self_trade_policy),
+            )
             return self._recorder
 
     def stop_recording(self) -> Optional[EventLog]:
@@ -623,7 +671,11 @@ class OrderBookManager:
         self._lock = threading.RLock()
 
     def create_order_book(
-        self, symbol: str, matching_algorithm: str = "fifo", tick_size: float = 0.01
+        self,
+        symbol: str,
+        matching_algorithm: str = "fifo",
+        tick_size: float = 0.01,
+        self_trade_policy: SelfTradePolicy = SelfTradePolicy.NONE,
     ) -> OrderBook:
         """Create a new order book for a symbol."""
         symbol = normalize_symbol(symbol)
@@ -631,7 +683,7 @@ class OrderBookManager:
             if symbol in self.order_books:
                 raise ValueError(f"Order book for {symbol} already exists")
 
-            order_book = OrderBook(symbol, matching_algorithm, tick_size)
+            order_book = OrderBook(symbol, matching_algorithm, tick_size, self_trade_policy)
             self.order_books[symbol] = order_book
             return order_book
 

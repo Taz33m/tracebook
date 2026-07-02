@@ -6,6 +6,7 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Added self-trade prevention: orders carry an optional `owner` id, and `OrderBook(self_trade_policy=...)` supports `CANCEL_RESTING` and `CANCEL_INCOMING` (default `NONE`). Both policies keep the book uncrossed, a FOK is not reported fillable by its own liquidity, and the policy plus owners are captured in the replay log. Exported `SelfTradePolicy` and `NO_OWNER`.
 - Made replay fail fast on a malformed or incompatible log: a hard-rejected submission (via a new `OrderResult.accepted` flag) or a cancel that finds no order now raises instead of diverging silently; soft outcomes such as an unfillable FOK still replay faithfully.
 - Computed rolling throughput with an O(1) running window total instead of re-summing the deque on every order.
 - Made `infer_price_decimals` use the tick's exact decimal representation so fine or scientific-notation tick sizes no longer collapse canonical prices to whole numbers.

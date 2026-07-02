@@ -17,7 +17,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
-from .order import Order
+from .order import NO_OWNER, Order, SelfTradePolicy
 
 
 @dataclass
@@ -32,6 +32,7 @@ class RecordedEvent:
     quantity: Optional[float] = None
     symbol: Optional[str] = None
     timestamp: Optional[int] = None
+    owner: int = NO_OWNER
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -48,6 +49,7 @@ class EventLog:
     symbol: str
     matching_algorithm: str = "fifo"
     tick_size: float = 0.01
+    self_trade_policy: int = int(SelfTradePolicy.NONE)
     events: List[RecordedEvent] = field(default_factory=list)
 
     def record_submit(self, order: Order) -> None:
@@ -62,6 +64,7 @@ class EventLog:
                 quantity=float(order.quantity),
                 symbol=order.symbol,
                 timestamp=int(order.timestamp),
+                owner=int(order.owner),
             )
         )
 
@@ -74,6 +77,7 @@ class EventLog:
             "symbol": self.symbol,
             "matching_algorithm": self.matching_algorithm,
             "tick_size": self.tick_size,
+            "self_trade_policy": int(self.self_trade_policy),
             "events": [event.to_dict() for event in self.events],
         }
 
@@ -83,6 +87,7 @@ class EventLog:
             symbol=data["symbol"],
             matching_algorithm=data.get("matching_algorithm", "fifo"),
             tick_size=data.get("tick_size", 0.01),
+            self_trade_policy=int(data.get("self_trade_policy", int(SelfTradePolicy.NONE))),
         )
         log.events = [RecordedEvent.from_dict(event) for event in data.get("events", [])]
         return log
@@ -114,6 +119,7 @@ def replay(event_log: EventLog):
         event_log.symbol,
         matching_algorithm=event_log.matching_algorithm,
         tick_size=event_log.tick_size,
+        self_trade_policy=SelfTradePolicy(event_log.self_trade_policy),
     )
 
     for event in event_log.events:
@@ -126,6 +132,7 @@ def replay(event_log: EventLog):
                 price=event.price,
                 quantity=event.quantity,
                 timestamp=event.timestamp or 0,
+                owner=event.owner if event.owner is not None else NO_OWNER,
             )
             result = book.submit_order(order)
             # A soft rejection (e.g. unfillable FOK) keeps accepted=True and is
