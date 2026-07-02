@@ -132,7 +132,7 @@ class OrderBook:
     ) -> List[Trade]:
         """Add a limit order to the book and return executed trades."""
         order = self.order_factory.create_limit_order(self.symbol, side, price, quantity, owner)
-        return self.add_order(order)
+        return self._process_order(order, validate=False).trades
 
     def submit_limit_order(
         self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
@@ -147,7 +147,7 @@ class OrderBook:
     ) -> List[Trade]:
         """Add a market order to the book and return executed trades."""
         order = self.order_factory.create_market_order(self.symbol, side, quantity, owner)
-        return self.add_order(order)
+        return self._process_order(order, validate=False).trades
 
     def submit_market_order(
         self, side: OrderSide, quantity: float, owner: int = NO_OWNER
@@ -164,7 +164,7 @@ class OrderBook:
         Any unfilled quantity is cancelled rather than resting.
         """
         order = self.order_factory.create_ioc_order(self.symbol, side, price, quantity, owner)
-        return self.add_order(order)
+        return self._process_order(order, validate=False).trades
 
     def submit_ioc_order(
         self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
@@ -183,7 +183,7 @@ class OrderBook:
         The order executes only when the full quantity is immediately available.
         """
         order = self.order_factory.create_fok_order(self.symbol, side, price, quantity, owner)
-        return self.add_order(order)
+        return self._process_order(order, validate=False).trades
 
     def submit_fok_order(
         self, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
@@ -218,18 +218,27 @@ class OrderBook:
             order = create(self.symbol, *args)
         except ValueError as exc:
             return OrderResult(None, [], False, False, str(exc), accepted=False)
-        return self.submit_order(order)
+        # The factory already validated the order, so use the trusted fast path.
+        return self._process_order(order, validate=False)
 
-    def _process_order(self, order: Order) -> OrderResult:
-        """Validate, process, and summarize an incoming order."""
+    def _process_order(self, order: Order, validate: bool = True) -> OrderResult:
+        """Process and summarize an incoming order.
+
+        `validate=False` is the trusted fast path for orders built by this book's
+        own factory (which already validates side/type/price/quantity/owner and
+        uses the book symbol with a fresh id), so the redundant book-level
+        validation and factory-id reconciliation are skipped.
+        """
         start_time = time.time_ns()
         snapshot = None
 
         with self._lock:
-            self._validate_order(order)
             order_id = int(order.order_id)
+            if validate:
+                self._validate_order(order)
+                # Reconcile a caller-supplied id; factory ids are already ahead.
+                self.order_factory.advance_past(order_id)
             self._mark_seen(order_id)
-            self.order_factory.advance_past(order_id)
 
             # Record the order as submitted, before matching mutates its price
             # (tick snapping) or remaining quantity.
@@ -253,7 +262,9 @@ class OrderBook:
 
             snapshot = self._get_market_data_snapshot_if_due()
 
-            rested = order.can_rest() and self.get_order(order.order_id) is not None
+            # The engine rests leftover quantity only for can_rest() orders, so
+            # this matches book membership without a second index lookup.
+            rested = order.can_rest() and order.remaining_quantity > 1e-12
             cancelled = order.remaining_quantity > 1e-12 and not rested
             rejected_reason = None
             if order.is_fok_order() and cancelled and not trades:

@@ -79,12 +79,12 @@ matching path substantially.
 
 | Scenario | ns/op original (n=5k) | ns/op now (n=5k) | ns/op original (n=20k) | ns/op now (n=20k) |
 | --- | ---: | ---: | ---: | ---: |
-| `cancel_deep` | 2,974 | 1,283 | 6,243 | 1,265 |
-| `match` | 3,523,378 | 21,968 | 14,112,117 | 26,284 |
-| `add_wide` | 687,178 | 62,035 | 3,484,626 | 1,510,401 |
-| `add_deep` | 40,497 | 13,710 | 42,659 | 13,554 |
+| `cancel_deep` | 2,974 | 1,290 | 6,243 | 1,285 |
+| `match` | 3,523,378 | 17,779 | 14,112,117 | 22,443 |
+| `add_wide` | 687,178 | ~65,000 | 3,484,626 | 1,492,484 |
+| `add_deep` | 40,497 | 10,206 | 42,659 | 10,066 |
 
-Four changes produced these numbers:
+Five changes produced these numbers:
 
 1. Keying each level's orders by an insertion-ordered dict (O(1) removal).
 2. Replacing the price-level index's O(n) Python linear scan with `bisect`.
@@ -94,11 +94,16 @@ Four changes produced these numbers:
    `jitclass` types. Profiling the per-order path showed the jitclass was ~half
    the cost: `inspect`-based argument binding on every construction plus boxing
    on every field access, all paid because the matching loop is pure Python.
-   This roughly tripled `add_deep` and `match` throughput.
+5. A trusted fast path for orders built by the book's own factory: the factory
+   already validates side/type/price/quantity/owner and uses the book symbol
+   with a fresh id, so the redundant book-level re-validation, symbol
+   re-normalization, factory-id reconciliation, and a resting-state index
+   lookup are skipped. This cut `add_deep` ~26% and `match` ~19%.
 
 `cancel_deep` and `match` are flat in the number of orders on a level (O(1) per
 operation); `add_wide` stays super-linear in the number of distinct price levels
-(`list` memmove). Numba is no longer used on the order-book path at all.
+(`list` memmove) and is high-variance at n=5k because it rebuilds the whole book
+each call. Numba is no longer used on the order-book path at all.
 
 ### Why `bisect` and not a sorted-container dependency
 
