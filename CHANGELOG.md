@@ -6,6 +6,7 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Added deterministic record/replay: `OrderBook.start_recording()`/`stop_recording()` capture a serializable `EventLog`, and `replay()` reconstructs the identical trade sequence and final book state (also across a JSON round-trip). Exported `EventLog` and `replay` from the package root.
 - Reported throughput as a rolling one-second window rate instead of a lifetime cumulative average, so the dashboard shows an instantaneous rate.
 - Removed the synchronous psutil sweep from the order-processing hot path; alerts and summaries now read the background-sampled resource snapshot.
 - Attributed a replacement that crosses the book to matching latency rather than lifecycle-event latency, so replace-heavy scenarios no longer hide matching cost.

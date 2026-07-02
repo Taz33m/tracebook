@@ -15,6 +15,7 @@ from collections import defaultdict, deque
 from .order import Order, Trade, OrderFactory, OrderSide, OrderType, normalize_symbol
 from .matching_engine import MatchingEngine
 from .price_level import MarketDataSnapshot
+from .replay import EventLog
 
 
 @dataclass
@@ -88,6 +89,9 @@ class OrderBook:
         self._seen_id_cap = 1_000_000
         self._seen_order_ids = set()
         self._seen_order_id_queue: deque = deque()
+
+        # Optional event recorder for deterministic replay (see start_recording).
+        self._recorder: Optional[EventLog] = None
 
     # The book exposes two submission surfaces over one core (`_process_order`):
     #   * submit_* -> OrderResult (canonical): never raises; input and validation
@@ -178,6 +182,11 @@ class OrderBook:
             self._mark_seen(order_id)
             self.order_factory.advance_past(order_id)
 
+            # Record the order as submitted, before matching mutates its price
+            # (tick snapping) or remaining quantity.
+            if self._recorder is not None:
+                self._recorder.record_submit(order)
+
             # Execute order through matching engine
             trades = self.matching_engine.add_order(order)
 
@@ -251,7 +260,27 @@ class OrderBook:
             success = self.matching_engine.cancel_order(order_id)
             if success:
                 self.stats["orders_cancelled"] += 1
+                if self._recorder is not None:
+                    self._recorder.record_cancel(order_id)
             return success
+
+    def start_recording(self) -> EventLog:
+        """Begin recording mutating operations into a fresh event log.
+
+        Returns the log, which can later be serialized and replayed with
+        `tracebook.core.replay.replay` to reconstruct identical trades and book
+        state. Recording an already-recording book restarts the log.
+        """
+        with self._lock:
+            self._recorder = EventLog(self.symbol, self.matching_algorithm, self.tick_size)
+            return self._recorder
+
+    def stop_recording(self) -> Optional[EventLog]:
+        """Stop recording and return the accumulated event log (or None)."""
+        with self._lock:
+            log = self._recorder
+            self._recorder = None
+            return log
 
     def replace_order(
         self,

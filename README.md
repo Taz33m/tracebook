@@ -224,6 +224,35 @@ Enable magic-trace integration or fallback tracing:
 tracebook-sim --duration 5 --throughput 500 --algorithm FIFO --magic-trace
 ```
 
+## Record And Replay
+
+Record every mutating operation on a book to a serializable event log, then
+replay it against a fresh book to reconstruct the identical sequence of trades
+and the identical final book state. This makes bug reproduction, regression
+fixtures, and deterministic experiments trivial.
+
+```python
+from tracebook import OrderBook, OrderSide, EventLog, replay
+
+book = OrderBook("BTCUSD")
+log = book.start_recording()
+
+book.add_limit_order(OrderSide.BUY, 50_000.0, 1.0)
+book.add_limit_order(OrderSide.SELL, 49_999.0, 0.5)
+book.stop_recording()
+
+# Persist and restore across processes.
+restored = EventLog.from_json(log.to_json())
+rebuilt = replay(restored)
+
+assert rebuilt.get_best_bid() == book.get_best_bid()
+```
+
+Matching does not depend on wall-clock time (execution price is the resting
+price and FIFO priority is insertion order), so a fixed event log always
+reproduces the same trades and resting book. Per-trade wall-clock timestamps are
+metadata and are excluded from the determinism guarantee.
+
 ## Reproducible Benchmarks
 
 ```bash
@@ -312,6 +341,8 @@ Public top-level exports:
 | `OrderSide` | `BUY` and `SELL` enum |
 | `OrderType` | `MARKET`, `LIMIT`, `IOC`, `FOK` enum |
 | `Trade` | Executed trade record |
+| `EventLog` | Serializable record of book operations for replay |
+| `replay` | Reconstruct a book from a recorded `EventLog` |
 
 ## Outputs
 
