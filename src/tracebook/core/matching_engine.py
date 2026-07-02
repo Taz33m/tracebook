@@ -197,11 +197,15 @@ class MatchingEngine:
                 break
 
             resting_order = side_manager.get_order(order_id)
-            if resting_order is None or resting_order.remaining_quantity <= EPSILON:
-                # Dangling/spent head (not expected in normal flow): drop it so
-                # iteration always makes progress instead of looping forever.
-                price_level.remove_order(order_id, 0.0)
-                side_manager.orders.pop(order_id, None)
+            if resting_order is None:
+                # Impossible under the level/orders invariant (every level id is a
+                # live order); break rather than risk a stuck loop.
+                break
+            if resting_order.remaining_quantity <= EPSILON:
+                # A spent head should already have been evicted; remove it via the
+                # manager so the level total and the price index stay consistent,
+                # then continue matching the remaining depth.
+                side_manager.remove_order(order_id)
                 continue
 
             if self._is_self_trade(incoming_order, resting_order):
