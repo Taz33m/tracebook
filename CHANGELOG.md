@@ -6,6 +6,7 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Dropped `numba` as a dependency and removed the standalone `algorithms/{fifo,pro_rata}.py` analysis helpers, which were never wired into the live matching path. With `Order`/`Trade`/`PriceLevel` all plain Python, nothing on the order-book path used Numba; the package now imports and runs with Numba absent (verified with the import blocked).
 - Made `Order` and `Trade` plain `__slots__` classes instead of Numba `jitclass` types. Profiling the per-order path showed the jitclass was about half the cost (`inspect`-based argument binding on every construction plus field-access boxing, all paid because the matching loop is pure Python); this roughly tripled `add_deep` and `match` throughput. Numba is no longer used on the order-book path.
 - Made the FIFO match loop copy-free: it now iterates by repeatedly taking the O(1) price-level head instead of copying the entire level per aggressive order, so matching against a deep level is flat (O(1) per match) rather than O(level size). Verified by the `match` microbenchmark (now flat in level size) and a deep-sweep FIFO-order test.
 - Replaced the price-level index's O(n) Python linear-scan insert and `list.remove` with `bisect` (per-side key), removing the Python-loop cost from level insert/removal. A local comparison against `sortedcontainers.SortedList` (command, machine, and Python cited in `docs/performance.md`) found `bisect` + list faster for realistic level counts, so no sorted-container dependency was added.

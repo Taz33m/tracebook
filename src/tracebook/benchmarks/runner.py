@@ -35,7 +35,7 @@ SCENARIOS = {
 
 
 def _dependency_versions() -> Dict[str, Optional[str]]:
-    packages = ["tracebook", "numpy", "numba", "psutil", "dash", "plotly"]
+    packages = ["tracebook", "numpy", "psutil", "dash", "plotly"]
     versions = {}
     for package in packages:
         try:

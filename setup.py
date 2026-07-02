@@ -22,7 +22,6 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 CORE_REQUIREMENTS = [
-    "numba>=0.65.1",
     "numpy>=2.2.6",
     "psutil>=7.2.2",
 ]
