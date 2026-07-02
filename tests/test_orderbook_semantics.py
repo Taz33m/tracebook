@@ -298,6 +298,26 @@ def test_snapshot_stays_consistent_after_cancel_and_replace():
     assert snapshot.best_ask == pytest.approx(102.0)
 
 
+def test_trusted_fast_path_still_prevents_duplicate_resubmission():
+    book = OrderBook("BTCUSD")
+    result = book.submit_limit_order(OrderSide.BUY, 100.0, 1.0)  # trusted fast path
+    assert result.rested
+
+    # The public add_order (untrusted path) still validates and rejects the same
+    # already-resting order, so the fast path opens no duplicate-submission hole.
+    with pytest.raises(ValueError, match="already active"):
+        book.add_order(result.order)
+
+
+def test_convenience_methods_still_reject_invalid_input():
+    book = OrderBook("BTCUSD")
+    # The factory validates before the fast path runs, so bad input still raises.
+    with pytest.raises(ValueError, match="positive"):
+        book.add_limit_order(OrderSide.BUY, -1.0, 1.0)
+    rejected = book.submit_limit_order(OrderSide.BUY, -1.0, 1.0)
+    assert rejected.rejected_reason and not rejected.accepted
+
+
 def test_order_and_trade_are_slotted_plain_objects():
     from tracebook.core.order import OrderFactory, Trade
 
