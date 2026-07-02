@@ -1,0 +1,137 @@
+"""Tests for integer-tick price keying.
+
+Price levels are keyed by integer ticks, so prices that round to the same tick
+must share one level and resting orders must sit on the canonical grid price.
+This is the correctness fix for float-identity dict keys.
+"""
+
+import pytest
+
+from tracebook.core.order import OrderSide
+from tracebook.core.orderbook import OrderBook
+from tracebook.core.price_level import PriceLevelManager, infer_price_decimals
+
+
+def test_prices_rounding_to_the_same_tick_share_one_level():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+
+    # Two prices that are equal on the 0.01 grid but differ in float bits.
+    book.add_limit_order(OrderSide.BUY, 100.00, 1.0)
+    book.add_limit_order(OrderSide.BUY, 100.00 + 1e-12, 2.0)
+
+    buy_side = book.matching_engine.buy_side
+    assert len(buy_side.sorted_ticks) == 1
+    assert len(buy_side.price_levels) == 1
+    depth = book.get_order_book_depth(10)
+    # One aggregated level carrying both orders' quantity.
+    assert len(depth["bids"]) == 1
+    price, qty, count = depth["bids"][0]
+    assert price == pytest.approx(100.00)
+    assert qty == pytest.approx(3.0)
+    assert count == 2
+
+
+def test_resting_order_price_is_snapped_onto_the_grid():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+
+    result = book.submit_limit_order(OrderSide.BUY, 100.017, 1.0)
+
+    # 100.017 rounds to the 100.02 tick and the resting order carries that price.
+    assert book.get_order(result.order.order_id).price == pytest.approx(100.02)
+    assert book.get_best_bid() == pytest.approx(100.02)
+
+
+def test_coarser_tick_size_merges_nearby_prices():
+    book = OrderBook("XYZ", tick_size=0.5)
+
+    book.add_limit_order(OrderSide.SELL, 100.1, 1.0)  # -> 100.0 tick
+    book.add_limit_order(OrderSide.SELL, 100.4, 1.0)  # -> 100.5 tick
+    book.add_limit_order(OrderSide.SELL, 100.2, 1.0)  # -> 100.0 tick
+
+    depth = book.get_order_book_depth(10)
+    prices = [lvl[0] for lvl in depth["asks"]]
+    assert prices == pytest.approx([100.0, 100.5])
+    # The two orders on the 100.0 tick aggregate.
+    assert depth["asks"][0][1] == pytest.approx(2.0)
+
+
+def test_matching_still_works_across_the_grid():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+    book.add_limit_order(OrderSide.SELL, 100.00, 1.0)
+
+    # Buy priced just under the next tick still crosses the 100.00 ask.
+    trades = book.add_limit_order(OrderSide.BUY, 100.004, 1.0)
+
+    assert len(trades) == 1
+    assert trades[0].price == pytest.approx(100.00)
+    assert book.get_best_ask() is None
+
+
+def test_invalid_tick_size_is_rejected():
+    for bad in (0.0, -0.01, float("inf"), float("nan")):
+        with pytest.raises(ValueError):
+            OrderBook("BTCUSD", tick_size=bad)
+    with pytest.raises(ValueError):
+        PriceLevelManager(is_buy_side=True, tick_size=0.0)
+
+
+def test_level_index_stays_ordered_through_out_of_order_inserts_and_removals():
+    book = OrderBook("XYZ", tick_size=1.0)
+    sell = book.matching_engine.sell_side
+    buy = book.matching_engine.buy_side
+
+    # Insert asks and bids out of price order.
+    for price in (105.0, 101.0, 108.0, 103.0, 102.0):
+        book.add_limit_order(OrderSide.SELL, price, 1.0)
+    for price in (90.0, 95.0, 88.0, 93.0):
+        book.add_limit_order(OrderSide.BUY, price, 1.0)
+
+    # Sell index ascending (best = lowest), buy index descending (best = highest).
+    assert sell.sorted_ticks == sorted(sell.sorted_ticks)
+    assert buy.sorted_ticks == sorted(buy.sorted_ticks, reverse=True)
+    assert book.get_best_ask() == pytest.approx(101.0)
+    assert book.get_best_bid() == pytest.approx(95.0)
+
+    # Cancel a middle ask (103) and a middle bid (93) by locating them by price.
+    def cancel_at(side, price):
+        for order_id in book.get_active_order_ids(side):
+            if book.get_order(order_id).price == pytest.approx(price):
+                book.cancel_order(order_id)
+                return
+
+    cancel_at(OrderSide.SELL, 103.0)
+    cancel_at(OrderSide.BUY, 93.0)
+
+    assert sell.sorted_ticks == sorted(sell.sorted_ticks)
+    assert buy.sorted_ticks == sorted(buy.sorted_ticks, reverse=True)
+    assert 103 not in sell.sorted_ticks
+    assert 93 not in buy.sorted_ticks
+    # Best prices are unaffected by the middle-level removals.
+    assert book.get_best_ask() == pytest.approx(101.0)
+    assert book.get_best_bid() == pytest.approx(95.0)
+
+
+def test_infer_price_decimals():
+    assert infer_price_decimals(0.01) == 2
+    assert infer_price_decimals(0.5) == 1
+    assert infer_price_decimals(1.0) == 0
+    assert infer_price_decimals(0.001) == 3
+
+
+def test_infer_price_decimals_handles_fine_and_scientific_ticks():
+    # Fine grids must not be truncated to whole numbers.
+    assert infer_price_decimals(1e-6) == 6
+    assert infer_price_decimals(1e-9) == 9
+    assert infer_price_decimals(0.00025) == 5
+
+
+def test_fine_grid_preserves_distinct_sub_cent_levels():
+    book = OrderBook("XYZ", tick_size=1e-6)
+
+    book.add_limit_order(OrderSide.SELL, 100.000001, 1.0)
+    book.add_limit_order(OrderSide.SELL, 100.000002, 1.0)
+
+    depth = book.get_order_book_depth(10)
+    prices = [lvl[0] for lvl in depth["asks"]]
+    # Two distinct levels survive instead of collapsing onto 100.0.
+    assert prices == pytest.approx([100.000001, 100.000002])

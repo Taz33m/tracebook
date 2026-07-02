@@ -16,7 +16,7 @@ import json
 import threading
 import signal
 import numpy as np
-from typing import Dict, List, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -58,9 +58,9 @@ class MagicTraceConfig:
         # Function-level profiling
         self.profile_functions = [
             "add_order",
-            "match_orders_fifo",
-            "match_orders_pro_rata",
-            "execute_matches_at_level",
+            "_execute_fifo_match",
+            "_execute_pro_rata_matches_at_level",
+            "_execute_matches_at_level",
             "_match_buy_order",
             "_match_sell_order",
         ]
@@ -94,18 +94,18 @@ class MagicTraceSession:
     starting/stopping traces, collecting data, and analysis.
     """
 
-    def __init__(self, config: MagicTraceConfig, session_name: str = None):
+    def __init__(self, config: MagicTraceConfig, session_name: Optional[str] = None):
         self.config = config
         self.session_name = _safe_artifact_stem(
             session_name or f"orderbook_trace_{int(time.time())}"
         )
-        self.session_id = None
-        self.start_time = None
-        self.end_time = None
-        self.trace_file = None
+        self.session_id: Optional[int] = None
+        self.start_time: Optional[int] = None
+        self.end_time: Optional[int] = None
+        self.trace_file: Optional[Path] = None
         self.is_active = False
-        self.process = None
-        self.magic_trace_executable = None
+        self.process: Optional[subprocess.Popen] = None
+        self.magic_trace_executable: Optional[str] = None
 
         # Create output directory
         self.output_path = Path(config.output_dir)
@@ -344,14 +344,14 @@ class MagicTraceProfiler:
     seamless integration of profiling into the trading system.
     """
 
-    def __init__(self, config: MagicTraceConfig = None):
+    def __init__(self, config: Optional[MagicTraceConfig] = None):
         self.config = config or MagicTraceConfig()
-        self.active_sessions = {}
+        self.active_sessions: Dict[str, "MagicTraceSession"] = {}
         self.session_counter = 0
         self._lock = threading.Lock()
 
-        # Performance metrics
-        self.metrics = {
+        # Performance metrics (mixed value types: counters and nested maps)
+        self.metrics: Dict[str, Any] = {
             "total_sessions": 0,
             "active_sessions": 0,
             "total_trace_time_ns": 0,
@@ -360,7 +360,7 @@ class MagicTraceProfiler:
         }
 
     @contextmanager
-    def profile_session(self, session_name: str = None):
+    def profile_session(self, session_name: Optional[str] = None):
         """Context manager for profiling sessions."""
         session = self.create_session(session_name)
 
@@ -375,7 +375,7 @@ class MagicTraceProfiler:
                 session.stop()
             self._cleanup_session(session)
 
-    def create_session(self, session_name: str = None) -> MagicTraceSession:
+    def create_session(self, session_name: Optional[str] = None) -> MagicTraceSession:
         """Create a new profiling session."""
         with self._lock:
             if session_name is None:
@@ -402,7 +402,7 @@ class MagicTraceProfiler:
                 if session.is_active:
                     session.stop()
 
-    def profile_function(self, func_name: str = None):
+    def profile_function(self, func_name: Optional[str] = None):
         """Decorator for profiling individual functions."""
 
         def decorator(func: Callable):
@@ -444,7 +444,7 @@ class MagicTraceProfiler:
     def get_performance_summary(self) -> Dict[str, Any]:
         """Get comprehensive performance summary."""
         with self._lock:
-            summary = {
+            summary: Dict[str, Any] = {
                 "session_metrics": dict(self.metrics),
                 "function_performance": {},
                 "alerts": [],
@@ -563,7 +563,7 @@ def get_profiler() -> MagicTraceProfiler:
     return _global_profiler
 
 
-def profile_function(func_name: str = None):
+def profile_function(func_name: Optional[str] = None):
     """Convenience decorator for function profiling."""
     return get_profiler().profile_function(func_name)
 

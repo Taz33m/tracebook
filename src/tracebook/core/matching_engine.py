@@ -1,85 +1,73 @@
 """
-High-performance matching engine with JIT-compiled algorithms.
+Order matching engine.
 
-This module implements the core order matching logic optimized for
-maximum throughput and minimum latency using Numba JIT compilation.
+Implements the core FIFO and pro-rata matching logic in plain Python over
+dict-backed price levels. (Earlier versions used Numba; profiling showed the
+JIT wrapper was a net cost when driven from the Python matching loop -- see
+docs/performance.md.)
 """
 
-from numba import jit
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 import time
-from .order import Order, Trade, orders_can_match, calculate_match_price, calculate_match_quantity
+from .order import (
+    NO_OWNER,
+    Order,
+    SelfTradePolicy,
+    Trade,
+    calculate_match_quantity,
+    orders_can_match,
+)
 from .price_level import PriceLevelManager, MarketDataSnapshot
 
 EPSILON = 1e-12
 
 
-@jit(nopython=True, cache=True)
-def match_orders_fifo(
-    buy_price: float,
-    buy_quantity: float,
-    buy_timestamp: int,
-    sell_price: float,
-    sell_quantity: float,
-    sell_timestamp: int,
-) -> Tuple[float, float]:
-    """
-    JIT-compiled FIFO matching logic.
-
-    Args:
-        buy_price, buy_quantity, buy_timestamp: Buy order details
-        sell_price, sell_quantity, sell_timestamp: Sell order details
-
-    Returns:
-        Tuple[float, float]: (execution_price, execution_quantity)
-    """
-    # Check if orders can match
-    if buy_price < sell_price:
-        return 0.0, 0.0
-
-    # Calculate execution price (price-time priority)
-    if buy_timestamp <= sell_timestamp:
-        execution_price = buy_price
-    else:
-        execution_price = sell_price
-
-    # Calculate execution quantity
-    execution_quantity = min(buy_quantity, sell_quantity)
-
-    return execution_price, execution_quantity
-
-
 class MatchingEngine:
     """
-    High-performance matching engine supporting multiple algorithms.
+    Matching engine supporting multiple algorithms.
 
     Features:
-    - JIT-compiled matching algorithms
-    - Configurable matching logic (FIFO, Pro-Rata)
-    - Minimal memory allocations
+    - FIFO and pro-rata matching
+    - Integer-tick price levels with O(1) in-level insert/removal
+    - Optional self-trade prevention
     - Nanosecond-precision timing
     """
 
-    def __init__(self, symbol: str, matching_algorithm: str = "fifo"):
+    def __init__(
+        self,
+        symbol: str,
+        matching_algorithm: str = "fifo",
+        tick_size: float = 0.01,
+        self_trade_policy: SelfTradePolicy = SelfTradePolicy.NONE,
+    ):
         self.symbol = symbol
         self.matching_algorithm = matching_algorithm.lower()
+        self.tick_size = tick_size
+        self.self_trade_policy = SelfTradePolicy(self_trade_policy)
 
         # Price level managers for each side
-        self.buy_side = PriceLevelManager(is_buy_side=True)
-        self.sell_side = PriceLevelManager(is_buy_side=False)
+        self.buy_side = PriceLevelManager(is_buy_side=True, tick_size=tick_size)
+        self.sell_side = PriceLevelManager(is_buy_side=False, tick_size=tick_size)
 
         # Trade history
-        self.trades = []
+        self.trades: List[Trade] = []
         self.trade_count = 0
 
         # Performance metrics
         self.total_orders_processed = 0
         self.total_matches = 0
+        self.self_trades_prevented = 0
         self.last_trade_time = 0
 
         # Validate matching algorithm
         if self.matching_algorithm not in ["fifo", "pro_rata"]:
             raise ValueError(f"Unsupported matching algorithm: {matching_algorithm}")
+
+    def _is_self_trade(self, incoming_order: Order, resting_order: Order) -> bool:
+        """Return True if the two orders share a non-anonymous owner."""
+        if self.self_trade_policy == SelfTradePolicy.NONE:
+            return False
+        return incoming_order.owner != NO_OWNER and incoming_order.owner == resting_order.owner
 
     def add_order(self, order: Order) -> List[Trade]:
         """
@@ -92,7 +80,7 @@ class MatchingEngine:
             List[Trade]: List of executed trades
         """
         self.total_orders_processed += 1
-        trades = []
+        trades: List[Trade] = []
 
         # FOK orders must be completely executable before touching resting liquidity.
         if order.is_fok_order() and not self._can_fully_fill(order):
@@ -148,12 +136,14 @@ class MatchingEngine:
                 break
 
             # Execute matches at this price level
-            level_trades = self._execute_matches_at_level(
+            level_trades, progressed = self._execute_matches_at_level(
                 buy_order, best_sell_level, self.sell_side
             )
             trades.extend(level_trades)
 
-            if not level_trades:  # No more matches possible
+            # No trade and nothing cancelled here means no further progress is
+            # possible (guards against looping when a level only holds own orders).
+            if not progressed:
                 break
 
         return trades
@@ -172,54 +162,90 @@ class MatchingEngine:
                 break
 
             # Execute matches at this price level
-            level_trades = self._execute_matches_at_level(sell_order, best_buy_level, self.buy_side)
+            level_trades, progressed = self._execute_matches_at_level(
+                sell_order, best_buy_level, self.buy_side
+            )
             trades.extend(level_trades)
 
-            if not level_trades:  # No more matches possible
+            if not progressed:
                 break
 
         return trades
 
     def _execute_matches_at_level(
         self, incoming_order: Order, price_level, side_manager
-    ) -> List[Trade]:
-        """Execute matches at a specific price level."""
+    ) -> Tuple[List[Trade], bool]:
+        """Execute matches at a price level. Returns (trades, progressed).
+
+        `progressed` is True if any trade executed or any resting order was
+        cancelled by self-trade prevention, so a level that only holds the
+        incoming owner's orders does not stall the outer matching loop.
+        """
         if self.matching_algorithm == "pro_rata":
             return self._execute_pro_rata_matches_at_level(
                 incoming_order, price_level, side_manager
             )
 
         trades = []
-        order_ids = list(price_level.orders)  # Copy to avoid modification during iteration
+        progressed = False
 
-        for order_id in order_ids:
-            if incoming_order.remaining_quantity <= EPSILON:
+        # Iterate by repeatedly taking the FIFO head (O(1)) rather than copying
+        # the whole level per aggressive order. A matched head is removed by
+        # update_order_quantity when fully filled, advancing the head; a partial
+        # fill of the incoming order exits the loop with the head still resting.
+        while incoming_order.remaining_quantity > EPSILON:
+            order_id = price_level.get_first_order_id()
+            if order_id == -1:
                 break
 
             resting_order = side_manager.get_order(order_id)
             if resting_order is None or resting_order.remaining_quantity <= EPSILON:
+                # Stale/spent head (unreachable under the level/orders invariant):
+                # evict it, cleaning the index if the level empties, then keep
+                # matching the depth behind it rather than stalling at this price.
+                side_manager.discard_from_level(order_id, price_level)
+                progressed = True
                 continue
 
+            if self._is_self_trade(incoming_order, resting_order):
+                if self.self_trade_policy == SelfTradePolicy.CANCEL_RESTING:
+                    side_manager.remove_order(order_id)
+                    self.self_trades_prevented += 1
+                    progressed = True
+                    continue
+                # CANCEL_INCOMING: drop the aggressor's remainder and stop here
+                # so it never rests into a self-cross.
+                self.self_trades_prevented += 1
+                incoming_order.remaining_quantity = 0.0
+                progressed = True
+                break
+
             trade = self._execute_fifo_match(incoming_order, resting_order)
+            if trade is None:
+                break  # no progress possible (guards against a stuck head)
 
-            if trade is not None:
-                trades.append(trade)
+            trades.append(trade)
+            fill_qty = trade.quantity
+            incoming_order.fill(fill_qty)
+            side_manager.update_order_quantity(order_id, fill_qty)
+            progressed = True
 
-                # Update order quantities
-                fill_qty = trade.quantity
-                incoming_order.fill(fill_qty)
-
-                # Update price level
-                side_manager.update_order_quantity(order_id, fill_qty)
-
-        return trades
+        return trades, progressed
 
     def _execute_pro_rata_matches_at_level(
         self, incoming_order: Order, price_level, side_manager
-    ) -> List[Trade]:
-        """Allocate the incoming order proportionally across all resting orders at a level."""
-        trades = []
+    ) -> Tuple[List[Trade], bool]:
+        """Allocate the incoming order proportionally across resting orders at a level.
+
+        Returns (trades, progressed). Same-owner resting orders are excluded from
+        the allocation under self-trade prevention (and cancelled under
+        CANCEL_RESTING); CANCEL_INCOMING drops the aggressor's remainder once it
+        has contacted any same-owner order at the level.
+        """
+        trades: List[Trade] = []
+        progressed = False
         resting_orders = []
+        self_trade_seen = False
 
         for order_id in list(price_level.orders):
             resting_order = side_manager.get_order(order_id)
@@ -232,11 +258,24 @@ class MatchingEngine:
             ):
                 continue
 
+            if self._is_self_trade(incoming_order, resting_order):
+                self_trade_seen = True
+                if self.self_trade_policy == SelfTradePolicy.CANCEL_RESTING:
+                    side_manager.remove_order(order_id)
+                    self.self_trades_prevented += 1
+                    progressed = True
+                # Either way the own order is excluded from the allocation.
+                continue
+
             resting_orders.append(resting_order)
 
         available_quantity = sum(order.remaining_quantity for order in resting_orders)
         if available_quantity <= EPSILON:
-            return trades
+            if self_trade_seen and self.self_trade_policy == SelfTradePolicy.CANCEL_INCOMING:
+                self.self_trades_prevented += 1
+                incoming_order.remaining_quantity = 0.0
+                progressed = True
+            return trades, progressed
 
         total_fill = min(incoming_order.remaining_quantity, available_quantity)
         remaining_fill = total_fill
@@ -261,14 +300,11 @@ class MatchingEngine:
                 buy_order_id = resting_order.order_id
                 sell_order_id = incoming_order.order_id
 
-            execution_price = (
-                calculate_match_price(
-                    incoming_order if incoming_order.is_buy() else resting_order,
-                    resting_order if resting_order.is_sell() else incoming_order,
-                )
-                if incoming_order.is_market_order() or resting_order.is_market_order()
-                else resting_order.price
-            )
+            # Matches always execute at the resting (maker) order's price. When a
+            # market order is involved the resting side is always the limit order,
+            # so this yields the same value the old price-time rule produced --
+            # the book now has a single, consistent execution-price rule.
+            execution_price = resting_order.price
 
             trade = Trade(
                 buy_order_id=buy_order_id,
@@ -283,8 +319,16 @@ class MatchingEngine:
             incoming_order.fill(fill_qty)
             side_manager.update_order_quantity(resting_order.order_id, fill_qty)
             remaining_fill -= fill_qty
+            progressed = True
 
-        return trades
+        # Having contacted a same-owner order, CANCEL_INCOMING drops the remainder
+        # after allocating to everyone else at this level.
+        if self_trade_seen and self.self_trade_policy == SelfTradePolicy.CANCEL_INCOMING:
+            self.self_trades_prevented += 1
+            incoming_order.remaining_quantity = 0.0
+            progressed = True
+
+        return trades, progressed
 
     def _execute_fifo_match(self, incoming_order: Order, resting_order: Order) -> Optional[Trade]:
         """Execute a FIFO match between two orders."""
@@ -323,18 +367,45 @@ class MatchingEngine:
         return None
 
     def _can_fully_fill(self, order: Order) -> bool:
-        """Return True if the visible opposite book can fill the full order."""
+        """Return True if the visible opposite book can fill the full order.
+
+        The accounting mirrors how each self-trade policy actually matches so a
+        FOK is never misreported as fillable:
+        - NONE: all resting quantity counts.
+        - CANCEL_RESTING: the order's own resting quantity is skipped (it would
+          be cancelled), and matching continues past it.
+        - CANCEL_INCOMING: matching halts at the first same-owner order, so any
+          liquidity reachable only beyond that order does not count.
+        """
         remaining_needed = order.remaining_quantity
         side_manager = self.sell_side if order.is_buy() else self.buy_side
+        policy = self.self_trade_policy
+        owner_aware = policy != SelfTradePolicy.NONE and order.owner != NO_OWNER
 
-        for price in list(side_manager.sorted_prices):
-            if not order.can_match_price(price):
+        for tick in list(side_manager.sorted_ticks):
+            level = side_manager.price_levels[tick]
+            if not order.can_match_price(level.price):
                 break
 
-            level = side_manager.price_levels[price]
-            remaining_needed -= level.total_quantity
-            if remaining_needed <= EPSILON:
-                return True
+            if not owner_aware:
+                remaining_needed -= level.total_quantity
+                if remaining_needed <= EPSILON:
+                    return True
+                continue
+
+            for resting_id in level.orders:
+                resting = side_manager.get_order(resting_id)
+                if resting is None:
+                    continue
+                if resting.owner == order.owner:
+                    if policy == SelfTradePolicy.CANCEL_INCOMING:
+                        # Matching would stop here; nothing beyond is reachable.
+                        return False
+                    # CANCEL_RESTING: own order is skipped, keep scanning.
+                    continue
+                remaining_needed -= resting.remaining_quantity
+                if remaining_needed <= EPSILON:
+                    return True
 
         return False
 
@@ -377,9 +448,11 @@ class MatchingEngine:
         return {
             "symbol": self.symbol,
             "matching_algorithm": self.matching_algorithm,
+            "self_trade_policy": self.self_trade_policy.name,
             "total_orders_processed": self.total_orders_processed,
             "total_matches": self.total_matches,
             "total_trades": len(self.trades),
+            "self_trades_prevented": self.self_trades_prevented,
             "buy_side_orders": self.buy_side.get_total_orders(),
             "sell_side_orders": self.sell_side.get_total_orders(),
             "buy_side_quantity": self.buy_side.get_total_quantity(),
@@ -395,4 +468,5 @@ class MatchingEngine:
         self.trade_count = 0
         self.total_orders_processed = 0
         self.total_matches = 0
+        self.self_trades_prevented = 0
         self.last_trade_time = 0

@@ -8,7 +8,7 @@ call stack reconstruction, and performance bottleneck identification.
 import time
 import json
 import threading
-from typing import Dict, List, Optional, Any
+from typing import Any, Deque, Dict, List, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict, deque
 from pathlib import Path
@@ -40,7 +40,7 @@ class TraceEvent:
     thread_id: int
     process_id: int
     call_depth: int
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         # Convert numpy int64 to regular Python int for JSON serialization
@@ -63,8 +63,8 @@ class FunctionCall:
     duration_ns: int
     call_depth: int
     thread_id: int
-    children: List["FunctionCall"] = None
-    metadata: Dict[str, Any] = None
+    children: Optional[List["FunctionCall"]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.children is None:
@@ -94,7 +94,7 @@ class FunctionCall:
             "duration_us": self.duration_us,
             "call_depth": self.call_depth,
             "thread_id": self.thread_id,
-            "children": [child.to_dict() for child in self.children],
+            "children": [child.to_dict() for child in (self.children or [])],
             "metadata": self.metadata or {},
         }
 
@@ -108,12 +108,12 @@ class HighResolutionTracer:
 
     def __init__(self, buffer_size: int = 1000000):
         self.buffer_size = buffer_size
-        self.events = deque(maxlen=buffer_size)
-        self.call_stack = defaultdict(list)  # Per-thread call stacks
-        self.active_calls = defaultdict(dict)  # Per-thread active calls
-        self.completed_calls = []
+        self.events: Deque[TraceEvent] = deque(maxlen=buffer_size)
+        self.call_stack: Dict[int, List[str]] = defaultdict(list)  # Per-thread call stacks
+        self.active_calls: Dict[int, Dict[str, Any]] = defaultdict(dict)  # Per-thread active
+        self.completed_calls: List[FunctionCall] = []
         self.is_tracing = False
-        self.start_time_ns = None
+        self.start_time_ns: int = 0
         self.lock = threading.RLock()
 
         # Performance metrics
@@ -166,7 +166,7 @@ class HighResolutionTracer:
 
             return analysis
 
-    def trace_function_enter(self, function_name: str, metadata: Dict[str, Any] = None):
+    def trace_function_enter(self, function_name: str, metadata: Optional[Dict[str, Any]] = None):
         """Record function entry."""
         if not self.is_tracing:
             return
@@ -206,7 +206,7 @@ class HighResolutionTracer:
             trace_end = time.time_ns()
             self.metrics["trace_overhead_ns"] += trace_end - trace_start
 
-    def trace_function_exit(self, function_name: str, metadata: Dict[str, Any] = None):
+    def trace_function_exit(self, function_name: str, metadata: Optional[Dict[str, Any]] = None):
         """Record function exit."""
         if not self.is_tracing:
             return
@@ -320,7 +320,7 @@ class HighResolutionTracer:
         call_depths = [call.call_depth for call in self.completed_calls]
 
         # Thread analysis
-        thread_stats = defaultdict(int)
+        thread_stats: Dict[int, int] = defaultdict(int)
         for call in self.completed_calls:
             thread_stats[call.thread_id] += 1
 
@@ -428,7 +428,7 @@ class TraceProfiler:
         self.active_traces = {}
         self.lock = threading.Lock()
 
-    def profile_function(self, func_name: str = None):
+    def profile_function(self, func_name: Optional[str] = None):
         """Decorator for automatic function profiling."""
 
         def decorator(func):
@@ -492,6 +492,6 @@ def get_tracer() -> TraceProfiler:
     return _global_tracer
 
 
-def profile_function(func_name: str = None):
+def profile_function(func_name: Optional[str] = None):
     """Convenience decorator for function profiling."""
     return get_tracer().profile_function(func_name)

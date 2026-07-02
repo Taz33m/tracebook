@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-70%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-118%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,9 +76,10 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `70` pytest tests passing |
+| Unit tests | `118` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
+| Type check | `python -m mypy src/tracebook` reports `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
 | Package build | sdist and wheel build successfully |
 | Simulation CLI | deterministic FIFO smoke run completes |
@@ -95,6 +96,7 @@ All checks below were run during the latest production repo pass in this checkou
 | Decimal quantities | Handles float quantities for crypto-style sizing | Avoids legacy integer-only simulator behavior |
 | Order types | Supports limit, market, IOC, and FOK semantics | Covers common execution workflows |
 | Lifecycle APIs | Cancels, replaces, active-order lookup, and structured `OrderResult` submissions | Makes simulations and demos inspectable |
+| Self-trade prevention | Owner-tagged orders with `CANCEL_RESTING`/`CANCEL_INCOMING` policies | Stops a participant from matching its own resting liquidity |
 | Event simulation | Interleaves `NEW`, `CANCEL`, and `REPLACE` events with deterministic seeds | Exercises more than one-way order ingestion |
 | Synthetic streams | Generates random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows | Enables repeatable workload variation |
 | Performance monitor | Tracks throughput, latency, resources, generation time, event latency, and overhead | Separates signal from instrumentation cost |
@@ -224,6 +226,65 @@ Enable magic-trace integration or fallback tracing:
 tracebook-sim --duration 5 --throughput 500 --algorithm FIFO --magic-trace
 ```
 
+## Self-Trade Prevention
+
+Tag orders with an `owner` id and choose a policy so a participant never trades
+against its own resting liquidity.
+
+```python
+from tracebook import OrderBook, OrderSide, SelfTradePolicy
+
+book = OrderBook("BTCUSD", self_trade_policy=SelfTradePolicy.CANCEL_RESTING)
+
+book.submit_limit_order(OrderSide.BUY, 100.0, 1.0, owner=1)   # own resting bid
+book.submit_limit_order(OrderSide.BUY, 100.0, 1.0, owner=2)   # someone else
+trades = book.add_limit_order(OrderSide.SELL, 100.0, 1.0, owner=1)
+
+# Owner 1's sell skips its own bid and fills against owner 2 instead.
+print(book.get_statistics()["self_trades_prevented"])  # 1
+```
+
+Policies (`SelfTradePolicy`):
+
+| Policy | Behavior |
+| --- | --- |
+| `NONE` | Default; self-trades are allowed |
+| `CANCEL_RESTING` | Cancel the same-owner resting order; the incoming order continues |
+| `CANCEL_INCOMING` | Cancel the incoming order's remainder on contact with a same-owner order |
+
+Orders without an owner (the default `NO_OWNER`) are anonymous and never
+prevented. Both policies keep the book uncrossed, a FOK is not reported fillable
+by its own liquidity, and the chosen policy is captured in the replay log.
+
+## Record And Replay
+
+Record every mutating operation on a book to a serializable event log, then
+replay it against a fresh book to reconstruct the identical sequence of trades
+and the identical final book state. This makes bug reproduction, regression
+fixtures, and deterministic experiments trivial.
+
+```python
+from tracebook import OrderBook, OrderSide, EventLog, replay
+
+book = OrderBook("BTCUSD")
+log = book.start_recording()
+
+book.add_limit_order(OrderSide.BUY, 50_000.0, 1.0)
+book.add_limit_order(OrderSide.SELL, 49_999.0, 0.5)
+book.stop_recording()
+
+# Persist and restore across processes.
+restored = EventLog.from_json(log.to_json())
+rebuilt = replay(restored)
+
+assert rebuilt.get_best_bid() == book.get_best_bid()
+```
+
+Matching does not depend on wall-clock time (execution price is the resting
+price and FIFO priority is insertion order), so a fixed event log always
+reproduces the same trades and resting book. Per-trade wall-clock timestamps are
+metadata and are excluded from the determinism guarantee.
+
 ## Reproducible Benchmarks
 
 ```bash
@@ -312,6 +373,9 @@ Public top-level exports:
 | `OrderSide` | `BUY` and `SELL` enum |
 | `OrderType` | `MARKET`, `LIMIT`, `IOC`, `FOK` enum |
 | `Trade` | Executed trade record |
+| `SelfTradePolicy` | `NONE`, `CANCEL_RESTING`, `CANCEL_INCOMING` self-trade policy |
+| `EventLog` | Serializable record of book operations for replay |
+| `replay` | Reconstruct a book from a recorded `EventLog` |
 
 ## Outputs
 
@@ -329,7 +393,6 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 ```text
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
-  algorithms/               FIFO and pro-rata analysis helpers
   simulation/               synthetic order streams and event simulation
   benchmarks/               reproducible benchmark runner
   profiling/                performance monitor and tracing tools
@@ -360,15 +423,15 @@ Non-claims:
 - Not a trading venue, broker, market data vendor, or exchange connector.
 - Not investment advice.
 - Not a guarantee of live low-latency performance.
-- Not a fixed-point/tick-index implementation yet.
+- Not a full fixed-point implementation yet; prices snap to an integer tick grid but quantities remain float64.
 - Not a complete market microstructure research platform.
 - Not proof that a listed benchmark number will reproduce on another machine.
 
 ## Limitations
 
 - Alpha software; APIs may still evolve before a stable v1 release.
-- Current storage uses Python dictionaries and lists around Numba-accelerated helper paths, not a final low-latency memory layout.
-- Prices and quantities are float64-style values; fixed-point accounting is a later performance phase.
+- Current storage uses plain Python dicts and lists (orders per level are an insertion-ordered dict; price levels are a bisect-indexed list), not a final low-latency memory layout.
+- Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.
@@ -378,9 +441,9 @@ Non-claims:
 
 Near-term production hardening:
 
-- Add a meaningful mypy baseline after cleaning current typing noise.
+- Tighten the mypy baseline further (e.g. `--check-untyped-defs`, per-module strictness) now that the whole package type-checks.
 - Expand benchmark scenarios for deeper book sweeps, multi-symbol runs, and higher cancellation mixes.
-- Add more artifact-level tests around exported JSON schemas.
+- Consider publishing an explicit JSON Schema for the exported artifacts (now shape-tested in `tests/test_artifact_schemas.py`).
 - Introduce fixed-point price and quantity experiments behind benchmark evidence.
 - Publish release artifacts once the alpha API stabilizes.
 

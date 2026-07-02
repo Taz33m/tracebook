@@ -35,8 +35,8 @@ SCENARIOS = {
 
 
 def _dependency_versions() -> Dict[str, Optional[str]]:
-    packages = ["tracebook", "numpy", "numba", "psutil", "dash", "plotly"]
-    versions = {}
+    packages = ["tracebook", "numpy", "psutil", "dash", "plotly"]
+    versions: Dict[str, Optional[str]] = {}
     for package in packages:
         try:
             versions[package] = metadata.version(package)

@@ -298,10 +298,70 @@ def test_snapshot_stays_consistent_after_cancel_and_replace():
     assert snapshot.best_ask == pytest.approx(102.0)
 
 
+def test_trusted_fast_path_still_prevents_duplicate_resubmission():
+    book = OrderBook("BTCUSD")
+    result = book.submit_limit_order(OrderSide.BUY, 100.0, 1.0)  # trusted fast path
+    assert result.rested
+
+    # The public add_order (untrusted path) still validates and rejects the same
+    # already-resting order, so the fast path opens no duplicate-submission hole.
+    with pytest.raises(ValueError, match="already active"):
+        book.add_order(result.order)
+
+
+def test_convenience_methods_still_reject_invalid_input():
+    book = OrderBook("BTCUSD")
+    # The factory validates before the fast path runs, so bad input still raises.
+    with pytest.raises(ValueError, match="positive"):
+        book.add_limit_order(OrderSide.BUY, -1.0, 1.0)
+    rejected = book.submit_limit_order(OrderSide.BUY, -1.0, 1.0)
+    assert rejected.rejected_reason and not rejected.accepted
+
+
+def test_order_and_trade_are_slotted_plain_objects():
+    from tracebook.core.order import OrderFactory, Trade
+
+    order = OrderFactory().create_limit_order("BTCUSD", OrderSide.BUY, 100.0, 2.0, owner=5)
+
+    # Plain __slots__ objects: no per-instance __dict__, attributes are stored directly.
+    assert not hasattr(order, "__dict__")
+    assert order.owner == 5
+    assert order.remaining_quantity == pytest.approx(2.0)
+    assert order.is_buy() and order.is_limit_order() and order.can_rest()
+    assert order.fill(0.5) == pytest.approx(0.5)
+    assert order.remaining_quantity == pytest.approx(1.5)
+    assert order.can_match_price(99.0) and not order.can_match_price(101.0)
+
+    market = OrderFactory().create_market_order("BTCUSD", OrderSide.SELL, 1.0)
+    assert market.is_market_order() and not market.can_rest()
+    assert market.can_match_price(50.0)  # market matches any price
+
+    trade = Trade(1, 2, 100.0, 0.5, 123)
+    assert not hasattr(trade, "__dict__")
+    assert (trade.buy_order_id, trade.sell_order_id, trade.quantity) == (1, 2, pytest.approx(0.5))
+
+
 def test_price_level_missing_remove_is_noop():
     level = PriceLevel(100.0)
     level.add_order(1, 2.0)
 
     assert level.remove_order(2, 1.0) is False
     assert level.order_count == 1
+    assert level.total_quantity == pytest.approx(2.0)
+
+
+def test_price_level_preserves_fifo_order_across_removals():
+    level = PriceLevel(100.0)
+    for order_id in (10, 20, 30, 40):
+        level.add_order(order_id, 1.0)
+
+    # Removing a middle order does not disturb the arrival order of the rest.
+    assert level.remove_order(20, 1.0) is True
+    assert list(level.orders) == [10, 30, 40]
+    assert level.get_first_order_id() == 10
+
+    # Removing the head advances the FIFO front.
+    assert level.remove_order(10, 1.0) is True
+    assert level.get_first_order_id() == 30
+    assert level.order_count == 2
     assert level.total_quantity == pytest.approx(2.0)

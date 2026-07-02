@@ -11,7 +11,7 @@ import plotly.graph_objs as go
 import time
 import threading
 import ipaddress
-from typing import Dict, List, Any
+from typing import Any, Deque, Dict, List, Optional
 from collections import deque
 
 from .. import __version__
@@ -37,21 +37,21 @@ class DashboardData:
         self.lock = threading.Lock()
 
         # Time series data
-        self.timestamps = deque(maxlen=max_points)
-        self.throughput_data = deque(maxlen=max_points)
-        self.latency_data = deque(maxlen=max_points)
-        self.cpu_data = deque(maxlen=max_points)
-        self.memory_data = deque(maxlen=max_points)
-        self.trade_volume_data = deque(maxlen=max_points)
+        self.timestamps: Deque = deque(maxlen=max_points)
+        self.throughput_data: Deque = deque(maxlen=max_points)
+        self.latency_data: Deque = deque(maxlen=max_points)
+        self.cpu_data: Deque = deque(maxlen=max_points)
+        self.memory_data: Deque = deque(maxlen=max_points)
+        self.trade_volume_data: Deque = deque(maxlen=max_points)
 
         # Order book data
-        self.bid_prices = []
-        self.bid_quantities = []
-        self.ask_prices = []
-        self.ask_quantities = []
+        self.bid_prices: List[float] = []
+        self.bid_quantities: List[float] = []
+        self.ask_prices: List[float] = []
+        self.ask_quantities: List[float] = []
 
         # Summary statistics
-        self.summary_stats = {}
+        self.summary_stats: Dict[str, Any] = {}
 
         # Last update time
         self.last_update = time.time()
@@ -163,7 +163,7 @@ class PerformanceDashboard:
         self.app = self._create_app()
 
         # Order book manager (optional)
-        self.order_book_manager = None
+        self.order_book_manager: Optional[OrderBookManager] = None
 
     def set_order_book_manager(self, manager: OrderBookManager):
         """Set order book manager for depth visualization."""
@@ -173,7 +173,7 @@ class PerformanceDashboard:
         """Create the Dash application."""
         app = dash.Dash(__name__)
 
-        app.layout = html.Div(
+        app.layout = html.Div(  # type: ignore[misc]  # Dash types layout as read-only
             [
                 # Header
                 html.Div(

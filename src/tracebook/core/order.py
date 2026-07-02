@@ -1,9 +1,13 @@
 """
-High-performance order data structures optimized for Numba JIT compilation.
+Order data structures.
+
+Order and Trade are plain ``__slots__`` classes. They were previously Numba
+``jitclass`` types, but the order book drives them from pure Python -- every
+construction paid ``inspect``-based argument binding and every field access was
+boxed across the Python/Numba boundary -- so the JIT wrapper was a net cost. See
+docs/performance.md for the measured before/after.
 """
 
-from numba import types
-from numba.experimental import jitclass
 from enum import IntEnum
 from numbers import Real
 import math
@@ -27,6 +31,26 @@ class OrderType(IntEnum):
     FOK = 4  # Fill or Kill
 
 
+# Sentinel owner id meaning "no owner"; such orders never trigger self-trade
+# prevention (anonymous orders are free to trade with one another).
+NO_OWNER = -1
+
+
+class SelfTradePolicy(IntEnum):
+    """How the engine handles an order that would match its own owner's resting order.
+
+    NONE: disabled (default) -- self-trades are allowed.
+    CANCEL_RESTING: cancel the same-owner resting order; the incoming order
+        continues matching against everyone else.
+    CANCEL_INCOMING: cancel the incoming order's unmatched remainder on first
+        contact with a same-owner resting order (it does not rest).
+    """
+
+    NONE = 0
+    CANCEL_RESTING = 1
+    CANCEL_INCOMING = 2
+
+
 def normalize_symbol(symbol: str) -> str:
     """Validate and normalize a trading symbol."""
     if not isinstance(symbol, str):
@@ -39,30 +63,23 @@ def normalize_symbol(symbol: str) -> str:
     return normalized_symbol
 
 
-# Numba-compatible order specification
-order_spec = [
-    ("order_id", types.int64),
-    ("symbol", types.unicode_type),
-    ("side", types.int8),
-    ("order_type", types.int8),
-    ("price", types.float64),
-    ("quantity", types.float64),
-    ("remaining_quantity", types.float64),
-    ("timestamp", types.int64),
-    ("priority", types.int64),
-]
-
-
-@jitclass(order_spec)
 class Order:
-    """
-    High-performance order structure optimized for JIT compilation.
+    """A single order. Plain ``__slots__`` class for cheap construction and access."""
 
-    All fields are primitive types to ensure maximum performance
-    and compatibility with Numba's JIT compiler.
-    """
+    __slots__ = (
+        "order_id",
+        "symbol",
+        "side",
+        "order_type",
+        "price",
+        "quantity",
+        "remaining_quantity",
+        "timestamp",
+        "priority",
+        "owner",
+    )
 
-    def __init__(self, order_id, symbol, side, order_type, price, quantity, timestamp):
+    def __init__(self, order_id, symbol, side, order_type, price, quantity, timestamp, owner):
         self.order_id = order_id
         self.symbol = symbol
         self.side = side
@@ -72,6 +89,7 @@ class Order:
         self.remaining_quantity = quantity
         self.timestamp = timestamp
         self.priority = timestamp  # FIFO priority based on timestamp
+        self.owner = owner  # participant id for self-trade prevention
 
     def is_buy(self):
         """Check if order is a buy order."""
@@ -138,19 +156,10 @@ class Order:
         return fill_qty
 
 
-# Trade execution result
-trade_spec = [
-    ("buy_order_id", types.int64),
-    ("sell_order_id", types.int64),
-    ("price", types.float64),
-    ("quantity", types.float64),
-    ("timestamp", types.int64),
-]
-
-
-@jitclass(trade_spec)
 class Trade:
-    """Trade execution result."""
+    """Trade execution result. Plain ``__slots__`` class."""
+
+    __slots__ = ("buy_order_id", "sell_order_id", "price", "quantity", "timestamp")
 
     def __init__(self, buy_order_id, sell_order_id, price, quantity, timestamp):
         self.buy_order_id = buy_order_id
@@ -221,6 +230,14 @@ class OrderFactory:
             raise ValueError(f"Order quantity must be positive: {quantity}")
         return quantity
 
+    def _validate_owner(self, owner: int):
+        """Validate an owner id (an int64; NO_OWNER means anonymous)."""
+        if isinstance(owner, bool) or not isinstance(owner, int):
+            raise ValueError(f"Order owner must be an integer id: {owner!r}")
+        if not (-(2**63) <= owner < 2**63):
+            raise ValueError(f"Order owner id is out of range for int64: {owner}")
+        return owner
+
     def _validate_price(self, price: float):
         """Validate that limit-style order price is positive."""
         if isinstance(price, bool) or not isinstance(price, Real):
@@ -231,29 +248,36 @@ class OrderFactory:
         return price
 
     def create_order(
-        self, symbol: str, side: OrderSide, order_type: OrderType, price: float, quantity: float
+        self,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        price: float,
+        quantity: float,
+        owner: int = NO_OWNER,
     ) -> Order:
         """Create an order of the specified type."""
         order_type = self._validate_order_type(order_type)
         if order_type == OrderType.LIMIT:
-            return self.create_limit_order(symbol, side, price, quantity)
+            return self.create_limit_order(symbol, side, price, quantity, owner)
         elif order_type == OrderType.MARKET:
-            return self.create_market_order(symbol, side, quantity)
+            return self.create_market_order(symbol, side, quantity, owner)
         elif order_type == OrderType.IOC:
-            return self.create_ioc_order(symbol, side, price, quantity)
+            return self.create_ioc_order(symbol, side, price, quantity, owner)
         elif order_type == OrderType.FOK:
-            return self.create_fok_order(symbol, side, price, quantity)
+            return self.create_fok_order(symbol, side, price, quantity, owner)
         else:
             raise ValueError(f"Unsupported order type: {order_type}")
 
     def create_limit_order(
-        self, symbol: str, side: OrderSide, price: float, quantity: float
+        self, symbol: str, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
     ) -> Order:
         """Create a limit order."""
         symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
+        owner = self._validate_owner(owner)
         order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
@@ -265,13 +289,17 @@ class OrderFactory:
             price=price,
             quantity=quantity,
             timestamp=timestamp,
+            owner=owner,
         )
 
-    def create_market_order(self, symbol: str, side: OrderSide, quantity: float) -> Order:
+    def create_market_order(
+        self, symbol: str, side: OrderSide, quantity: float, owner: int = NO_OWNER
+    ) -> Order:
         """Create a market order."""
         symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
         quantity = self._validate_quantity(quantity)
+        owner = self._validate_owner(owner)
         order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
@@ -283,16 +311,18 @@ class OrderFactory:
             price=0.0,  # Market orders don't have a price limit
             quantity=quantity,
             timestamp=timestamp,
+            owner=owner,
         )
 
     def create_ioc_order(
-        self, symbol: str, side: OrderSide, price: float, quantity: float
+        self, symbol: str, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
     ) -> Order:
         """Create an Immediate or Cancel order."""
         symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
+        owner = self._validate_owner(owner)
         order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
@@ -304,16 +334,18 @@ class OrderFactory:
             price=price,
             quantity=quantity,
             timestamp=timestamp,
+            owner=owner,
         )
 
     def create_fok_order(
-        self, symbol: str, side: OrderSide, price: float, quantity: float
+        self, symbol: str, side: OrderSide, price: float, quantity: float, owner: int = NO_OWNER
     ) -> Order:
         """Create a Fill or Kill order."""
         symbol = normalize_symbol(symbol)
         side = self._validate_side(side)
         price = self._validate_price(price)
         quantity = self._validate_quantity(quantity)
+        owner = self._validate_owner(owner)
         order_id = self._allocate_order_id()
         timestamp = time.time_ns()
 
@@ -325,6 +357,7 @@ class OrderFactory:
             price=price,
             quantity=quantity,
             timestamp=timestamp,
+            owner=owner,
         )
 
 
@@ -357,32 +390,6 @@ def orders_can_match(buy_order: Order, sell_order: Order) -> bool:
 
     # Limit orders match if buy price >= sell price
     return buy_order.price >= sell_order.price
-
-
-def calculate_match_price(buy_order: Order, sell_order: Order) -> float:
-    """
-    Calculate the execution price for matching orders.
-
-    Uses price-time priority: the order that arrived first gets their price.
-
-    Args:
-        buy_order: Buy order
-        sell_order: Sell order
-
-    Returns:
-        float: Execution price
-    """
-    # Market orders execute at the limit order's price
-    if buy_order.is_market_order():
-        return sell_order.price
-    if sell_order.is_market_order():
-        return buy_order.price
-
-    # For limit orders, use the price of the order that arrived first
-    if buy_order.timestamp <= sell_order.timestamp:
-        return buy_order.price
-    else:
-        return sell_order.price
 
 
 def calculate_match_quantity(buy_order: Order, sell_order: Order) -> float:

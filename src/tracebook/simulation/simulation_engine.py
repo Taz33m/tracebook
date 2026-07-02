@@ -10,7 +10,7 @@ import json
 import math
 import time
 from typing import Dict, List, Any, Optional, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import numpy as np
 
@@ -40,7 +40,7 @@ class SimulationConfig:
     enable_magic_trace: bool = True
     batch_processing: bool = True
     batch_size: int = 100
-    symbols: List[str] = None
+    symbols: List[str] = field(default_factory=lambda: ["BTCUSD"])
     seed: Optional[int] = None
     cancel_ratio: float = 0.0
     replace_ratio: float = 0.0
@@ -48,8 +48,6 @@ class SimulationConfig:
     output_path: Optional[str] = None
 
     def __post_init__(self):
-        if self.symbols is None:
-            self.symbols = ["BTCUSD"]
         if not self.symbols:
             raise ValueError("symbols must contain at least one symbol")
         self.symbols = [normalize_symbol(symbol) for symbol in self.symbols]
@@ -92,7 +90,7 @@ class SimulationEngine:
         self.random_state = np.random.default_rng(config.seed)
 
         # Order streams per symbol
-        self.order_streams = {}
+        self.order_streams: Dict[str, Any] = {}
         self._setup_order_streams()
 
         # Simulation state
@@ -108,12 +106,12 @@ class SimulationEngine:
         self.total_replace_events = 0
         self.total_trades_executed = 0
         self.total_volume = 0.0
-        self.processing_times = []
+        self.processing_times: List[float] = []
 
         # Event callbacks
-        self.trade_callbacks = []
-        self.order_callbacks = []
-        self.simulation_callbacks = []
+        self.trade_callbacks: List[Callable] = []
+        self.order_callbacks: List[Callable] = []
+        self.simulation_callbacks: List[Callable] = []
 
     def _setup_order_streams(self):
         """Setup order streams for each symbol."""
@@ -174,7 +172,7 @@ class SimulationEngine:
         )
 
         if self.config.warmup_seconds > 0:
-            self._warm_up_numba()
+            self._warm_up()
 
         # Start monitoring
         self.performance_monitor.start_monitoring()
@@ -281,13 +279,19 @@ class SimulationEngine:
             trades = result.trades
             self.total_replace_events += 1
             processing_time = time.time_ns() - processing_start
-            self.performance_monitor.metrics_collector.record_metric(
-                name="order_event_latency_ms",
-                value=processing_time / 1_000_000,
-                unit="milliseconds",
-                category="performance",
-                metadata={"event_type": "replace"},
-            )
+            if trades:
+                # A replacement that crosses the book is matching work; count it
+                # as matching latency so replace-heavy scenarios don't hide the
+                # matching cost under lifecycle-event latency.
+                self.performance_monitor.record_order_processing(processing_time, 1)
+            else:
+                self.performance_monitor.metrics_collector.record_metric(
+                    name="order_event_latency_ms",
+                    value=processing_time / 1_000_000,
+                    unit="milliseconds",
+                    category="performance",
+                    metadata={"event_type": "replace"},
+                )
         else:
             return
 
@@ -334,8 +338,8 @@ class SimulationEngine:
 
         return None
 
-    def _warm_up_numba(self):
-        """Warm up JIT-compiled matching paths outside measured simulation."""
+    def _warm_up(self):
+        """Exercise the matching paths (warming interpreter caches) before measuring."""
         deadline = time.time() + self.config.warmup_seconds
         while time.time() < deadline:
             for algorithm in ("FIFO", "PRO_RATA"):
@@ -473,7 +477,7 @@ class SimulationEngine:
 
         print("=" * 80)
 
-    def export_results(self, results: Dict[str, Any], filename: str = None) -> str:
+    def export_results(self, results: Dict[str, Any], filename: Optional[str] = None) -> str:
         """Export results to file."""
         if filename is None:
             timestamp = int(time.time())
