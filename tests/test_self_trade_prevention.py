@@ -136,3 +136,40 @@ def test_invalid_owner_is_rejected():
     result = book.submit_limit_order(OrderSide.BUY, 100.0, 1.0, owner="me")
     assert result.rejected_reason
     assert "owner" in result.rejected_reason
+
+
+def test_owner_out_of_int64_range_is_rejected():
+    book = OrderBook("BTCUSD")
+    result = book.submit_limit_order(OrderSide.BUY, 100.0, 1.0, owner=2**63)
+    assert result.rejected_reason
+    assert "out of range" in result.rejected_reason
+
+
+def test_fok_with_cancel_incoming_is_killed_when_own_order_blocks_liquidity():
+    book = OrderBook("BTCUSD", self_trade_policy=SelfTradePolicy.CANCEL_INCOMING)
+    # Best level: a fillable other-owner order, then the aggressor's own order.
+    # Remaining liquidity sits behind the own order.
+    ahead = book.submit_limit_order(OrderSide.SELL, 100.0, 2.0, owner=2)
+    own = book.submit_limit_order(OrderSide.SELL, 100.0, 1.0, owner=1)
+    behind = book.submit_limit_order(OrderSide.SELL, 101.0, 5.0, owner=2)
+
+    # Without the fix this would fill 2.0 then halt at the own order and cancel
+    # the remainder -- a partial FOK. It must instead be killed, book untouched.
+    trades = book.add_fok_order(OrderSide.BUY, 101.0, 5.0, owner=1)
+
+    assert trades == []
+    assert book.get_order(ahead.order.order_id).remaining_quantity == pytest.approx(2.0)
+    assert book.get_order(own.order.order_id) is not None
+    assert book.get_order(behind.order.order_id).remaining_quantity == pytest.approx(5.0)
+
+
+def test_fok_with_cancel_incoming_fills_when_liquidity_is_reachable_first():
+    book = OrderBook("BTCUSD", self_trade_policy=SelfTradePolicy.CANCEL_INCOMING)
+    # Reachable other-owner liquidity is at the best price; own order is deeper.
+    other = book.submit_limit_order(OrderSide.SELL, 100.0, 5.0, owner=2)
+    book.submit_limit_order(OrderSide.SELL, 101.0, 5.0, owner=1)
+
+    trades = book.add_fok_order(OrderSide.BUY, 100.0, 5.0, owner=1)
+
+    assert sum(t.quantity for t in trades) == pytest.approx(5.0)
+    assert all(t.sell_order_id == other.order.order_id for t in trades)

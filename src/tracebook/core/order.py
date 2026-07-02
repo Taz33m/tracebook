@@ -244,9 +244,11 @@ class OrderFactory:
         return quantity
 
     def _validate_owner(self, owner: int):
-        """Validate an owner id (an integer; NO_OWNER means anonymous)."""
+        """Validate an owner id (an int64; NO_OWNER means anonymous)."""
         if isinstance(owner, bool) or not isinstance(owner, int):
             raise ValueError(f"Order owner must be an integer id: {owner!r}")
+        if not (-(2**63) <= owner < 2**63):
+            raise ValueError(f"Order owner id is out of range for int64: {owner}")
         return owner
 
     def _validate_price(self, price: float):

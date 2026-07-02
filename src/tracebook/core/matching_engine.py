@@ -361,29 +361,41 @@ class MatchingEngine:
     def _can_fully_fill(self, order: Order) -> bool:
         """Return True if the visible opposite book can fill the full order.
 
-        Under self-trade prevention, the order's own resting quantity does not
-        count as available liquidity, since it would be cancelled or skipped
-        rather than filled -- so a FOK is not misreported as fillable.
+        The accounting mirrors how each self-trade policy actually matches so a
+        FOK is never misreported as fillable:
+        - NONE: all resting quantity counts.
+        - CANCEL_RESTING: the order's own resting quantity is skipped (it would
+          be cancelled), and matching continues past it.
+        - CANCEL_INCOMING: matching halts at the first same-owner order, so any
+          liquidity reachable only beyond that order does not count.
         """
         remaining_needed = order.remaining_quantity
         side_manager = self.sell_side if order.is_buy() else self.buy_side
-        exclude_own = self.self_trade_policy != SelfTradePolicy.NONE and order.owner != NO_OWNER
+        policy = self.self_trade_policy
+        owner_aware = policy != SelfTradePolicy.NONE and order.owner != NO_OWNER
 
         for tick in list(side_manager.sorted_ticks):
             level = side_manager.price_levels[tick]
             if not order.can_match_price(level.price):
                 break
 
-            if exclude_own:
-                for resting_id in level.orders:
-                    resting = side_manager.get_order(resting_id)
-                    if resting is None or resting.owner == order.owner:
-                        continue
-                    remaining_needed -= resting.remaining_quantity
-                    if remaining_needed <= EPSILON:
-                        return True
-            else:
+            if not owner_aware:
                 remaining_needed -= level.total_quantity
+                if remaining_needed <= EPSILON:
+                    return True
+                continue
+
+            for resting_id in level.orders:
+                resting = side_manager.get_order(resting_id)
+                if resting is None:
+                    continue
+                if resting.owner == order.owner:
+                    if policy == SelfTradePolicy.CANCEL_INCOMING:
+                        # Matching would stop here; nothing beyond is reachable.
+                        return False
+                    # CANCEL_RESTING: own order is skipped, keep scanning.
+                    continue
+                remaining_needed -= resting.remaining_quantity
                 if remaining_needed <= EPSILON:
                     return True
 
