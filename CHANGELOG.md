@@ -6,6 +6,9 @@ The project follows a lightweight alpha changelog until formal semantic-versione
 
 ## Unreleased
 
+- Reported throughput as a rolling one-second window rate instead of a lifetime cumulative average, so the dashboard shows an instantaneous rate.
+- Removed the synchronous psutil sweep from the order-processing hot path; alerts and summaries now read the background-sampled resource snapshot.
+- Attributed a replacement that crosses the book to matching latency rather than lifecycle-event latency, so replace-heavy scenarios no longer hide matching cost.
 - Made `replace_order` atomic: an invalid replacement is rejected before the original is cancelled, and a replacement that fails to submit after cancellation restores the original resting order, so a replace never destroys liquidity.
 - Bounded the order-id replay guard so long-running books no longer leak memory (most-recent-N window, configurable via `_seen_id_cap`).
 - Keyed price levels by integer ticks (configurable `tick_size`, default `0.01`); prices now snap to a canonical grid, removing the float-identity hazard of dict-keying on raw prices.
