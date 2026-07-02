@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import math
 import time
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from .order import Order, Trade, OrderFactory, OrderSide, OrderType, normalize_symbol
 from .matching_engine import MatchingEngine
@@ -82,7 +82,12 @@ class OrderBook:
             "max_processing_time_ns": 0,
             "min_processing_time_ns": float("inf"),
         }
+        # Replay/duplicate guard. Bounded so long-running books don't leak: only
+        # the most recent `_seen_id_cap` processed ids are remembered. Ids evicted
+        # beyond that window may be reused (a degenerate case for real workloads).
+        self._seen_id_cap = 1_000_000
         self._seen_order_ids = set()
+        self._seen_order_id_queue: deque = deque()
 
     # The book exposes two submission surfaces over one core (`_process_order`):
     #   * submit_* -> OrderResult (canonical): never raises; input and validation
@@ -170,7 +175,7 @@ class OrderBook:
         with self._lock:
             self._validate_order(order)
             order_id = int(order.order_id)
-            self._seen_order_ids.add(order_id)
+            self._mark_seen(order_id)
             self.order_factory.advance_past(order_id)
 
             # Execute order through matching engine
@@ -203,6 +208,16 @@ class OrderBook:
             self._trigger_market_data_callbacks(snapshot)
 
         return OrderResult(order, trades, rested, cancelled, rejected_reason)
+
+    def _mark_seen(self, order_id: int) -> None:
+        """Record a processed order id, evicting the oldest past the cap."""
+        if order_id in self._seen_order_ids:
+            return
+        self._seen_order_ids.add(order_id)
+        self._seen_order_id_queue.append(order_id)
+        if len(self._seen_order_id_queue) > self._seen_id_cap:
+            evicted = self._seen_order_id_queue.popleft()
+            self._seen_order_ids.discard(evicted)
 
     def process_orders_batch(self, orders: List[Order]) -> List[Trade]:
         """
@@ -247,7 +262,10 @@ class OrderBook:
         """
         Replace a resting limit order by cancelling it and submitting a new order.
 
-        The replacement receives a new order id and timestamp.
+        The step is atomic: an invalid replacement is rejected before the original
+        is cancelled, and if the replacement fails to submit after cancellation the
+        original resting order is restored. A replace therefore never destroys
+        resting liquidity. The replacement receives a new order id and timestamp.
         """
         with self._lock:
             existing_order = self.get_order(order_id)
@@ -267,12 +285,25 @@ class OrderBook:
                     replacement_quantity,
                 )
             except ValueError as exc:
+                # Invalid replacement: original order is left untouched.
                 return OrderResult(None, [], False, False, str(exc))
 
             if not self.cancel_order(order_id):
                 return OrderResult(None, [], False, False, "Order could not be cancelled")
 
-            return self.submit_order(replacement_order)
+            result = self.submit_order(replacement_order)
+            if result.rejected_reason is not None:
+                # Replacement failed after cancellation: restore the original.
+                self._restore_resting_order(existing_order)
+                self.stats["orders_cancelled"] -= 1
+            return result
+
+    def _restore_resting_order(self, order: Order) -> None:
+        """Re-rest a previously cancelled order after a failed replacement."""
+        if int(order.side) == int(OrderSide.BUY):
+            self.matching_engine.buy_side.add_order(order)
+        else:
+            self.matching_engine.sell_side.add_order(order)
 
     def get_order(self, order_id: int) -> Optional[Order]:
         """Return a resting order by id, if it is currently active."""
@@ -442,6 +473,7 @@ class OrderBook:
             }
             self._start_time = time.time_ns()
             self._seen_order_ids.clear()
+            self._seen_order_id_queue.clear()
 
     def _update_processing_time_stats(self, processing_time_ns: int):
         """Update processing time statistics."""
