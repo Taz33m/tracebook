@@ -84,50 +84,30 @@ class OrderBook:
         }
         self._seen_order_ids = set()
 
+    # The book exposes two submission surfaces over one core (`_process_order`):
+    #   * submit_* -> OrderResult (canonical): never raises; input and validation
+    #     errors surface as `rejected_reason`.
+    #   * add_*    -> List[Trade] (terse convenience): raises ValueError on invalid
+    #     input, and returns the executed trades otherwise. Note that an
+    #     unfillable FOK is a normal empty result here, not an error.
+
     def add_limit_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
-        """
-        Add a limit order to the book.
-
-        Args:
-            side: OrderSide.BUY or OrderSide.SELL
-            price: Limit price
-            quantity: Order quantity
-
-        Returns:
-            List[Trade]: Executed trades
-        """
+        """Add a limit order to the book and return executed trades."""
         order = self.order_factory.create_limit_order(self.symbol, side, price, quantity)
         return self.add_order(order)
 
     def submit_limit_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit a limit order and return a structured result."""
-        try:
-            order = self.order_factory.create_limit_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_limit_order, side, price, quantity)
 
     def add_market_order(self, side: OrderSide, quantity: float) -> List[Trade]:
-        """
-        Add a market order to the book.
-
-        Args:
-            side: OrderSide.BUY or OrderSide.SELL
-            quantity: Order quantity
-
-        Returns:
-            List[Trade]: Executed trades
-        """
+        """Add a market order to the book and return executed trades."""
         order = self.order_factory.create_market_order(self.symbol, side, quantity)
         return self.add_order(order)
 
     def submit_market_order(self, side: OrderSide, quantity: float) -> OrderResult:
         """Submit a market order and return a structured result."""
-        try:
-            order = self.order_factory.create_market_order(self.symbol, side, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_market_order, side, quantity)
 
     def add_ioc_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
         """
@@ -140,11 +120,7 @@ class OrderBook:
 
     def submit_ioc_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit an Immediate-or-Cancel order and return a structured result."""
-        try:
-            order = self.order_factory.create_ioc_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_ioc_order, side, price, quantity)
 
     def add_fok_order(self, side: OrderSide, price: float, quantity: float) -> List[Trade]:
         """
@@ -157,30 +133,34 @@ class OrderBook:
 
     def submit_fok_order(self, side: OrderSide, price: float, quantity: float) -> OrderResult:
         """Submit a Fill-or-Kill order and return a structured result."""
-        try:
-            order = self.order_factory.create_fok_order(self.symbol, side, price, quantity)
-            return self.submit_order(order)
-        except ValueError as exc:
-            return OrderResult(None, [], False, False, str(exc))
+        return self._submit_new_order(self.order_factory.create_fok_order, side, price, quantity)
 
     def add_order(self, order: Order) -> List[Trade]:
         """
-        Add an order to the book.
+        Add an order to the book, returning executed trades.
 
-        Args:
-            order: Order to add
-
-        Returns:
-            List[Trade]: Executed trades
+        Raises ValueError if the order fails validation.
         """
         return self._process_order(order).trades
 
     def submit_order(self, order: Order) -> OrderResult:
-        """Submit an existing order and return a structured result."""
+        """Submit an existing order and return a structured result (never raises)."""
         try:
             return self._process_order(order)
         except ValueError as exc:
             return OrderResult(order, [], False, False, str(exc))
+
+    def _submit_new_order(self, create, *args) -> OrderResult:
+        """Build an order via the factory and submit it.
+
+        Construction errors (invalid side/price/quantity) are captured as a
+        structured rejection instead of raising, matching submit_* semantics.
+        """
+        try:
+            order = create(self.symbol, *args)
+        except ValueError as exc:
+            return OrderResult(None, [], False, False, str(exc))
+        return self.submit_order(order)
 
     def _process_order(self, order: Order) -> OrderResult:
         """Validate, process, and summarize an incoming order."""
