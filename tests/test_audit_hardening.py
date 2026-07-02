@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from tracebook.core.order import Order, OrderFactory, OrderSide, OrderType
+from tracebook.core.order import NO_OWNER, Order, OrderFactory, OrderSide, OrderType
 from tracebook.core.orderbook import OrderBook
 from tracebook.profiling.magic_trace_wrapper import (
     MagicTraceConfig,
@@ -103,6 +103,7 @@ def test_symbols_are_non_empty_and_normalized():
         101.0,
         1.0,
         time.time_ns(),
+        NO_OWNER,
     )
     manual_result = book.submit_order(manual_order)
 
