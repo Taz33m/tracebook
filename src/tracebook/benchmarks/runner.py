@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import dataclass, asdict, replace
 from importlib import metadata
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .. import __version__
 from ..simulation.simulation_engine import run_benchmark_simulation
@@ -24,6 +24,7 @@ class BenchmarkScenario:
     matching_algorithm: str
     cancel_ratio: float = 0.0
     replace_ratio: float = 0.0
+    symbols: Tuple[str, ...] = ("BTCUSD",)
 
 
 SCENARIOS = {
@@ -31,6 +32,18 @@ SCENARIOS = {
     "fifo_baseline": BenchmarkScenario("fifo_baseline", 5.0, 500.0, "FIFO"),
     "pro_rata_baseline": BenchmarkScenario("pro_rata_baseline", 5.0, 500.0, "PRO_RATA"),
     "cancellation_mix": BenchmarkScenario("cancellation_mix", 5.0, 500.0, "FIFO", 0.15, 0.05),
+    # Deeper book: higher throughput with no cancels so resting liquidity builds up.
+    "deep_book": BenchmarkScenario("deep_book", 5.0, 2000.0, "FIFO"),
+    # Cancel-heavy churn beyond the standard cancellation_mix.
+    "high_cancellation": BenchmarkScenario("high_cancellation", 5.0, 500.0, "FIFO", 0.35, 0.10),
+    # Pro-rata path under lifecycle events (pro_rata_baseline has none).
+    "pro_rata_cancellation": BenchmarkScenario(
+        "pro_rata_cancellation", 5.0, 500.0, "PRO_RATA", 0.15, 0.05
+    ),
+    # Multiple symbols, splitting throughput across independent books.
+    "multi_symbol": BenchmarkScenario(
+        "multi_symbol", 5.0, 500.0, "FIFO", symbols=("BTCUSD", "ETHUSD", "SOLUSD")
+    ),
 }
 
 
@@ -112,6 +125,7 @@ def run_scenario(
         cancel_ratio=scenario.cancel_ratio,
         replace_ratio=scenario.replace_ratio,
         warmup_seconds=warmup_seconds,
+        symbols=list(scenario.symbols),
     )
 
     return {

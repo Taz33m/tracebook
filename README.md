@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-118%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-123%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `118` pytest tests passing |
+| Unit tests | `123` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -303,6 +303,10 @@ Scenarios:
 | `fifo_baseline` | FIFO matching baseline |
 | `pro_rata_baseline` | Pro-rata matching baseline |
 | `cancellation_mix` | FIFO run with cancel and replace events |
+| `deep_book` | Higher-throughput FIFO run that builds deep resting liquidity |
+| `high_cancellation` | FIFO run with a heavier cancel/replace mix |
+| `pro_rata_cancellation` | Pro-rata run with cancel and replace events |
+| `multi_symbol` | FIFO run across multiple symbols (independent books) |
 | `all` | Runs every scenario above |
 
 Benchmark JSON includes machine metadata, dependency versions, scenario config, seed, warmup, throughput, matching latency percentiles, generation latency, lifecycle event latency, memory, and monitoring overhead.
@@ -442,7 +446,7 @@ Non-claims:
 Near-term production hardening:
 
 - Tighten the mypy baseline further (e.g. `--check-untyped-defs`, per-module strictness) now that the whole package type-checks.
-- Expand benchmark scenarios for deeper book sweeps, multi-symbol runs, and higher cancellation mixes.
+- Publish measured local baselines for the newer benchmark scenarios (`deep_book`, `high_cancellation`, `pro_rata_cancellation`, `multi_symbol`).
 - Consider publishing an explicit JSON Schema for the exported artifacts (now shape-tested in `tests/test_artifact_schemas.py`).
 - Introduce fixed-point price and quantity experiments behind benchmark evidence.
 - Publish release artifacts once the alpha API stabilizes.

@@ -509,6 +509,7 @@ def run_benchmark_simulation(
     replace_ratio: float = 0.0,
     warmup_seconds: float = 0.0,
     output_path: Optional[str] = None,
+    symbols: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Run a standard benchmark simulation.
@@ -517,6 +518,7 @@ def run_benchmark_simulation(
         duration: Simulation duration in seconds
         throughput: Target throughput in orders/sec
         algorithm: Matching algorithm ("FIFO" or "PRO_RATA")
+        symbols: Optional list of symbols; defaults to a single book
 
     Returns:
         Simulation results dictionary
@@ -533,6 +535,9 @@ def run_benchmark_simulation(
         replace_ratio=replace_ratio,
         warmup_seconds=warmup_seconds,
         output_path=output_path,
+        # Default to a single book only when symbols is unset; an explicit empty
+        # list is passed through so SimulationConfig's validation rejects it.
+        symbols=list(symbols) if symbols is not None else ["BTCUSD"],
     )
 
     engine = SimulationEngine(config)
