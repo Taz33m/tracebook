@@ -9,7 +9,7 @@ import bisect
 import math
 from decimal import Decimal
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 from .order import Order
 
 
@@ -20,8 +20,12 @@ def infer_price_decimals(tick_size: float) -> int:
     smaller) are not truncated to whole numbers, which would collapse distinct
     price levels onto the same canonical price.
     """
+    # exponent is an int for finite decimals; NaN/Infinity yield a special
+    # string ('n'/'N'/'F'), which callers never pass a valid tick for.
     exponent = Decimal(str(tick_size)).normalize().as_tuple().exponent
-    return -exponent if exponent < 0 else 0
+    if isinstance(exponent, int) and exponent < 0:
+        return -exponent
+    return 0
 
 
 class PriceLevel:
@@ -88,9 +92,9 @@ class PriceLevelManager:
         self.is_buy_side = is_buy_side
         self.tick_size = tick_size
         self._price_decimals = infer_price_decimals(tick_size)
-        self.price_levels = {}  # tick (int) -> PriceLevel
-        self.sorted_ticks = []  # ticks in book order (buy: desc, sell: asc)
-        self.orders = {}  # order_id -> Order (shared storage)
+        self.price_levels: Dict[int, PriceLevel] = {}  # tick -> PriceLevel
+        self.sorted_ticks: List[int] = []  # ticks in book order (buy desc, sell asc)
+        self.orders: Dict[int, Order] = {}  # order_id -> Order (shared storage)
         # Bisect key that keeps sorted_ticks best-first for this side: buy is
         # descending (negate), sell is ascending (identity). Used for O(log n)
         # index lookups instead of a linear scan.
@@ -255,8 +259,8 @@ class MarketDataSnapshot:
     def __init__(self, symbol: str, timestamp: int):
         self.symbol = symbol
         self.timestamp = timestamp
-        self.bid_levels = []  # [(price, quantity, count), ...]
-        self.ask_levels = []  # [(price, quantity, count), ...]
+        self.bid_levels: List[Tuple] = []  # [(price, quantity, count), ...]
+        self.ask_levels: List[Tuple] = []  # [(price, quantity, count), ...]
         self.best_bid = None
         self.best_ask = None
         self.spread = None

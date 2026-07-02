@@ -48,6 +48,7 @@ DEV_REQUIREMENTS = [
     "black>=26.3.1",
     "flake8>=7.3.0",
     "hypothesis>=6.0.0",
+    "mypy>=1.5.0",
     "pytest>=9.0.3",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",

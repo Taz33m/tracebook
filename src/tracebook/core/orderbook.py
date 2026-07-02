@@ -5,7 +5,7 @@ This module provides the main OrderBook class that coordinates all components
 and provides a clean API for order management and market data access.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Callable, Dict, List, Optional, Set
 from dataclasses import dataclass
 import math
 import time
@@ -91,9 +91,9 @@ class OrderBook:
         self._lock = threading.RLock()
 
         # Event callbacks
-        self._trade_callbacks = []
-        self._order_callbacks = []
-        self._market_data_callbacks = []
+        self._trade_callbacks: List[Callable] = []
+        self._order_callbacks: List[Callable] = []
+        self._market_data_callbacks: List[Callable] = []
 
         # Performance tracking
         self._start_time = time.time_ns()
@@ -101,7 +101,7 @@ class OrderBook:
         self._snapshot_interval_ns = 1_000_000  # 1ms default
 
         # Statistics
-        self.stats = {
+        self.stats: Dict[str, float] = {
             "orders_added": 0,
             "orders_cancelled": 0,
             "trades_executed": 0,
@@ -114,7 +114,7 @@ class OrderBook:
         # the most recent `_seen_id_cap` processed ids are remembered. Ids evicted
         # beyond that window may be reused (a degenerate case for real workloads).
         self._seen_id_cap = 1_000_000
-        self._seen_order_ids = set()
+        self._seen_order_ids: Set[int] = set()
         self._seen_order_id_queue: deque = deque()
 
         # Optional event recorder for deterministic replay (see start_recording).
@@ -743,7 +743,7 @@ class OrderBookManager:
                 "buy_side_quantity",
                 "sell_side_quantity",
             }
-            aggregate = {key: 0 for key in summed_keys}
+            aggregate: Dict[str, float] = {key: 0 for key in summed_keys}
             max_processing_time = 0
             min_processing_time = float("inf")
             weighted_processing_time = 0.0
