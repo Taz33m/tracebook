@@ -8,8 +8,6 @@ orders at each price level with minimal memory allocations.
 import math
 from decimal import Decimal
 
-from numba import types, typed
-from numba.experimental import jitclass
 from typing import List, Optional
 from .order import Order
 
@@ -25,48 +23,35 @@ def infer_price_decimals(tick_size: float) -> int:
     return -exponent if exponent < 0 else 0
 
 
-# Price level specification for Numba JIT
-price_level_spec = [
-    ("price", types.float64),
-    ("total_quantity", types.float64),
-    ("order_count", types.int32),
-    ("orders", types.ListType(types.int64)),  # Store order IDs for memory efficiency
-]
-
-
-@jitclass(price_level_spec)
 class PriceLevel:
     """
     Represents all orders at a specific price level.
 
-    Optimized for:
-    - Fast insertion/removal of orders
-    - Efficient quantity tracking
-    - Minimal memory allocations
-    - Cache-friendly access patterns
+    Order ids are held in an insertion-ordered dict used as an ordered set, so
+    removal and FIFO-head lookup are O(1) while price-time (insertion) order is
+    preserved. `orders` iterates order ids in arrival order, exactly like the
+    previous list did, so consumers are unaffected.
     """
 
     def __init__(self, price):
         self.price = price
         self.total_quantity = 0.0
         self.order_count = 0
-        self.orders = typed.List.empty_list(types.int64)
+        self.orders = {}  # order_id -> True, insertion-ordered (FIFO)
 
     def add_order(self, order_id, quantity):
         """Add an order to this price level."""
-        self.orders.append(order_id)
+        self.orders[order_id] = True
         self.total_quantity += quantity
         self.order_count += 1
 
     def remove_order(self, order_id, quantity):
-        """Remove an order from this price level."""
-        # Find and remove the order ID
-        for i in range(len(self.orders)):
-            if self.orders[i] == order_id:
-                self.orders.pop(i)
-                self.total_quantity -= quantity
-                self.order_count -= 1
-                return True
+        """Remove an order from this price level in O(1)."""
+        if order_id in self.orders:
+            del self.orders[order_id]
+            self.total_quantity -= quantity
+            self.order_count -= 1
+            return True
 
         return False
 
@@ -79,9 +64,9 @@ class PriceLevel:
         return self.order_count == 0
 
     def get_first_order_id(self):
-        """Get the first order ID (FIFO)."""
+        """Get the first order ID (FIFO) in O(1)."""
         if self.order_count > 0:
-            return self.orders[0]
+            return next(iter(self.orders))
         return -1
 
 

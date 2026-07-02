@@ -305,3 +305,20 @@ def test_price_level_missing_remove_is_noop():
     assert level.remove_order(2, 1.0) is False
     assert level.order_count == 1
     assert level.total_quantity == pytest.approx(2.0)
+
+
+def test_price_level_preserves_fifo_order_across_removals():
+    level = PriceLevel(100.0)
+    for order_id in (10, 20, 30, 40):
+        level.add_order(order_id, 1.0)
+
+    # Removing a middle order does not disturb the arrival order of the rest.
+    assert level.remove_order(20, 1.0) is True
+    assert list(level.orders) == [10, 30, 40]
+    assert level.get_first_order_id() == 10
+
+    # Removing the head advances the FIFO front.
+    assert level.remove_order(10, 1.0) is True
+    assert level.get_first_order_id() == 30
+    assert level.order_count == 2
+    assert level.total_quantity == pytest.approx(2.0)
