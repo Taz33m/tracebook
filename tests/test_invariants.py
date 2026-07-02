@@ -167,6 +167,28 @@ def test_aggressive_order_sweeps_a_deep_level_in_fifo_order():
     assert book.get_order(ids[5]).remaining_quantity == pytest.approx(1.0)
 
 
+def test_matching_recovers_past_a_stale_level_head():
+    book = OrderBook("X", matching_algorithm="fifo")
+    stale = book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)
+    real = book.submit_limit_order(OrderSide.SELL, 100.0, 1.0)
+
+    # Corrupt the book: drop the head order from the id map but leave its id in
+    # the level (an invariant violation the match loop must recover from).
+    sell = book.matching_engine.sell_side
+    del sell.orders[stale.order.order_id]
+
+    trades = book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
+
+    # It skips the stale head, matches the real resting order, then the emptied
+    # level is cleaned out of both the level map and the price index.
+    assert len(trades) == 1
+    assert trades[0].sell_order_id == real.order.order_id
+    tick = sell.price_to_tick(100.0)
+    assert tick not in sell.price_levels
+    assert tick not in sell.sorted_ticks
+    assert book.get_best_ask() is None
+
+
 def test_matches_execute_at_the_resting_order_price():
     book = OrderBook("X", matching_algorithm="fifo")
     book.add_limit_order(OrderSide.BUY, 100.0, 1.0)

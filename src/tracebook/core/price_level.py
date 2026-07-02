@@ -117,6 +117,22 @@ class PriceLevelManager:
         self.price_levels[tick].add_order(order.order_id, order.remaining_quantity)
         self.orders[order.order_id] = order
 
+    def discard_from_level(self, order_id: int, price_level: "PriceLevel"):
+        """Evict a stale order id from a known level, cleaning up an emptied level.
+
+        Recovery helper for a level entry whose order is missing or spent (which
+        should not happen under the level/orders invariant). Safe if the order is
+        already gone from either structure.
+        """
+        order = self.orders.pop(order_id, None)
+        quantity = order.remaining_quantity if order is not None else 0.0
+        price_level.remove_order(order_id, quantity)
+        if price_level.is_empty():
+            tick = self.price_to_tick(price_level.price)
+            if tick in self.price_levels:
+                del self.price_levels[tick]
+                self._remove_tick_sorted(tick)
+
     def remove_order(self, order_id: int):
         """Remove an order completely."""
         if order_id not in self.orders:
