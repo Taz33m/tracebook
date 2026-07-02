@@ -149,6 +149,24 @@ def test_fifo_time_priority_fills_oldest_resting_order_first():
     assert book.get_order(second.order.order_id).remaining_quantity == pytest.approx(1.0)
 
 
+def test_aggressive_order_sweeps_a_deep_level_in_fifo_order():
+    book = OrderBook("X", matching_algorithm="fifo")
+    # Six resting bids at one price, submitted in a known order.
+    ids = [book.submit_limit_order(OrderSide.BUY, 100.0, 1.0).order.order_id for _ in range(6)]
+
+    # A sell of 3.5 sweeps the level: fills the three oldest fully and the
+    # fourth partially, in FIFO order, leaving the rest untouched.
+    trades = book.add_limit_order(OrderSide.SELL, 100.0, 3.5)
+
+    assert [t.buy_order_id for t in trades] == ids[:4]
+    assert [t.quantity for t in trades] == pytest.approx([1.0, 1.0, 1.0, 0.5])
+    for spent in ids[:3]:
+        assert book.get_order(spent) is None
+    assert book.get_order(ids[3]).remaining_quantity == pytest.approx(0.5)
+    assert book.get_order(ids[4]).remaining_quantity == pytest.approx(1.0)
+    assert book.get_order(ids[5]).remaining_quantity == pytest.approx(1.0)
+
+
 def test_matches_execute_at_the_resting_order_price():
     book = OrderBook("X", matching_algorithm="fifo")
     book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
