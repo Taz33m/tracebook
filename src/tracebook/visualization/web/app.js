@@ -24,8 +24,6 @@ const els = {
   trades: document.getElementById("trades"),
 };
 
-let lastTradePrice = null;
-
 function num(value, digits) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return Number(value).toLocaleString(undefined, {
@@ -136,5 +134,10 @@ async function tick() {
   }
 }
 
-tick();
-setInterval(tick, POLL_MS);
+// Single-flight loop: schedule the next poll only after the current one
+// settles, so a slow request can't overlap or apply responses out of order.
+async function loop() {
+  await tick();
+  setTimeout(loop, POLL_MS);
+}
+loop();

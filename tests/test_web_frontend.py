@@ -1,6 +1,7 @@
 """Tests for the standalone live order-book web frontend."""
 
 import json
+import socket
 import threading
 import time
 import urllib.error
@@ -81,6 +82,22 @@ def test_is_loopback_host():
 def test_non_loopback_host_requires_allow_remote(running_engine):
     with pytest.raises(ValueError, match="allow_remote"):
         web_server.create_server(running_engine, "BTCUSD", host="0.0.0.0", port=0)
+
+
+def test_negative_depth_levels_is_rejected(running_engine):
+    with pytest.raises(ValueError, match="non-negative"):
+        web_server.create_server(running_engine, "BTCUSD", port=0, depth_levels=-1)
+
+
+def test_ipv6_loopback_host_binds(running_engine):
+    try:
+        server = web_server.create_server(running_engine, "BTCUSD", host="::1", port=0)
+    except OSError:
+        pytest.skip("IPv6 not available in this environment")
+    try:
+        assert server.address_family == socket.AF_INET6
+    finally:
+        server.server_close()
 
 
 def test_server_serves_api_state_and_static_assets(running_engine):

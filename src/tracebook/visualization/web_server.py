@@ -14,6 +14,7 @@ host requires ``--allow-remote``.
 import argparse
 import ipaddress
 import json
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -154,13 +155,21 @@ def create_server(
     allow_remote: bool = False,
 ) -> ThreadingHTTPServer:
     """Create (but do not start) the web server bound to host:port."""
+    if depth_levels < 0:
+        raise ValueError("depth_levels must be non-negative")
     if not is_loopback_host(host) and not allow_remote:
         raise ValueError(
             "Non-loopback host requires allow_remote=True because the web "
             "frontend has no authentication"
         )
     handler = _make_handler(engine, symbol, depth_levels, trade_count)
-    return ThreadingHTTPServer((host, port), handler)
+    # Match the address family to the host so an IPv6 host (e.g. ::1) binds.
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+
+    class _Server(ThreadingHTTPServer):
+        address_family = family
+
+    return _Server((host, port), handler)
 
 
 def main(argv: Optional[list] = None) -> int:
@@ -190,6 +199,8 @@ def main(argv: Optional[list] = None) -> int:
             "--host with a non-loopback address requires --allow-remote because "
             "the web frontend has no authentication"
         )
+    if args.depth_levels < 0:
+        parser.error("--depth-levels must be non-negative")
 
     from ..simulation.simulation_engine import SimulationConfig, SimulationEngine
 
