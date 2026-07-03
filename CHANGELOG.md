@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Fixed two tick-snapping matching bugs found in QA: an incoming limit whose price was within half a tick of a resting order could rest beside it and lock the book (the match decision used the raw price while resting prices were snapped), and a positive sub-half-tick price could snap to `0.0` and rest/execute for free. Incoming prices are now snapped onto the tick grid before validation and matching, and a price that snaps to a non-positive tick is rejected. The property-based invariants now fuzz off-grid prices.
+
 ## 0.1.0 - 2026-07-02
 
 First tagged alpha release. Consolidates the full alpha development history.
