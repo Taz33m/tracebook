@@ -1,9 +1,25 @@
 """Tests for order lifecycle hardening: atomic replace and bounded id memory."""
 
+from collections import deque
+
 import pytest
 
 from tracebook.core.order import OrderSide
 from tracebook.core.orderbook import OrderBook, OrderResult
+
+
+def test_trade_history_is_bounded_while_total_stays_cumulative():
+    book = OrderBook("BTCUSD")
+    # Shrink the retained-trade window for the test.
+    book.matching_engine.trades = deque(maxlen=5)
+
+    for _ in range(20):
+        book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
+        book.add_limit_order(OrderSide.SELL, 100.0, 1.0)  # crosses -> one trade
+
+    assert len(book.matching_engine.trades) == 5  # bounded tail, not 20
+    assert book.get_statistics()["total_trades"] == 20  # cumulative count preserved
+    assert len(book.get_recent_trades(3)) == 3  # tail slice still works on the deque
 
 
 def test_replace_restores_original_when_replacement_submit_fails(monkeypatch):
