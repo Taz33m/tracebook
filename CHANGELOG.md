@@ -6,6 +6,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.1.1 - 2026-07-02
+
+Patch release from an adversarial QA pass: eight confirmed bugs fixed, each with a regression test.
+
 - Required an empty book for `start_recording()` (QA found silent replay divergence): the event log captures only operations from the recording point on, so recording a book with pre-existing resting liquidity would replay to a different result (or crash on a later cancel of a pre-existing order). `start_recording()` now raises if any orders are resting.
 - Stopped firing user callbacks while a lock is held (a deadlock vector found in QA): `replace_order` now submits the replacement with the book lock released, and `PerformanceMonitor.record_order_processing` fires alert callbacks after releasing the monitor lock. `replace_order` is now documented as cancel-then-new (its callbacks are lock-free like every other submission).
 - Bounded the matching engine's trade history (found leaking in QA): `trades` is now a capped deque (retaining the recent tail for `get_recent_trades`) instead of an unbounded list, so a long-running book no longer grows memory per fill; `total_trades` remains the cumulative count.
