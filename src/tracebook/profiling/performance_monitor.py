@@ -172,7 +172,7 @@ class SystemResourceMonitor:
     def __init__(self, sample_interval_seconds: float = 1.0):
         self.sample_interval = sample_interval_seconds
         self.is_monitoring = False
-        self.monitor_thread = None
+        self.monitor_thread: Optional[threading.Thread] = None
         self.metrics_collector = MetricsCollector()
 
         # Process handle for efficient monitoring
