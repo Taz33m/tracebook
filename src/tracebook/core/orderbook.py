@@ -121,6 +121,10 @@ class OrderBook:
         # Optional event recorder for deterministic replay (see start_recording).
         self._recorder: Optional[EventLog] = None
 
+        # Bumped on clear(); lets replace_order's off-lock rollback detect that the
+        # book was reset in between (so it doesn't restore into a cleared book).
+        self._generation = 0
+
     # The book exposes two submission surfaces over one core (`_process_order`):
     #   * submit_* -> OrderResult (canonical): never raises; input and validation
     #     errors surface as `rejected_reason`.
@@ -417,15 +421,19 @@ class OrderBook:
                 return OrderResult(
                     None, [], False, False, "Order could not be cancelled", accepted=False
                 )
+            generation = self._generation
 
         # Lock released before submitting so the replacement's callbacks are
         # delivered without the book lock held.
         result = self.submit_order(replacement_order)
         if result.rejected_reason is not None:
-            # Replacement failed after cancellation: restore the original.
+            # Replacement failed after cancellation: restore the original, unless
+            # a concurrent clear() reset the book in the meantime (in which case
+            # the cancel is already gone and there is nothing to undo).
             with self._lock:
-                self._restore_resting_order(existing_order)
-                self.stats["orders_cancelled"] -= 1
+                if self._generation == generation:
+                    self._restore_resting_order(existing_order)
+                    self.stats["orders_cancelled"] -= 1
         return result
 
     def _restore_resting_order(self, order: Order) -> None:
@@ -605,6 +613,7 @@ class OrderBook:
             self._start_time = time.time_ns()
             self._seen_order_ids.clear()
             self._seen_order_id_queue.clear()
+            self._generation += 1
 
     def _update_processing_time_stats(self, processing_time_ns: int):
         """Update processing time statistics."""
