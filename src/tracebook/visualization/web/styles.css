@@ -1,0 +1,312 @@
+/* tracebook live book — a quiet trading-terminal aesthetic.
+   Near-black canvas, one warm accent, tabular numerals, depth as light. */
+
+:root {
+  --bg: #0a0c10;
+  --panel: #0e1117;
+  --line: #1b212c;
+  --ink: #e6e9ef;
+  --ink-dim: #8b93a3;
+  --ink-faint: #565e6d;
+  --bid: #35c28a;
+  --bid-wash: rgba(53, 194, 138, 0.12);
+  --ask: #e5687a;
+  --ask-wash: rgba(229, 104, 122, 0.12);
+  --accent: #e8b96a;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
+  --num: "tnum" 1, "zero" 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(1200px 700px at 50% -10%, #101521 0%, var(--bg) 60%);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-feature-settings: var(--num);
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 20px clamp(14px, 4vw, 48px) 40px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  letter-spacing: 0.02em;
+}
+.mark {
+  font-size: 17px;
+  font-weight: 600;
+}
+.mark-accent {
+  color: var(--accent);
+}
+.sep {
+  color: var(--ink-faint);
+}
+.symbol {
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  text-transform: lowercase;
+}
+.status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  box-shadow: 0 0 0 0 rgba(53, 194, 138, 0.4);
+}
+.status[data-state="live"] .dot {
+  background: var(--bid);
+  animation: pulse 2s infinite;
+}
+.status[data-state="stale"] .dot {
+  background: var(--accent);
+}
+.status[data-state="down"] .dot {
+  background: var(--ask);
+}
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(53, 194, 138, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(53, 194, 138, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(53, 194, 138, 0);
+  }
+}
+
+.quote {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 22px 0 14px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.quote-cell {
+  background: var(--panel);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.quote-cell .k {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.quote-cell .v {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.quote-cell.bid .v {
+  color: var(--bid);
+}
+.quote-cell.ask .v {
+  color: var(--ask);
+}
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 11px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.chip .k {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10.5px;
+}
+.chip .v {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.chip .u {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.book,
+.tape {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 4px;
+}
+
+.col-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.6fr;
+  gap: 8px;
+  padding: 4px 14px 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.col-head span:nth-child(2),
+.col-head span:nth-child(3) {
+  text-align: right;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.6fr;
+  gap: 8px;
+  padding: 3px 14px;
+  font-variant-numeric: tabular-nums;
+  isolation: isolate;
+}
+.row .price {
+  z-index: 1;
+}
+.row .size,
+.row .count {
+  text-align: right;
+  z-index: 1;
+  color: var(--ink-dim);
+}
+.row .bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 0;
+  z-index: 0;
+  border-radius: 3px 0 0 3px;
+}
+.asks .row .price {
+  color: var(--ask);
+}
+.asks .row .bar {
+  background: var(--ask-wash);
+}
+.bids .row .price {
+  color: var(--bid);
+}
+.bids .row .bar {
+  background: var(--bid-wash);
+}
+
+.book-mid {
+  margin: 8px 14px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+  text-align: center;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.tape-head {
+  padding: 4px 14px 2px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.trade-head {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.trade {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 3px 14px;
+  font-variant-numeric: tabular-nums;
+  animation: flashin 0.5s ease-out;
+}
+.trade .t-price.up {
+  color: var(--bid);
+}
+.trade .t-price.down {
+  color: var(--ask);
+}
+.trade .t-price.flat {
+  color: var(--ink);
+}
+.trade .t-size,
+.trade .t-time {
+  text-align: right;
+  color: var(--ink-dim);
+}
+@keyframes flashin {
+  from {
+    background: rgba(232, 185, 106, 0.1);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.empty {
+  padding: 18px 14px;
+  color: var(--ink-faint);
+  text-align: center;
+  font-size: 12px;
+}
+
+.footnote {
+  margin-top: 26px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-align: center;
+}

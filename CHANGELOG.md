@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added a dependency-free live order-book web frontend (`tracebook-web`): a static HTML/CSS/JS page served by a stdlib HTTP server, backed by a background simulation, showing a live depth ladder, top-of-book quote, engine metrics, and a trade tape (polls `/api/state`). No Dash or JS build toolchain; loopback-only by default (`--allow-remote` to bind elsewhere). Ships the static assets in the wheel/sdist.
+
 ## 0.1.1 - 2026-07-02
 
 Patch release from an adversarial QA pass: eight confirmed bugs fixed, each with a regression test.

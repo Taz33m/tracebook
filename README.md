@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-131%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-137%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `131` pytest tests passing |
+| Unit tests | `137` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -102,6 +102,7 @@ All checks below were run during the latest production repo pass in this checkou
 | Performance monitor | Tracks throughput, latency, resources, generation time, event latency, and overhead | Separates signal from instrumentation cost |
 | Benchmark runner | Runs fixed scenarios with warmup and machine metadata | Makes performance regression checks reproducible |
 | Dashboard demo | Starts a Dash dashboard with optional background simulation | Gives a live review path without external services |
+| Web frontend | Dependency-free static live order-book UI over a stdlib server | A clean live view with no Dash/JS-build dependencies |
 | CI and packaging | Tests, lint, smoke runs, benchmark smoke, dashboard smoke, and wheel/sdist build | Keeps the repo usable for contributors |
 
 ## Architecture
@@ -333,6 +334,22 @@ Dashboard dependencies are optional:
 pip install -e ".[dashboard]"
 ```
 
+## Live Web Frontend
+
+A dependency-free live order-book frontend: a static HTML/CSS/JS page served by a
+stdlib HTTP server, backed by a background simulation. No Dash, no build step, no
+extras — it ships with the core package.
+
+```bash
+tracebook-web --port 8080 --throughput 500 --seed 1337
+```
+
+Open `http://localhost:8080` for a live depth ladder, top-of-book quote,
+throughput and latency metrics, and a trade tape. The page polls `/api/state`
+(a JSON snapshot) a couple of times a second. Like the dashboard it is
+unauthenticated, so it binds to loopback by default and a non-loopback host
+requires `--allow-remote`.
+
 ## Command Surface
 
 | Command | Purpose |
@@ -343,7 +360,8 @@ pip install -e ".[dashboard]"
 | `tracebook-sim --output results.json` | Export simulation results |
 | `tracebook-benchmark --scenario smoke` | Run the benchmark smoke scenario |
 | `tracebook-benchmark --scenario all --output benchmark_results/local.json` | Produce a full local benchmark report |
-| `tracebook-dashboard --demo-simulation` | Launch the dashboard with live demo data |
+| `tracebook-dashboard --demo-simulation` | Launch the Dash dashboard with live demo data |
+| `tracebook-web --port 8080` | Serve the dependency-free live order-book frontend |
 | `python -m pytest` | Run unit tests |
 | `python test_system.py` | Run integration smoke checks |
 | `python -m build --sdist --wheel --outdir dist` | Build package artifacts |
@@ -404,7 +422,7 @@ src/tracebook/              package source
   simulation/               synthetic order streams and event simulation
   benchmarks/               reproducible benchmark runner
   profiling/                performance monitor and tracing tools
-  visualization/            Dash dashboard
+  visualization/            Dash dashboard + static web frontend (web/)
 tests/                      pytest correctness and integration coverage
 docs/                       architecture, commands, and performance notes
 examples/                   runnable example scripts
