@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-130%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-131%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -76,7 +76,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `130` pytest tests passing |
+| Unit tests | `131` pytest tests passing |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -284,6 +284,10 @@ Matching does not depend on wall-clock time (execution price is the resting
 price and FIFO priority is insertion order), so a fixed event log always
 reproduces the same trades and resting book. Per-trade wall-clock timestamps are
 metadata and are excluded from the determinism guarantee.
+
+Recording must begin on an empty book: the log captures only operations from the
+`start_recording()` call onward, so `start_recording()` raises if any orders are
+already resting (it cannot reconstruct pre-existing liquidity).
 
 ## Reproducible Benchmarks
 
