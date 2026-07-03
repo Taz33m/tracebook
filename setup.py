@@ -119,8 +119,10 @@ setup(
             "tracebook-sim=tracebook.simulation.simulation_engine:main",
             "tracebook-benchmark=tracebook.benchmarks.runner:main",
             "tracebook-dashboard=tracebook.visualization.dashboard:main",
+            "tracebook-web=tracebook.visualization.web_server:main",
         ],
     },
+    package_data={"tracebook.visualization": ["web/*.html", "web/*.css", "web/*.js"]},
     include_package_data=True,
     zip_safe=False,
 )

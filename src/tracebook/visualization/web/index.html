@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tracebook · live book</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark">trace<span class="mark-accent">book</span></span>
+        <span class="sep">/</span>
+        <span class="symbol" id="symbol">—</span>
+      </div>
+      <div class="status" id="status" data-state="connecting">
+        <span class="dot"></span><span id="status-text">connecting</span>
+      </div>
+    </header>
+
+    <section class="quote" aria-label="top of book">
+      <div class="quote-cell bid">
+        <span class="k">bid</span><span class="v" id="best-bid">—</span>
+      </div>
+      <div class="quote-cell mid">
+        <span class="k">mid</span><span class="v" id="mid">—</span>
+      </div>
+      <div class="quote-cell ask">
+        <span class="k">ask</span><span class="v" id="best-ask">—</span>
+      </div>
+      <div class="quote-cell spread">
+        <span class="k">spread</span><span class="v" id="spread">—</span>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="engine metrics">
+      <div class="chip"><span class="k">throughput</span><span class="v" id="m-thru">—</span><span class="u">ops/s</span></div>
+      <div class="chip"><span class="k">latency p50</span><span class="v" id="m-p50">—</span><span class="u">ms</span></div>
+      <div class="chip"><span class="k">p95</span><span class="v" id="m-p95">—</span><span class="u">ms</span></div>
+      <div class="chip"><span class="k">p99</span><span class="v" id="m-p99">—</span><span class="u">ms</span></div>
+      <div class="chip"><span class="k">orders</span><span class="v" id="m-orders">—</span></div>
+      <div class="chip"><span class="k">trades</span><span class="v" id="m-trades">—</span></div>
+    </section>
+
+    <main class="grid">
+      <section class="book" aria-label="order book depth">
+        <div class="col-head"><span>price</span><span>size</span><span>orders</span></div>
+        <div class="asks" id="asks"></div>
+        <div class="book-mid" id="book-mid">—</div>
+        <div class="bids" id="bids"></div>
+      </section>
+
+      <section class="tape" aria-label="recent trades">
+        <div class="tape-head">trades</div>
+        <div class="col-head trade-head"><span>price</span><span>size</span><span>time</span></div>
+        <div class="trades" id="trades"></div>
+      </section>
+    </main>
+
+    <footer class="footnote">
+      Local demo · synthetic order flow · not investment advice
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
