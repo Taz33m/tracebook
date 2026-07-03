@@ -18,8 +18,9 @@ from tracebook.core.orderbook import OrderBook
 
 EPS = 1e-9
 
-# A small discrete price grid so random orders actually cross and trade.
-_PRICES = st.sampled_from([98.0, 99.0, 100.0, 101.0, 102.0])
+# A small discrete price grid so random orders actually cross and trade. Includes
+# off-grid prices (sub-tick) so the no-crossed-book invariant exercises snapping.
+_PRICES = st.sampled_from([98.0, 99.0, 99.997, 100.0, 100.004, 101.0, 101.006, 102.0])
 _QUANTITIES = st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False)
 _SIDES = st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 # Weight LIMIT higher so the book actually builds up resting liquidity.

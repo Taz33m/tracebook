@@ -67,6 +67,32 @@ def test_matching_still_works_across_the_grid():
     assert book.get_best_ask() is None
 
 
+def test_sub_tick_incoming_price_matches_instead_of_locking_the_book():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+    book.add_limit_order(OrderSide.SELL, 100.00, 5.0)
+
+    # A buy below the ask by less than half a tick snaps up to 100.00 and must
+    # cross the resting ask rather than rest beside it (a locked book).
+    trades = book.add_limit_order(OrderSide.BUY, 99.997, 5.0)
+
+    assert len(trades) == 1
+    assert trades[0].price == pytest.approx(100.00)
+    assert book.get_best_ask() is None
+    assert book.get_best_bid() is None
+
+
+def test_price_that_snaps_below_one_tick_is_rejected():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+
+    rejected = book.submit_limit_order(OrderSide.SELL, 0.004, 10.0)
+    assert rejected.rejected_reason and "non-positive tick" in rejected.rejected_reason
+    assert not rejected.accepted
+    assert book.get_best_ask() is None  # nothing rested at 0.0
+
+    with pytest.raises(ValueError, match="non-positive tick"):
+        book.add_limit_order(OrderSide.SELL, 0.004, 10.0)
+
+
 def test_invalid_tick_size_is_rejected():
     for bad in (0.0, -0.01, float("inf"), float("nan")):
         with pytest.raises(ValueError):

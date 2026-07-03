@@ -23,7 +23,7 @@ from .order import (
     normalize_symbol,
 )
 from .matching_engine import MatchingEngine
-from .price_level import MarketDataSnapshot
+from .price_level import MarketDataSnapshot, infer_price_decimals
 from .replay import EventLog
 
 
@@ -79,6 +79,7 @@ class OrderBook:
         self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
         self.tick_size = tick_size
+        self._price_decimals = infer_price_decimals(tick_size)
         self.self_trade_policy = SelfTradePolicy(self_trade_policy)
 
         # Core components
@@ -219,7 +220,12 @@ class OrderBook:
         except ValueError as exc:
             return OrderResult(None, [], False, False, str(exc), accepted=False)
         # The factory already validated the order, so use the trusted fast path.
-        return self._process_order(order, validate=False)
+        # Price snapping still runs and may reject a sub-tick price, so capture
+        # that as a structured rejection rather than raising.
+        try:
+            return self._process_order(order, validate=False)
+        except ValueError as exc:
+            return OrderResult(order, [], False, False, str(exc), accepted=False)
 
     def _process_order(self, order: Order, validate: bool = True) -> OrderResult:
         """Process and summarize an incoming order.
@@ -234,6 +240,11 @@ class OrderBook:
 
         with self._lock:
             order_id = int(order.order_id)
+            # Snap the price onto the tick grid up front so the match decision and
+            # the resting price agree (matching compares this order's price against
+            # already-snapped resting prices). Done before validation so a price
+            # that snaps to a non-positive tick is rejected.
+            self._snap_order_price(order)
             if validate:
                 self._validate_order(order)
                 # Reconcile a caller-supplied id; factory ids are already ahead.
@@ -277,6 +288,22 @@ class OrderBook:
             self._trigger_market_data_callbacks(snapshot)
 
         return OrderResult(order, trades, rested, cancelled, rejected_reason)
+
+    def _snap_order_price(self, order: Order) -> None:
+        """Snap a price-bearing order onto the book's tick grid before matching.
+
+        Raises ValueError if the price snaps to a non-positive tick, so a
+        sub-half-tick price cannot rest or execute at 0.0.
+        """
+        if int(order.order_type) == int(OrderType.MARKET):
+            return
+        if not math.isfinite(order.price):
+            return  # non-finite prices are rejected by _validate_order
+        tick = round(order.price / self.tick_size)
+        snapped = round(tick * self.tick_size, self._price_decimals)
+        if snapped <= 0:
+            raise ValueError("Order price snaps to a non-positive tick")
+        order.price = snapped
 
     def _mark_seen(self, order_id: int) -> None:
         """Record a processed order id, evicting the oldest past the cap."""
