@@ -360,8 +360,10 @@ class PerformanceMonitor:
                 self.session_metrics["peak_throughput_ops_per_sec"], throughput
             )
 
-            # Check for alerts
-            self._check_performance_alerts(latency_ms, throughput)
+        # Check for alerts outside the lock: alert callbacks are user code and
+        # must not run while the monitor lock is held (deadlock/stall vector on
+        # the per-order hot path).
+        self._check_performance_alerts(latency_ms, throughput)
 
     def record_trade_execution(self, trade_count: int, total_volume: float):
         """Record trade execution metrics."""
