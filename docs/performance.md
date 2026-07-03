@@ -51,6 +51,31 @@ These are local smoke baselines only. They are useful for regression checks on t
 | pro_rata_baseline | 100 | 99.93 | 0.124 | 0.095 | 0.398 | 0.630 | 0.868 | 0.000 | 134.19 |
 | cancellation_mix | 112 | 111.53 | 0.130 | 0.087 | 0.369 | 0.590 | 1.752 | 0.036 | 100.03 |
 
+## Scenario Baselines (all scenarios)
+
+A separate local sample covering every scenario, including the newer ones
+(`deep_book`, `high_cancellation`, `pro_rata_cancellation`, `multi_symbol`).
+Measured on July 2, 2026 with:
+
+- Python: 3.10.5
+- Platform: macOS-15.4.1-arm64-arm-64bit
+- Command: `tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05`
+
+Local sample only, on a different machine than the table above; latency is
+wall-clock and thread-scheduling dependent, so tail figures vary run to run
+(the `multi_symbol` P99 below is one such spike across its three books).
+
+| Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| smoke | 100 | 99.9 | 0.045 | 0.030 | 0.128 | 0.240 | 0.512 | 0.000 | 32.8 |
+| fifo_baseline | 110 | 110.0 | 0.038 | 0.028 | 0.105 | 0.145 | 0.436 | 0.000 | 27.1 |
+| pro_rata_baseline | 100 | 99.9 | 0.052 | 0.032 | 0.143 | 0.307 | 0.586 | 0.000 | 27.4 |
+| cancellation_mix | 102 | 101.9 | 0.046 | 0.030 | 0.143 | 0.159 | 0.511 | 0.026 | 26.1 |
+| deep_book | 100 | 99.9 | 0.062 | 0.036 | 0.163 | 0.335 | 0.846 | 0.000 | 21.9 |
+| high_cancellation | 113 | 112.9 | 0.038 | 0.028 | 0.085 | 0.199 | 0.405 | 0.031 | 22.2 |
+| pro_rata_cancellation | 103 | 102.9 | 0.043 | 0.029 | 0.102 | 0.180 | 0.455 | 0.033 | 22.6 |
+| multi_symbol | 108 | 108.0 | 0.127 | 0.034 | 0.219 | 2.336 | 1.219 | 0.000 | 23.2 |
+
 ## Operation Microbenchmarks
 
 The simulation benchmark above is wall-clock and thread-scheduling dependent. To

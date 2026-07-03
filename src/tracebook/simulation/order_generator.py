@@ -553,7 +553,7 @@ class SyntheticOrderStream:
 
         # Stream control
         self.is_running = False
-        self.stream_thread = None
+        self.stream_thread: Optional[threading.Thread] = None
         self.orders_queue: List[Order] = []
         self.events_queue: List[SimulationEvent] = []
         self.queue_lock = threading.Lock()

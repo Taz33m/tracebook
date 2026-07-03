@@ -304,7 +304,7 @@ class MagicTraceSession:
 
     def _analyze_trace(self):
         """Analyze the collected trace data."""
-        if not self.trace_file.exists():
+        if self.trace_file is None or not self.trace_file.exists():
             print("No trace file found for analysis")
             return
 

@@ -156,7 +156,7 @@ class PerformanceDashboard:
         self.performance_monitor = performance_monitor or get_performance_monitor()
 
         # Data update thread
-        self.update_thread = None
+        self.update_thread: Optional[threading.Thread] = None
         self.is_updating = False
 
         # Dash app
