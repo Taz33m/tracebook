@@ -383,10 +383,14 @@ class OrderBook:
         """
         Replace a resting limit order by cancelling it and submitting a new order.
 
-        The step is atomic: an invalid replacement is rejected before the original
-        is cancelled, and if the replacement fails to submit after cancellation the
-        original resting order is restored. A replace therefore never destroys
-        resting liquidity. The replacement receives a new order id and timestamp.
+        Cancel-then-new: an invalid replacement is rejected before the original is
+        cancelled, and if the replacement fails to submit after cancellation the
+        original resting order is restored, so a replace never destroys resting
+        liquidity. The replacement receives a new order id and timestamp.
+
+        The replacement is submitted with the book lock released, so its callbacks
+        fire lock-free like every other submission (holding the lock across a user
+        callback here was a deadlock vector).
         """
         with self._lock:
             existing_order = self.get_order(order_id)
@@ -414,12 +418,15 @@ class OrderBook:
                     None, [], False, False, "Order could not be cancelled", accepted=False
                 )
 
-            result = self.submit_order(replacement_order)
-            if result.rejected_reason is not None:
-                # Replacement failed after cancellation: restore the original.
+        # Lock released before submitting so the replacement's callbacks are
+        # delivered without the book lock held.
+        result = self.submit_order(replacement_order)
+        if result.rejected_reason is not None:
+            # Replacement failed after cancellation: restore the original.
+            with self._lock:
                 self._restore_resting_order(existing_order)
                 self.stats["orders_cancelled"] -= 1
-            return result
+        return result
 
     def _restore_resting_order(self, order: Order) -> None:
         """Re-rest a previously cancelled order after a failed replacement."""
