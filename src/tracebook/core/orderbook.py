@@ -361,8 +361,18 @@ class OrderBook:
         Returns the log, which can later be serialized and replayed with
         `tracebook.core.replay.replay` to reconstruct identical trades and book
         state. Recording an already-recording book restarts the log.
+
+        The book must be empty: the log records only operations from this point
+        on and cannot capture pre-existing resting liquidity, so recording a
+        non-empty book would replay to a different result. Raises ValueError if
+        any orders are resting.
         """
         with self._lock:
+            if self.matching_engine.buy_side.orders or self.matching_engine.sell_side.orders:
+                raise ValueError(
+                    "start_recording requires an empty book; it cannot capture "
+                    "pre-existing resting liquidity for faithful replay"
+                )
             self._recorder = EventLog(
                 self.symbol,
                 self.matching_algorithm,

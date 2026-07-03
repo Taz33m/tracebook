@@ -155,9 +155,23 @@ def test_recording_can_be_restarted_and_stopped():
     book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
     assert len(log) == 1
 
-    # Restarting drops the prior log.
+    # The resting bid means the book is no longer empty; restarting is refused
+    # because a fresh log cannot capture that pre-existing liquidity.
+    with pytest.raises(ValueError, match="empty book"):
+        book.start_recording()
+
+    # On an empty book, restarting drops the prior log.
+    book.clear()
     fresh = book.start_recording()
     assert len(fresh) == 0
     book.add_limit_order(OrderSide.SELL, 101.0, 1.0)
     assert len(fresh) == 1
     assert book.stop_recording() is fresh
+
+
+def test_start_recording_requires_an_empty_book():
+    book = OrderBook("BTCUSD")
+    book.add_limit_order(OrderSide.SELL, 100.0, 1.0)  # pre-existing resting liquidity
+
+    with pytest.raises(ValueError, match="empty book"):
+        book.start_recording()
