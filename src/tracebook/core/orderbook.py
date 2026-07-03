@@ -496,7 +496,8 @@ class OrderBook:
         if count <= 0:
             return []
         with self._lock:
-            return self.matching_engine.trades[-count:] if self.matching_engine.trades else []
+            # self.matching_engine.trades is a bounded deque; materialize to slice.
+            return list(self.matching_engine.trades)[-count:]
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get comprehensive statistics."""

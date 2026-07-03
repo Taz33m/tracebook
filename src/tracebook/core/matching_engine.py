@@ -7,7 +7,8 @@ JIT wrapper was a net cost when driven from the Python matching loop -- see
 docs/performance.md.)
 """
 
-from typing import List, Optional, Tuple
+from collections import deque
+from typing import Deque, List, Optional, Tuple
 import time
 from .order import (
     NO_OWNER,
@@ -49,8 +50,10 @@ class MatchingEngine:
         self.buy_side = PriceLevelManager(is_buy_side=True, tick_size=tick_size)
         self.sell_side = PriceLevelManager(is_buy_side=False, tick_size=tick_size)
 
-        # Trade history
-        self.trades: List[Trade] = []
+        # Trade history: bounded so a long-running book doesn't leak memory.
+        # get_recent_trades reads the tail; total_matches tracks the true total.
+        self._trade_history_cap = 10000
+        self.trades: Deque[Trade] = deque(maxlen=self._trade_history_cap)
         self.trade_count = 0
 
         # Performance metrics
@@ -451,7 +454,7 @@ class MatchingEngine:
             "self_trade_policy": self.self_trade_policy.name,
             "total_orders_processed": self.total_orders_processed,
             "total_matches": self.total_matches,
-            "total_trades": len(self.trades),
+            "total_trades": self.total_matches,  # cumulative; self.trades is a bounded tail
             "self_trades_prevented": self.self_trades_prevented,
             "buy_side_orders": self.buy_side.get_total_orders(),
             "sell_side_orders": self.sell_side.get_total_orders(),

@@ -241,6 +241,22 @@ def test_magic_trace_raw_artifact_analysis_is_honest(tmp_path: Path):
     assert "would be performed here" not in content
 
 
+def test_magic_trace_stop_reaps_self_exited_child_without_wedging(tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path)
+    config.auto_analyze = False
+    session = MagicTraceSession(config, "qa")
+    # magic-trace runs with a duration cap, so it can self-exit before stop().
+    session.process = subprocess.Popen(["sleep", "0.05"])
+    session.is_active = True
+    time.sleep(0.2)  # let the child exit
+
+    assert session.stop() is True
+    assert session.is_active is False
+    assert session.process.returncode is not None  # reaped, not a zombie
+    assert session.stop() is False  # already inactive, not wedged
+
+
 def test_magic_trace_session_name_cannot_escape_output_directory(tmp_path: Path):
     config = MagicTraceConfig()
     config.output_dir = str(tmp_path / "traces")

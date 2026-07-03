@@ -161,17 +161,23 @@ class MagicTraceSession:
         try:
             self.end_time = time.time_ns()
 
-            if self.process:
-                # Send SIGTERM to magic-trace process group
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-
-                # Wait for process to terminate
-                try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    # Force kill if it doesn't terminate gracefully
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-                    self.process.wait()
+            if self.process is not None:
+                # magic-trace is launched with a duration cap, so it may have
+                # already self-exited. poll() both checks that and reaps it; only
+                # signal a still-running child, and tolerate it vanishing under us.
+                if self.process.poll() is None:
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                        self.process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        self.process.wait()
+                    except ProcessLookupError:
+                        # Process (or its group) exited between poll and signal.
+                        self.process.wait()
 
             # Handle fallback tracer
             if hasattr(self, "fallback_tracer") and self.fallback_tracer:
@@ -182,8 +188,6 @@ class MagicTraceSession:
                     with open(analysis_file, "w") as f:
                         json.dump(analysis, f, indent=2, cls=NumpyJSONEncoder)
                     print(f"Fallback trace analysis saved to: {analysis_file}")
-
-            self.is_active = False
 
             # Update metadata
             self._save_metadata()
@@ -198,6 +202,10 @@ class MagicTraceSession:
         except Exception as e:
             print(f"Error stopping magic-trace session: {e}")
             return False
+        finally:
+            # Always mark inactive so a failure here can't wedge the session
+            # (stop() would otherwise retry forever and never reap the child).
+            self.is_active = False
 
     def get_session_info(self) -> Dict[str, Any]:
         """Get information about the current session."""
