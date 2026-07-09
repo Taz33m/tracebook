@@ -3,7 +3,7 @@ numpy>=2.2.6
 psutil>=7.2.2
 
 # Dashboard dependencies
-dash>=4.3.0
+dash>=4.4.0
 pandas>=2.3.3
 plotly>=6.8.0
 
@@ -19,8 +19,8 @@ bandit>=1.9.4
 build>=1.5.0
 black>=26.5.1
 flake8>=7.3.0
-hypothesis>=6.155.7
-mypy>=2.1.0
+hypothesis>=6.156.4
+mypy>=2.2.0
 pytest>=9.1.1
 pytest-benchmark>=5.2.3
 pytest-cov>=7.1.0
