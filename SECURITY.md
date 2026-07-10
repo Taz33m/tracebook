@@ -13,7 +13,9 @@ Security fixes also target the latest commit on `main`.
 
 ## Reporting A Vulnerability
 
-Please do not open a public issue for a suspected vulnerability. Use GitHub private vulnerability reporting if it is enabled for the repository, or contact the maintainer directly through the GitHub profile for `Taz33m`.
+Please do not open a public issue for a suspected vulnerability. Submit a
+[private vulnerability report](https://github.com/Taz33m/tracebook/security/advisories/new),
+or contact the maintainer directly through the GitHub profile for `Taz33m`.
 
 Useful reports include:
 
