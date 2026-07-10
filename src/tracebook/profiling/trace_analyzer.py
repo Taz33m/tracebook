@@ -7,6 +7,7 @@ call stack reconstruction, and performance bottleneck identification.
 
 import time
 import json
+import sys
 import threading
 from typing import Any, Deque, Dict, List, Optional
 from dataclasses import dataclass, asdict
@@ -163,6 +164,8 @@ class HighResolutionTracer:
             analysis = self._analyze_trace_data()
             analysis["trace_duration_ns"] = end_time_ns - self.start_time_ns
             analysis["trace_duration_ms"] = analysis["trace_duration_ns"] / 1_000_000
+            analysis["raw_events"] = [event.to_dict() for event in self.events]
+            analysis["completed_calls"] = [call.to_dict() for call in self.completed_calls]
 
             return analysis
 
@@ -410,7 +413,13 @@ class HighResolutionTracer:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with output_path.open("w", encoding="utf-8") as f:
-                json.dump(analysis, f, indent=2, cls=NumpyJSONEncoder)
+                json.dump(
+                    analysis,
+                    f,
+                    indent=2,
+                    cls=NumpyJSONEncoder,
+                    allow_nan=False,
+                )
 
             return True
         except Exception as e:
@@ -427,6 +436,27 @@ class TraceProfiler:
         self.tracer = HighResolutionTracer()
         self.active_traces = {}
         self.lock = threading.Lock()
+        self._function_names: Optional[set[str]] = None
+        self._previous_sys_profile = None
+
+    def _profile_callback(self, frame, event, arg):
+        """Collect selected tracebook Python calls through ``sys.setprofile``."""
+        if event not in ("call", "return"):
+            return
+
+        function_name = frame.f_code.co_name
+        if self._function_names is not None and function_name not in self._function_names:
+            return
+
+        module_name = str(frame.f_globals.get("__name__", ""))
+        if not module_name.startswith("tracebook."):
+            return
+
+        qualified_name = f"{module_name}.{function_name}"
+        if event == "call":
+            self.tracer.trace_function_enter(qualified_name)
+        else:
+            self.tracer.trace_function_exit(qualified_name)
 
     def profile_function(self, func_name: Optional[str] = None):
         """Decorator for automatic function profiling."""
@@ -448,7 +478,9 @@ class TraceProfiler:
 
         return decorator
 
-    def start_session(self, session_name: str = "default") -> bool:
+    def start_session(
+        self, session_name: str = "default", function_names: Optional[List[str]] = None
+    ) -> bool:
         """Start a profiling session."""
         with self.lock:
             if session_name in self.active_traces:
@@ -456,6 +488,9 @@ class TraceProfiler:
 
             success = self.tracer.start_tracing()
             if success:
+                self._function_names = set(function_names) if function_names else None
+                self._previous_sys_profile = sys.getprofile()
+                sys.setprofile(self._profile_callback)
                 self.active_traces[session_name] = {
                     "start_time": time.time_ns(),
                     "tracer": self.tracer,
@@ -469,8 +504,10 @@ class TraceProfiler:
             if session_name not in self.active_traces:
                 return None
 
+            sys.setprofile(self._previous_sys_profile)
             analysis = self.tracer.stop_tracing()
             del self.active_traces[session_name]
+            self._function_names = None
 
             return analysis
 

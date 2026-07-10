@@ -248,7 +248,7 @@ def main():
     print("🎭 MAGIC-TRACE INTEGRATION DEMO")
     print("=" * 80)
     print("Demonstrating enhanced profiling capabilities for the")
-    print("high-performance order book simulator")
+    print("instrumented order book simulator")
     print("=" * 80)
 
     demos = [
@@ -290,7 +290,7 @@ def main():
             print(f"  📁 {demo_name}: {result}")
 
     print("\n🏁 Magic-trace integration demo completed!")
-    print("The system now provides production-ready profiling capabilities")
+    print("The system now provides opt-in profiling for focused diagnostics")
     print("with detailed performance insights and visualization tools.")
 
 

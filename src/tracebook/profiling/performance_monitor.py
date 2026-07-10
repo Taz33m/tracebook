@@ -1,5 +1,5 @@
 """
-Performance monitoring system for the high-performance order book.
+Performance monitoring for the instrumented order-book simulator.
 
 This module provides comprehensive performance tracking, metrics collection,
 and real-time monitoring capabilities with minimal overhead.
@@ -189,7 +189,12 @@ class SystemResourceMonitor:
 
         self.is_monitoring = True
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
+        try:
+            self.monitor_thread.start()
+        except Exception:
+            self.is_monitoring = False
+            self.monitor_thread = None
+            raise
 
     def stop_monitoring(self):
         """Stop system resource monitoring."""
@@ -418,6 +423,7 @@ class PerformanceMonitor:
             )
 
             summary = {
+                "schema_version": 1,
                 "session_info": {
                     "uptime_seconds": uptime_seconds,
                     "start_time": self.start_time,
@@ -493,6 +499,8 @@ class PerformanceMonitor:
 
     def register_alert_callback(self, callback: Callable[[str, Dict], None]):
         """Register a callback for performance alerts."""
+        if not callable(callback):
+            raise ValueError("alert callback must be callable")
         self.alert_callbacks.append(callback)
 
     def set_alert_threshold(self, metric: str, threshold: float):
@@ -512,7 +520,7 @@ class PerformanceMonitor:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with output_path.open("w", encoding="utf-8") as f:
-                json.dump(summary, f, indent=2, default=str)
+                json.dump(summary, f, indent=2, default=str, allow_nan=False)
 
             print(f"Metrics exported to: {output_path}")
             return str(output_path)
@@ -579,7 +587,7 @@ class PerformanceMonitor:
 
         # Trigger alert callbacks
         for alert in alerts:
-            for callback in self.alert_callbacks:
+            for callback in list(self.alert_callbacks):
                 try:
                     callback(alert["type"], alert)
                 except Exception as e:

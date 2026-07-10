@@ -106,6 +106,7 @@ class MagicTraceSession:
         self.is_active = False
         self.process: Optional[subprocess.Popen] = None
         self.magic_trace_executable: Optional[str] = None
+        self.used_fallback = False
 
         # Create output directory
         self.output_path = Path(config.output_dir)
@@ -185,15 +186,21 @@ class MagicTraceSession:
                 if analysis:
                     # Save analysis to file
                     analysis_file = self.output_path / f"{self.session_name}_fallback_analysis.json"
-                    with open(analysis_file, "w") as f:
-                        json.dump(analysis, f, indent=2, cls=NumpyJSONEncoder)
+                    with open(analysis_file, "w", encoding="utf-8") as f:
+                        json.dump(
+                            analysis,
+                            f,
+                            indent=2,
+                            cls=NumpyJSONEncoder,
+                            allow_nan=False,
+                        )
                     print(f"Fallback trace analysis saved to: {analysis_file}")
 
             # Update metadata
             self._save_metadata()
 
             # Auto-analyze if enabled
-            if self.config.auto_analyze:
+            if self.config.auto_analyze and not self.used_fallback:
                 self._analyze_trace()
 
             print(f"Magic-trace session stopped: {self.session_name}")
@@ -223,6 +230,7 @@ class MagicTraceSession:
             "duration_ns": duration_ns,
             "duration_seconds": duration_ns / 1_000_000_000,
             "trace_file": str(self.trace_file) if self.trace_file else None,
+            "profiling_mode": "fallback" if self.used_fallback else "magic-trace",
             "config": self.config.to_dict(),
         }
 
@@ -284,13 +292,16 @@ class MagicTraceSession:
             from .trace_analyzer import get_tracer
 
             self.fallback_tracer = get_tracer()
-            success = self.fallback_tracer.start_session(self.session_name)
+            success = self.fallback_tracer.start_session(
+                self.session_name, function_names=self.config.profile_functions
+            )
 
             if success:
                 print(
                     f"High-resolution fallback profiling started for session: {self.session_name}"
                 )
                 self.is_active = True
+                self.used_fallback = True
                 self.start_time = time.time_ns()
                 return True
             else:
@@ -306,7 +317,7 @@ class MagicTraceSession:
         metadata = self.get_session_info()
         try:
             with open(self.metadata_file, "w", encoding="utf-8") as f:
-                json.dump(metadata, f, indent=2)
+                json.dump(metadata, f, indent=2, allow_nan=False)
         except Exception as e:
             print(f"Failed to save metadata: {e}")
 
@@ -336,7 +347,7 @@ class MagicTraceSession:
 
             # Save analysis results
             with open(self.analysis_file, "w", encoding="utf-8") as f:
-                json.dump(analysis, f, indent=2)
+                json.dump(analysis, f, indent=2, allow_nan=False)
 
             print(f"Trace analysis saved to: {self.analysis_file}")
 

@@ -5,19 +5,19 @@
 <h1 align="center">tracebook</h1>
 
 <p align="center">
-  <strong>Latency-focused order book simulation with reproducible benchmarks, lifecycle events, and trace-level profiling hooks.</strong>
+  <strong>Inspectable order-book semantics, normalized event replay, paced benchmarks, and trace-level profiling.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg"/></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
-  <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11-blue"/>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-137%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-203%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
-> **TL;DR:** `tracebook` is an alpha Python market microstructure workbench for testing order book matching semantics, synthetic order flow, cancellations, replacements, benchmark latency, and profiling instrumentation. It is built for systems engineers and quant-minded developers who want inspectable behavior before making performance claims.
+> **TL;DR:** `tracebook` is an alpha Python market microstructure workbench for testing matching semantics, replaying normalized historical order events, generating synthetic flow, and measuring local latency with explicit boundaries. It is built for systems engineers and quant-minded developers who want inspectable behavior before making performance claims.
 
 ## Video Walkthrough
 
@@ -41,6 +41,7 @@ Watch **Trace The Match** on YouTube: https://youtu.be/RXOcB2k7qTQ
 python -m pip install -e ".[dev,dashboard]"
 python -m pytest
 python test_system.py
+tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --cancel-ratio 0.05 --replace-ratio 0.02 --warmup-seconds 0.01
 tracebook-benchmark --scenario smoke --seed 1337 --warmup-seconds 0.01 --output benchmark_results/smoke.json
 ```
@@ -55,18 +56,24 @@ The goal is a credible open-source alpha: small enough to audit, complete enough
 
 ## Current Local Benchmark Snapshot
 
-The sample below is a local smoke baseline, not a portable performance claim. It was measured on May 9, 2026 with Python 3.11.5 on macOS 15.4.1 using:
+The sample below is a local paced-workload baseline, not a portable performance
+or capacity claim. It was measured for 0.2.0 on July 10, 2026 with Python 3.10.5
+on macOS 15.4.1 using:
 
 ```bash
-tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /private/tmp/tracebook-benchmark-doc-baseline-current.json
+tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /tmp/tracebook-v020-baseline.json
 ```
 
-| Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
+| Scenario | New | New/s | Events/s | Mean ms | P95 ms | P99 ms | Generation ms | Event ms | Memory MB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `smoke` | 100 | 99.93 | 2.922 | 0.060 | 0.219 | 3.186 | 0.855 | 0.000 | 134.28 |
-| `fifo_baseline` | 110 | 109.98 | 0.139 | 0.112 | 0.363 | 0.512 | 1.181 | 0.000 | 134.31 |
-| `pro_rata_baseline` | 100 | 99.93 | 0.124 | 0.095 | 0.398 | 0.630 | 0.868 | 0.000 | 134.19 |
-| `cancellation_mix` | 112 | 111.53 | 0.130 | 0.087 | 0.369 | 0.590 | 1.752 | 0.036 | 100.03 |
+| `smoke` | 100 | 99.91 | 99.91 | 0.045 | 0.095 | 0.119 | 0.282 | 0.000 | 34.38 |
+| `fifo_baseline` | 110 | 109.91 | 109.91 | 0.040 | 0.081 | 0.093 | 0.260 | 0.000 | 35.62 |
+| `pro_rata_baseline` | 100 | 99.92 | 99.92 | 0.041 | 0.092 | 0.105 | 0.268 | 0.000 | 35.67 |
+| `cancellation_mix` | 100 | 99.91 | 109.90 | 0.041 | 0.089 | 0.112 | 0.287 | 0.017 | 36.00 |
+| `deep_book` | 100 | 99.96 | 99.96 | 0.051 | 0.120 | 0.200 | 0.381 | 0.000 | 36.23 |
+| `high_cancellation` | 100 | 99.88 | 147.82 | 0.040 | 0.084 | 0.147 | 0.259 | 0.016 | 36.45 |
+| `pro_rata_cancellation` | 100 | 99.97 | 115.97 | 0.052 | 0.125 | 0.233 | 0.431 | 0.021 | 36.69 |
+| `multi_symbol` | 108 | 107.92 | 107.92 | 0.043 | 0.080 | 0.118 | 0.135 | 0.000 | 36.92 |
 
 See [`docs/performance.md`](docs/performance.md) before adding or changing benchmark claims.
 
@@ -76,16 +83,16 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `137` pytest tests passing |
+| Unit tests | `203` pytest tests passing with a `75%` coverage gate |
 | System smoke | `python test_system.py` passes all 4 checks |
-| Format and lint | `python -m black --check src tests examples install_deps.py` and `python -m flake8 src tests examples install_deps.py` report `0` issues |
+| Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
 | Package build | sdist and wheel build successfully |
 | Simulation CLI | deterministic FIFO smoke run completes |
 | Benchmark CLI | smoke scenario writes JSON report |
 | Dashboard loop | dashboard factory/import works, help completes, and local demo server returns `HTTP 200` on loopback |
-| Remote CI | GitHub Actions passes on Python 3.10 and 3.11 |
+| Remote CI | GitHub Actions covers Python 3.10 through 3.13 |
 
 ## What It Implements
 
@@ -97,6 +104,8 @@ All checks below were run during the latest production repo pass in this checkou
 | Order types | Supports limit, market, IOC, and FOK semantics | Covers common execution workflows |
 | Lifecycle APIs | Cancels, replaces, active-order lookup, and structured `OrderResult` submissions | Makes simulations and demos inspectable |
 | Self-trade prevention | Owner-tagged orders with `CANCEL_RESTING`/`CANCEL_INCOMING` policies | Stops a participant from matching its own resting liquidity |
+| Historical event replay | Loads normalized CSV, JSON, and JSONL order events across symbols while preserving source ids through replacement | Connects real feed adapters to the validated matching path |
+| Detached public state | Returns copies from submission, lookup, trade, and callback APIs | Prevents callers from mutating live engine indexes |
 | Event simulation | Interleaves `NEW`, `CANCEL`, and `REPLACE` events with deterministic seeds | Exercises more than one-way order ingestion |
 | Synthetic streams | Generates random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows | Enables repeatable workload variation |
 | Performance monitor | Tracks throughput, latency, resources, generation time, event latency, and overhead | Separates signal from instrumentation cost |
@@ -140,14 +149,20 @@ See [`docs/architecture.md`](docs/architecture.md) for the deeper component map.
 
 ## Quick Start
 
-Install locally:
+Install the published distribution (the import remains `tracebook`):
+
+```bash
+python -m pip install tracebook-sim
+```
+
+Contributor install:
 
 ```bash
 git clone https://github.com/Taz33m/tracebook.git
 cd tracebook
 python -m venv venv
 source venv/bin/activate
-pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev,dashboard]"
 ```
 
 Run a minimal match:
@@ -259,7 +274,7 @@ by its own liquidity, and the chosen policy is captured in the replay log.
 
 ## Record And Replay
 
-Record every mutating operation on a book to a serializable event log, then
+Record every accepted submission, successful cancellation, and full clear to a serializable event log, then
 replay it against a fresh book to reconstruct the identical sequence of trades
 and the identical final book state. This makes bug reproduction, regression
 fixtures, and deterministic experiments trivial.
@@ -286,11 +301,30 @@ price and FIFO priority is insertion order), so a fixed event log always
 reproduces the same trades and resting book. Per-trade wall-clock timestamps are
 metadata and are excluded from the determinism guarantee.
 
-Recording must begin on an empty book: the log captures only operations from the
-`start_recording()` call onward, so `start_recording()` raises if any orders are
-already resting (it cannot reconstruct pre-existing liquidity).
+Recording must begin on a pristine book: the log captures only operations from
+the `start_recording()` call onward, so `start_recording()` raises after any
+prior activity. Call `clear()` before recording a previously used book.
 
-## Reproducible Benchmarks
+## Historical Order-Event Replay
+
+Replay normalized order-level data through the same validated books used by the
+Python API. Input can be CSV, JSON, or JSONL and can contain multiple symbols.
+
+```bash
+tracebook-replay examples/data/sample_events.jsonl \
+  --algorithm fifo \
+  --self-trade-policy CANCEL_INCOMING \
+  --include-trades \
+  --output replay-summary.json
+```
+
+Strict mode fails at the first rejected event with its file-order index. Add
+`--lenient` to collect rejections and continue. Source order ids remain
+addressable after cancel-and-new replacement; optional trade output includes
+both source and engine ids. See
+[`docs/event-replay.md`](docs/event-replay.md) for the schema and adapter guidance.
+
+## Reproducible Paced Workloads
 
 ```bash
 tracebook-benchmark \
@@ -314,7 +348,11 @@ Scenarios:
 | `multi_symbol` | FIFO run across multiple symbols (independent books) |
 | `all` | Runs every scenario above |
 
-Benchmark JSON includes machine metadata, dependency versions, scenario config, seed, warmup, throughput, matching latency percentiles, generation latency, lifecycle event latency, memory, and monitoring overhead.
+These scenarios drive a configured input rate and measure latency under that
+load; they are not maximum-capacity claims. Benchmark JSON includes machine
+metadata, dependency versions, scenario config, seed, warmup, achieved new-order
+and event rates, matching latency percentiles, generation latency, lifecycle
+event latency, memory, and monitoring overhead.
 
 See [`docs/performance.md`](docs/performance.md) for local baseline guidance and sample measured results.
 
@@ -331,7 +369,7 @@ because the demo dashboard has no authentication.
 Dashboard dependencies are optional:
 
 ```bash
-pip install -e ".[dashboard]"
+python -m pip install "tracebook-sim[dashboard]"
 ```
 
 ## Live Web Frontend
@@ -360,6 +398,7 @@ requires `--allow-remote`.
 | `tracebook-sim --output results.json` | Export simulation results |
 | `tracebook-benchmark --scenario smoke` | Run the benchmark smoke scenario |
 | `tracebook-benchmark --scenario all --output benchmark_results/local.json` | Produce a full local benchmark report |
+| `tracebook-replay events.jsonl --output replay.json` | Replay normalized historical order events |
 | `tracebook-dashboard --demo-simulation` | Launch the Dash dashboard with live demo data |
 | `tracebook-web --port 8080` | Serve the dependency-free live order-book frontend |
 | `python -m pytest` | Run unit tests |
@@ -394,6 +433,7 @@ Public top-level exports:
 | --- | --- |
 | `OrderBook` | Single-symbol order book |
 | `OrderBookManager` | Multi-symbol book registry |
+| `Order` | Explicit external order representation |
 | `OrderFactory` | Explicit order construction |
 | `OrderResult` | Structured submission result |
 | `OrderSide` | `BUY` and `SELL` enum |
@@ -402,6 +442,11 @@ Public top-level exports:
 | `SelfTradePolicy` | `NONE`, `CANCEL_RESTING`, `CANCEL_INCOMING` self-trade policy |
 | `EventLog` | Serializable record of book operations for replay |
 | `replay` | Reconstruct a book from a recorded `EventLog` |
+| `MarketEvent` | Validated normalized historical order event |
+| `MarketReplayResult` | Reconstructed books, source-id mapping, trades, and rejections |
+| `ReplayTrade` | Trade record annotated with source and engine order ids |
+| `load_market_events` | Load CSV, JSON, or JSONL event files |
+| `replay_market_events` | Replay normalized events into per-symbol books |
 
 ## Outputs
 
@@ -409,6 +454,7 @@ Public top-level exports:
 | --- | --- |
 | Simulation JSON | Raw simulation config, summary metrics, performance data, order book stats, stream stats, algorithm analysis |
 | Benchmark JSON | Scenario summaries plus raw simulation results, machine metadata, dependency versions, warmup and seed |
+| Event replay JSON | Config, applied/rejected counts, active source-id mapping, final depth, per-book statistics, and optional trades |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
 | Performance docs | Local baseline samples and reporting rules |
 
@@ -419,6 +465,7 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 ```text
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
+  events/                   normalized file loading and historical event replay
   simulation/               synthetic order streams and event simulation
   benchmarks/               reproducible benchmark runner
   profiling/                performance monitor and tracing tools
@@ -438,7 +485,8 @@ Claims:
 - Implements FIFO and pro-rata matching paths for supported order types.
 - Supports decimal order quantities.
 - Validates symbols, sides, order types, prices, and quantities before matching.
-- Supports cancellation, replacement, active order lookup, and book-depth snapshots.
+- Supports atomic replacement, cancellation, detached active-order lookup, and coherent state snapshots.
+- Replays normalized CSV, JSON, and JSONL order events across independent symbol books with stable source-id lifecycle mapping.
 - Runs deterministic synthetic simulations with new, cancel, and replace events.
 - Reports benchmark output with warmup, seed, machine metadata, generation timing, matching latency, event latency, memory, and monitoring overhead.
 - Provides a dashboard demo path without requiring external market connectivity.
@@ -458,19 +506,17 @@ Non-claims:
 - Alpha software; APIs may still evolve before a stable v1 release.
 - Current storage uses plain Python dicts and lists (orders per level are an insertion-ordered dict; price levels are a bisect-indexed list), not a final low-latency memory layout.
 - Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
-- Synthetic order flow is useful for workload testing, not a substitute for real exchange data.
+- The normalized replay contract is venue-neutral; exchange sequence checks and feed-specific semantics belong in adapters.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.
 - Benchmark results are local artifacts and should always cite the command, seed, machine, Python version, and dependency versions.
 
 ## Roadmap
 
-Near-term production hardening:
-
-- Tighten the mypy baseline further (per-module strictness, `disallow_untyped_defs`) building on the enabled `check_untyped_defs`.
-- Consider publishing an explicit JSON Schema for the exported artifacts (now shape-tested in `tests/test_artifact_schemas.py`).
-- Introduce fixed-point price and quantity experiments behind benchmark evidence.
-- Publish release artifacts once the alpha API stabilizes.
+- Publish `tracebook-sim` through PyPI Trusted Publishing.
+- Add documented adapters for public crypto and equities order-event formats.
+- Add an explicit unpaced capacity benchmark beside the existing paced workloads.
+- Stabilize artifact schemas and the top-level API for 1.0.
 
 ## Open Source Project Health
 

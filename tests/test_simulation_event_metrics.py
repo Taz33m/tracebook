@@ -16,6 +16,8 @@ def test_cancel_and_replace_events_record_counts_and_latency_metadata():
             warmup_seconds=0.0,
         )
     )
+    with pytest.raises(ValueError, match="callback"):
+        engine.register_trade_callback(None)
     order_book = OrderBook("BTCUSD")
     cancel_target = order_book.submit_limit_order(OrderSide.BUY, 100.0, 1.0)
     replace_target = order_book.submit_limit_order(OrderSide.SELL, 102.0, 2.0)
@@ -67,3 +69,18 @@ def test_simulation_config_validates_lifecycle_ratios_and_normalizes_algorithm()
 
     with pytest.raises(ValueError, match="target_throughput"):
         SimulationConfig(target_throughput=0)
+
+    with pytest.raises(ValueError, match="duration_seconds"):
+        SimulationConfig(duration_seconds=float("nan"))
+
+    with pytest.raises(ValueError, match="batch_size"):
+        SimulationConfig(batch_size=1.5)
+
+    with pytest.raises(ValueError, match="enable_profiling"):
+        SimulationConfig(enable_profiling=1)
+
+    with pytest.raises(ValueError, match="matching_algorithm"):
+        SimulationConfig(matching_algorithm=1)
+
+    with pytest.raises(ValueError, match="seed"):
+        SimulationConfig(seed=-1)

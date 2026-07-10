@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive demonstration of the high-performance order book simulator.
+Comprehensive demonstration of the instrumented order-book simulator.
 
 This example showcases:
 - Order generation with multiple patterns

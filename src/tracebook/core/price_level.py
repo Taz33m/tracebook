@@ -1,5 +1,5 @@
 """
-Price level management for high-performance order book.
+Price-level management for the order-book simulator.
 
 This module implements cache-friendly data structures for managing
 orders at each price level with minimal memory allocations.
@@ -250,7 +250,7 @@ class PriceLevelManager:
 
 class MarketDataSnapshot:
     """
-    Immutable snapshot of market data for a specific point in time.
+    Detached snapshot of market data for a specific point in time.
 
     Used for analytics and visualization without affecting
     the performance of the main order book.
@@ -296,3 +296,14 @@ class MarketDataSnapshot:
             "spread": self.spread,
             "mid_price": self.mid_price,
         }
+
+    def copy(self) -> "MarketDataSnapshot":
+        """Return an independent copy for a public callback consumer."""
+        snapshot = MarketDataSnapshot(self.symbol, self.timestamp)
+        snapshot.bid_levels = list(self.bid_levels)
+        snapshot.ask_levels = list(self.ask_levels)
+        snapshot.best_bid = self.best_bid
+        snapshot.best_ask = self.best_ask
+        snapshot.spread = self.spread
+        snapshot.mid_price = self.mid_price
+        return snapshot

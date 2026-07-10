@@ -9,7 +9,14 @@ way the CLIs write it, so the asserted shape is the shape a consumer reads back.
 import json
 import numbers
 
-from tracebook import EventLog, OrderBook, OrderSide, SelfTradePolicy
+from tracebook import (
+    EventLog,
+    MarketEvent,
+    OrderBook,
+    OrderSide,
+    SelfTradePolicy,
+    replay_market_events,
+)
 from tracebook.benchmarks import runner
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
 
@@ -31,7 +38,13 @@ def test_benchmark_report_schema():
     )
     report = _json_roundtrip(report)
 
-    _require_keys(report, ["metadata", "generated_at", "scenarios"], "report")
+    _require_keys(
+        report,
+        ["schema_version", "measurement_model", "metadata", "generated_at", "scenarios"],
+        "report",
+    )
+    assert report["schema_version"] == 1
+    assert report["measurement_model"] == "paced_workload"
     assert isinstance(report["generated_at"], numbers.Integral)
     _require_keys(
         report["metadata"],
@@ -61,6 +74,7 @@ def test_benchmark_report_schema():
             "matching_algorithm",
             "cancel_ratio",
             "replace_ratio",
+            "measurement_model",
             "seed",
             "warmup_seconds",
         ],
@@ -78,6 +92,8 @@ def test_benchmark_report_schema():
             "replace_events",
             "trades_executed",
             "throughput_orders_per_sec",
+            "achieved_input_rate_orders_per_sec",
+            "achieved_event_rate_per_sec",
             "latency_ms",
             "event_latency_ms",
             "generation_latency_ms",
@@ -98,6 +114,7 @@ def test_benchmark_report_schema():
     _require_keys(
         scenario["raw_result"],
         [
+            "schema_version",
             "simulation_config",
             "summary_metrics",
             "performance_data",
@@ -123,6 +140,7 @@ def test_simulation_results_schema():
     _require_keys(
         results,
         [
+            "schema_version",
             "simulation_config",
             "summary_metrics",
             "performance_data",
@@ -137,6 +155,7 @@ def test_simulation_results_schema():
         results["simulation_config"],
         [
             "duration_seconds",
+            "measurement_model",
             "target_throughput",
             "actual_duration",
             "matching_algorithm",
@@ -145,6 +164,10 @@ def test_simulation_results_schema():
             "cancel_ratio",
             "replace_ratio",
             "warmup_seconds",
+            "enable_profiling",
+            "enable_magic_trace",
+            "batch_processing",
+            "batch_size",
         ],
         "simulation_config",
     )
@@ -152,12 +175,15 @@ def test_simulation_results_schema():
         results["summary_metrics"],
         [
             "total_orders_processed",
+            "total_new_orders_processed",
             "total_events_processed",
             "total_cancel_events",
             "total_replace_events",
             "total_trades_executed",
             "total_volume",
             "actual_throughput",
+            "achieved_new_order_rate",
+            "achieved_event_rate",
             "trade_ratio",
             "trades_per_order",
             "average_trade_size",
@@ -200,9 +226,17 @@ def test_event_log_schema_and_roundtrip():
     payload = _json_roundtrip(log.to_dict())
     _require_keys(
         payload,
-        ["symbol", "matching_algorithm", "tick_size", "self_trade_policy", "events"],
+        [
+            "schema_version",
+            "symbol",
+            "matching_algorithm",
+            "tick_size",
+            "self_trade_policy",
+            "events",
+        ],
         "event_log",
     )
+    assert payload["schema_version"] == 1
     assert payload["self_trade_policy"] == int(SelfTradePolicy.CANCEL_RESTING)
     assert payload["tick_size"] == 0.01
 
@@ -218,6 +252,7 @@ def test_event_log_schema_and_roundtrip():
             "order_type",
             "price",
             "quantity",
+            "remaining_quantity",
             "symbol",
             "timestamp",
             "owner",
@@ -230,3 +265,71 @@ def test_event_log_schema_and_roundtrip():
     restored = EventLog.from_dict(payload)
     assert len(restored) == len(log)
     assert restored.self_trade_policy == int(SelfTradePolicy.CANCEL_RESTING)
+
+
+def test_market_replay_summary_schema():
+    events = [
+        MarketEvent.from_mapping(
+            {
+                "op": "new",
+                "symbol": "BTCUSD",
+                "order_id": 10,
+                "side": "SELL",
+                "price": 100,
+                "quantity": 1,
+            }
+        ),
+        MarketEvent.from_mapping(
+            {
+                "op": "new",
+                "symbol": "BTCUSD",
+                "order_id": 20,
+                "side": "BUY",
+                "order_type": "MARKET",
+                "quantity": 1,
+            }
+        ),
+    ]
+    payload = _json_roundtrip(replay_market_events(events).to_dict(include_trades=True))
+
+    _require_keys(
+        payload,
+        [
+            "schema_version",
+            "replay_config",
+            "input_events",
+            "applied_events",
+            "rejected_events",
+            "submissions",
+            "cancellations",
+            "replacements",
+            "clears",
+            "trades_executed",
+            "trades_included",
+            "trades",
+            "rejections",
+            "active_orders",
+            "books",
+        ],
+        "market_replay",
+    )
+    _require_keys(
+        payload["replay_config"],
+        ["matching_algorithm", "tick_size", "self_trade_policy"],
+        "market_replay.replay_config",
+    )
+    _require_keys(
+        payload["trades"][0],
+        [
+            "event_index",
+            "symbol",
+            "buy_order_id",
+            "sell_order_id",
+            "engine_buy_order_id",
+            "engine_sell_order_id",
+            "price",
+            "quantity",
+            "timestamp_ns",
+        ],
+        "market_replay.trades[0]",
+    )

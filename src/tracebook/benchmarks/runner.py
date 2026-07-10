@@ -25,6 +25,7 @@ class BenchmarkScenario:
     cancel_ratio: float = 0.0
     replace_ratio: float = 0.0
     symbols: Tuple[str, ...] = ("BTCUSD",)
+    measurement_model: str = "paced_workload"
 
 
 SCENARIOS = {
@@ -48,8 +49,12 @@ SCENARIOS = {
 
 
 def _dependency_versions() -> Dict[str, Optional[str]]:
-    packages = ["tracebook", "numpy", "psutil", "dash", "plotly"]
+    packages = ["numpy", "psutil", "dash", "plotly"]
     versions: Dict[str, Optional[str]] = {}
+    try:
+        versions["tracebook"] = metadata.version("tracebook-sim")
+    except metadata.PackageNotFoundError:
+        versions["tracebook"] = __version__
     for package in packages:
         try:
             versions[package] = metadata.version(package)
@@ -84,6 +89,10 @@ def _metric_summary(results: Dict[str, Any]) -> Dict[str, Any]:
         "replace_events": summary.get("total_replace_events", 0),
         "trades_executed": summary.get("total_trades_executed", 0),
         "throughput_orders_per_sec": summary.get("actual_throughput", 0.0),
+        "achieved_input_rate_orders_per_sec": summary.get(
+            "achieved_new_order_rate", summary.get("actual_throughput", 0.0)
+        ),
+        "achieved_event_rate_per_sec": summary.get("achieved_event_rate", 0.0),
         "latency_ms": {
             "count": latency.get("count", 0),
             "mean": latency.get("mean", 0.0),
@@ -160,6 +169,8 @@ def run_benchmarks(
         selected.append(scenario)
 
     return {
+        "schema_version": 1,
+        "measurement_model": "paced_workload",
         "metadata": _machine_metadata(),
         "generated_at": time.time_ns(),
         "scenarios": [
@@ -176,7 +187,7 @@ def write_report(report: Dict[str, Any], output_path: str) -> str:
         os.makedirs(directory, exist_ok=True)
 
     with open(output_path, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2, default=str)
+        json.dump(report, handle, indent=2, default=str, allow_nan=False)
     return output_path
 
 
@@ -214,7 +225,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         output_path = write_report(report, args.output)
         print(f"Benchmark report written to: {output_path}")
     else:
-        print(json.dumps(report, indent=2, default=str))
+        print(json.dumps(report, indent=2, default=str, allow_nan=False))
 
     return 0
 

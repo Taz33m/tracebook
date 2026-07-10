@@ -13,7 +13,7 @@ from tracebook.simulation.simulation_engine import SimulationConfig, SimulationE
 from tracebook.visualization import web_server
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def running_engine():
     config = SimulationConfig(
         duration_seconds=5.0,
@@ -26,14 +26,19 @@ def running_engine():
         replace_ratio=0.02,
     )
     engine = SimulationEngine(config)
-    threading.Thread(target=engine.run_simulation, daemon=True).start()
+    simulation_thread = threading.Thread(target=engine.run_simulation, daemon=True)
+    simulation_thread.start()
     # Wait (bounded) until some liquidity has built up so state is meaningful.
     book = engine.order_book_manager.get_order_book("BTCUSD")
     for _ in range(40):
         if book is not None and book.get_best_bid() is not None:
             break
         time.sleep(0.05)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.stop()
+        simulation_thread.join(timeout=5.0)
 
 
 def test_build_state_schema_is_complete_and_json_serializable(running_engine):
@@ -89,6 +94,27 @@ def test_negative_depth_levels_is_rejected(running_engine):
         web_server.create_server(running_engine, "BTCUSD", port=0, depth_levels=-1)
 
 
+def test_negative_trade_count_is_rejected(running_engine):
+    with pytest.raises(ValueError, match="non-negative"):
+        web_server.create_server(running_engine, "BTCUSD", port=0, trade_count=-1)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"port": True},
+        {"port": 65536},
+        {"depth_levels": 1.5},
+        {"trade_count": "1"},
+    ],
+)
+def test_server_rejects_ambiguous_numeric_configuration(running_engine, kwargs):
+    options = {"port": 0}
+    options.update(kwargs)
+    with pytest.raises(ValueError):
+        web_server.create_server(running_engine, "BTCUSD", **options)
+
+
 def test_ipv6_loopback_host_binds(running_engine):
     try:
         server = web_server.create_server(running_engine, "BTCUSD", host="::1", port=0)
@@ -103,7 +129,8 @@ def test_ipv6_loopback_host_binds(running_engine):
 def test_server_serves_api_state_and_static_assets(running_engine):
     server = web_server.create_server(running_engine, "BTCUSD", host="127.0.0.1", port=0)
     port = server.server_address[1]
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
     base = f"http://127.0.0.1:{port}"
     try:
         time.sleep(0.1)
@@ -120,3 +147,5 @@ def test_server_serves_api_state_and_static_assets(running_engine):
             urllib.request.urlopen(f"{base}/does-not-exist.txt", timeout=3)
     finally:
         server.shutdown()
+        server.server_close()
+        server_thread.join(timeout=3.0)

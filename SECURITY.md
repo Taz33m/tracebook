@@ -4,7 +4,12 @@
 
 ## Supported Versions
 
-Security fixes target the latest commit on `main` until formal releases begin.
+| Version | Supported |
+| --- | --- |
+| `0.2.x` | Yes |
+| `< 0.2` | No |
+
+Security fixes also target the latest commit on `main`.
 
 ## Reporting A Vulnerability
 

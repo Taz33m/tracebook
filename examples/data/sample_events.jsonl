@@ -1,0 +1,5 @@
+{"op":"new","symbol":"BTCUSD","order_id":1,"side":"BUY","order_type":"LIMIT","price":50000.0,"quantity":1.0,"owner":101,"timestamp_ns":1000}
+{"op":"new","symbol":"BTCUSD","order_id":2,"side":"SELL","order_type":"LIMIT","price":50001.0,"quantity":0.75,"owner":202,"timestamp_ns":2000}
+{"op":"replace","symbol":"BTCUSD","order_id":1,"price":50001.0,"quantity":0.5,"timestamp_ns":3000}
+{"op":"new","symbol":"ETHUSD","order_id":1,"side":"BUY","order_type":"LIMIT","price":3000.0,"quantity":2.0,"owner":303,"timestamp_ns":4000}
+{"op":"cancel","symbol":"ETHUSD","order_id":1,"timestamp_ns":5000}

@@ -5,9 +5,8 @@ Provides interactive visualizations of throughput, latency, order book depth,
 and system performance metrics using Plotly and Dash.
 """
 
-import dash
-from dash import dcc, html, Input, Output
-import plotly.graph_objs as go
+from __future__ import annotations
+
 import time
 import threading
 import ipaddress
@@ -18,9 +17,19 @@ from .. import __version__
 from ..profiling.performance_monitor import get_performance_monitor
 from ..core.orderbook import OrderBookManager
 
+_DASH_IMPORT_ERROR: Optional[ImportError] = None
+try:
+    import dash
+    from dash import dcc, html, Input, Output
+    import plotly.graph_objs as go
+except ImportError as exc:  # Optional dependency; checked before dashboard construction.
+    _DASH_IMPORT_ERROR = exc
+
 
 def _is_loopback_host(host: str) -> bool:
     """Return True when a dashboard host is loopback-only."""
+    if not isinstance(host, str):
+        return False
     if host == "localhost":
         return True
     try:
@@ -33,6 +42,8 @@ class DashboardData:
     """Thread-safe data container for dashboard metrics."""
 
     def __init__(self, max_points: int = 1000):
+        if isinstance(max_points, bool) or not isinstance(max_points, int) or max_points <= 0:
+            raise ValueError("max_points must be a positive integer")
         self.max_points = max_points
         self.lock = threading.Lock()
 
@@ -146,6 +157,17 @@ class PerformanceDashboard:
     """
 
     def __init__(self, update_interval: int = 1000, port: int = 8050, performance_monitor=None):
+        if _DASH_IMPORT_ERROR is not None:
+            raise RuntimeError(
+                "Dashboard dependencies are not installed; run "
+                '`python -m pip install "tracebook-sim[dashboard]"`.'
+            ) from _DASH_IMPORT_ERROR
+        if isinstance(update_interval, bool) or not isinstance(update_interval, int):
+            raise ValueError("update_interval must be a positive integer")
+        if update_interval <= 0:
+            raise ValueError("update_interval must be a positive integer")
+        if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
+            raise ValueError("port must be an integer between 0 and 65535")
         self.update_interval = update_interval  # milliseconds
         self.port = port
 
@@ -490,7 +512,12 @@ class PerformanceDashboard:
 
         self.is_updating = True
         self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
-        self.update_thread.start()
+        try:
+            self.update_thread.start()
+        except Exception:
+            self.is_updating = False
+            self.update_thread = None
+            raise
         print("Dashboard data updates started")
 
     def stop_data_updates(self):
@@ -585,7 +612,7 @@ def create_dashboard(
     )
 
 
-def main() -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     """Run the dashboard server from the command line."""
     import argparse
 
@@ -616,12 +643,17 @@ def main() -> int:
     parser.add_argument(
         "--seed", type=int, default=1337, help="Seed for demo simulation order flow."
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not _is_loopback_host(args.host) and not args.allow_remote:
         parser.error(
             "--host with a non-loopback address requires --allow-remote because "
             "the dashboard has no authentication"
+        )
+    if _DASH_IMPORT_ERROR is not None:
+        parser.error(
+            "dashboard dependencies are not installed; run `python -m pip install "
+            '"tracebook-sim[dashboard]"`'
         )
 
     engine = None
@@ -646,12 +678,19 @@ def main() -> int:
         update_interval=args.update_interval,
         performance_monitor=performance_monitor,
     )
+    simulation_thread = None
     if engine is not None:
         dashboard.set_order_book_manager(engine.order_book_manager)
         simulation_thread = threading.Thread(target=engine.run_simulation, daemon=True)
         simulation_thread.start()
 
-    dashboard.run(host=args.host, allow_remote=args.allow_remote)
+    try:
+        dashboard.run(host=args.host, allow_remote=args.allow_remote)
+    finally:
+        if engine is not None:
+            engine.stop()
+        if simulation_thread is not None:
+            simulation_thread.join(timeout=5.0)
     return 0
 
 

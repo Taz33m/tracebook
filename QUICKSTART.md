@@ -2,7 +2,15 @@
 
 ## Setup
 
-Use Python 3.10 or 3.11.
+Use Python 3.10 through 3.13.
+
+Install the published distribution:
+
+```bash
+python -m pip install tracebook-sim
+```
+
+For a contributor checkout:
 
 ```bash
 python -m venv venv
@@ -19,8 +27,7 @@ make setup
 ## Basic Order Book Usage
 
 ```python
-from tracebook.core.order import OrderSide
-from tracebook.core.orderbook import OrderBook
+from tracebook import OrderBook, OrderSide
 
 order_book = OrderBook("BTCUSD")
 
@@ -76,3 +83,13 @@ tracebook-benchmark \
   --warmup-seconds 0.05 \
   --output benchmark_results/smoke.json
 ```
+
+## Replay Order Events
+
+```bash
+tracebook-replay examples/data/sample_events.jsonl --include-trades --output replay-summary.json
+```
+
+The normalized schema accepts CSV, JSON, and JSONL and preserves source order ids
+through replacement. See `docs/event-replay.md` for fields, self-trade policy,
+and strict/lenient behavior.

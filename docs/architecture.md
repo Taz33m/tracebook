@@ -16,6 +16,8 @@ flowchart TD
     E --> H["Trade records"]
     F --> I["MarketDataSnapshot"]
     J["SyntheticOrderStream"] --> K["SimulationEvent"]
+    Q["CSV / JSON / JSONL"] --> R["MarketEvent"]
+    R --> C
     K --> C
     C --> L["Callbacks"]
     C --> M["PerformanceMonitor"]
@@ -35,6 +37,7 @@ flowchart TD
 | `src/tracebook/core/price_level.py` | Price-level storage, depth aggregation, and market data snapshots |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
+| `src/tracebook/events/market_replay.py` | Normalized historical order-event loading and multi-symbol replay |
 | `src/tracebook/benchmarks/runner.py` | Reproducible scenarios, warmup handling, JSON report writer |
 | `src/tracebook/profiling/performance_monitor.py` | Latency, throughput, resource, and overhead collection |
 | `src/tracebook/visualization/dashboard.py` | Dash application and demo-simulation wiring |
@@ -46,23 +49,31 @@ sequenceDiagram
     participant Caller
     participant Book as OrderBook
     participant Engine as MatchingEngine
-    participant Monitor as PerformanceMonitor
 
     Caller->>Book: submit_limit_order(side, price, quantity)
     Book->>Book: validate symbol, type, side, price, quantity
     Book->>Engine: add_order(order)
     Engine-->>Book: trades + resting state
-    Book->>Monitor: record processing latency
     Book-->>Caller: OrderResult(order, trades, rested, cancelled, rejected_reason)
 ```
 
-Lifecycle event behavior:
+Mutation behavior:
 
 | Event | Behavior |
 | --- | --- |
 | `NEW` | Validates and matches an incoming order |
 | `CANCEL` | Removes an active resting order by id when present |
 | `REPLACE` | Cancels an active resting order and submits a new limit order with a new id and timestamp |
+| `CLEAR` | Resets the book and duplicate-id window; recorded explicitly during deterministic replay |
+
+Accepted external orders are normalized into engine-owned objects. Submission
+results, lookups, recent trades, and callback payloads are detached copies, so a
+consumer cannot mutate the live price-level indexes through the public API.
+
+Normalized file replay treats feed `order_id` values as source identifiers and
+maps them to engine ids. The mapping is updated after cancel-and-new replacement,
+so later source events continue to address the active replacement. Replay trade
+records expose both identifier domains.
 
 ## Matching Semantics
 
@@ -97,6 +108,9 @@ Benchmarks intentionally separate several timings:
 | `order_processing_latency_ms` | New-order matching time recorded by the book-processing path |
 | `order_event_latency_ms` | Cancellation and replacement event processing time |
 | `collection_overhead` | Monitoring overhead sampled by the performance collector |
+
+Simulation output reports achieved new-order rate separately from total event
+rate. Both are paced-workload observations, not unpaced capacity claims.
 
 This prevents a benchmark report from presenting synthetic data generation as matching-engine latency.
 

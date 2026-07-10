@@ -6,7 +6,49 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
-- Added a dependency-free live order-book web frontend (`tracebook-web`): a static HTML/CSS/JS page served by a stdlib HTTP server, backed by a background simulation, showing a live depth ladder, top-of-book quote, engine metrics, and a trade tape (polls `/api/state`). No Dash or JS build toolchain; loopback-only by default (`--allow-remote` to bind elsewhere). Ships the static assets in the wheel/sdist.
+## 0.2.0 - 2026-07-10
+
+Trust, installability, and real-data workflow release.
+
+- Renamed the Python distribution to `tracebook-sim` because the `tracebook`
+  project name on PyPI belongs to an unrelated package. The import namespace and
+  existing `tracebook-*` console commands remain unchanged.
+- Added `tracebook-replay` and the `tracebook.events` API for normalized CSV,
+  JSON, and JSONL order-event replay across multiple symbols. The strict mode
+  fails with event context; lenient mode records rejections and continues.
+- Kept imported source order ids stable across replacement and later cancellation,
+  added configurable self-trade policy, and added optional trade output carrying
+  both source and engine ids.
+- Made replacement an atomic cancel-and-new transaction with callbacks delivered
+  after unlocking, and preserved the original owner so replacement cannot bypass
+  either self-trade-prevention policy.
+- Detached accepted orders, lookup results, trades, and callback payloads from
+  internal mutable state so callers cannot corrupt price levels or trade history.
+- Tightened existing-order validation: ids, sides, order types, owners, timestamps,
+  prices, and quantities are type-checked without lossy integer coercion, and
+  malformed submissions return structured rejections.
+- Added `clear` to deterministic event logs so recording and replay retain the
+  identical final book after a reset. Recorded submissions now retain an
+  externally supplied partial remaining quantity as well, and recording now
+  requires a pristine book with no earlier non-resting activity.
+- Made pro-rata FOK preflight mirror level-wide `CANCEL_INCOMING` execution.
+- Made fallback profiling collect configured matching functions through a real
+  Python profiling hook and emit completed calls and raw events.
+- Made live frontend state atomic across depth, quote, trades, and statistics;
+  corrected chronological trade-direction coloring.
+- Made the optional dashboard command keep `--help` and `--version` usable from
+  a core install and report the exact dashboard-extra install command otherwise.
+- Separated achieved new-order rate from total event rate, made simulation metric
+  collection and batch ingestion configuration effective, and hardened cleanup
+  for failed or interrupted simulation and web sessions. Registered simulation
+  completion callbacks now receive the result artifact instead of being inert.
+- Added PEP 561 `py.typed` metadata, Python 3.12/3.13 CI, a 75% coverage gate,
+  wheel-installed CLI smoke tests, package metadata checks, and a PyPI Trusted
+  Publishing release workflow.
+- Added a dependency-free live order-book web frontend (`tracebook-web`): a
+  static HTML/CSS/JS page served by a stdlib HTTP server, backed by a background
+  simulation, showing a live depth ladder, top-of-book quote, engine metrics,
+  and a trade tape. It is loopback-only by default and ships in wheel/sdist.
 
 ## 0.1.1 - 2026-07-02
 

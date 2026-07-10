@@ -1,46 +1,41 @@
 # Tracebook Project Plan
 
-## Current Scope
+## Product Position
 
-`tracebook` is an alpha Python order book simulator focused on matching semantics, synthetic order-flow experiments, and profiling hooks. The code is packaged as `tracebook` under `src/tracebook`.
+`tracebook` is an inspectable Python market-microstructure workbench for matching
+semantics, normalized order-event replay, synthetic workload experiments, and
+honest local profiling. It is distributed as `tracebook-sim` and imported as
+`tracebook`.
 
-## Current Structure
+The project optimizes for deterministic behavior and auditability before raw
+speed. It is not exchange connectivity or production trading infrastructure.
+
+## Maintained Surfaces
 
 ```text
 src/tracebook/
-  core/
-    order.py
-    orderbook.py
-    matching_engine.py
-    price_level.py
-  algorithms/
-    fifo.py
-    pro_rata.py
-  profiling/
-    magic_trace_wrapper.py
-    performance_monitor.py
-    trace_analyzer.py
-    trace_visualizer.py
-  simulation/
-    order_generator.py
-    simulation_engine.py
-  visualization/
-    dashboard.py
-tests/
-  test_orderbook_semantics.py
-examples/
-  full_simulation_demo.py
+  core/             matching, lifecycle, snapshots, deterministic replay
+  events/           CSV/JSON/JSONL normalized event loading and replay
+  simulation/       synthetic order flow and paced workload execution
+  benchmarks/       reproducible local scenario reports
+  profiling/        metrics, magic-trace, and selected-function fallback tracing
+  visualization/    Dash dashboard and dependency-free live web frontend
 ```
 
-## Near-Term Work
+## Next Milestones
 
-- Expand benchmark coverage beyond the current smoke/FIFO/pro-rata/cancellation scenarios.
-- Add measured local baseline reports under `benchmark_results/` when comparing optimization work.
-- Revisit data structures after correctness stabilizes; the current Python dict/list implementation is clear but not yet a low-latency final form.
-- Consider fixed-point price/quantity representation only after benchmark data shows float handling is a bottleneck.
+1. Publish `tracebook-sim` 0.2.0 through PyPI Trusted Publishing and verify the
+   clean-environment quickstart on macOS and Linux.
+2. Add documented adapters for one public crypto L3 feed and one equities order
+   event format, both normalizing into `MarketEvent`.
+3. Separate paced workload reports from an explicit unpaced engine-capacity
+   benchmark so the two measurements cannot be confused.
+4. Stabilize the public API and event/report schemas, then publish a 1.0 policy.
 
-## Performance Goals
+## Decision Rules
 
-- Establish reproducible benchmark baselines before publishing throughput or latency claims.
-- Keep profiling overhead visible in reports.
-- Prefer correctness and deterministic matching semantics before deeper optimization.
+- Matching behavior changes require executable semantic and invariant tests.
+- Exported schema changes require artifact tests and a changelog entry.
+- Performance claims require a command, seed, environment, and JSON artifact.
+- New dependencies need a measurable benefit and must remain optional unless
+  they are required by the core order-processing path.

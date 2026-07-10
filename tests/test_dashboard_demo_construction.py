@@ -5,6 +5,22 @@ import types
 import pytest
 
 
+def test_dashboard_help_and_version_work_without_optional_dependencies(monkeypatch, capsys):
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    monkeypatch.setitem(sys.modules, "dash", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+
+    try:
+        with pytest.raises(RuntimeError, match="Dashboard dependencies"):
+            dashboard_module.PerformanceDashboard()
+        with pytest.raises(SystemExit) as version_exit:
+            dashboard_module.main(["--version"])
+        assert version_exit.value.code == 0
+        assert "tracebook" in capsys.readouterr().out
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)
+
+
 def _install_dashboard_dependency_stubs(monkeypatch):
     dash_module = types.ModuleType("dash")
 
@@ -62,10 +78,14 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
             self.performance_monitor = object()
             self.order_book_manager = object()
             self.run_called = False
+            self.stop_called = False
             FakeSimulationEngine.last = self
 
         def run_simulation(self):
             self.run_called = True
+
+        def stop(self):
+            self.stop_called = True
 
     fake_simulation_module.SimulationConfig = FakeSimulationConfig
     fake_simulation_module.SimulationEngine = FakeSimulationEngine
@@ -82,10 +102,14 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
             self.target = target
             self.daemon = daemon
             self.started = False
+            self.join_timeout = None
             FakeThread.last = self
 
         def start(self):
             self.started = True
+
+        def join(self, timeout=None):
+            self.join_timeout = timeout
 
     class FakeDashboard:
         def __init__(self):
@@ -155,7 +179,9 @@ def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_ser
     assert FakeThread.last.daemon is True
     assert FakeThread.last.target == FakeSimulationEngine.last.run_simulation
     assert FakeThread.last.started is True
+    assert FakeThread.last.join_timeout == 5.0
     assert FakeSimulationEngine.last.run_called is False
+    assert FakeSimulationEngine.last.stop_called is True
 
 
 def test_dashboard_rejects_non_loopback_host_without_explicit_override(monkeypatch):
@@ -192,12 +218,35 @@ def test_dashboard_run_rejects_non_loopback_host_without_explicit_override(monke
         sys.modules.pop("tracebook.visualization.dashboard", None)
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"update_interval": 0}, "positive integer"),
+        ({"update_interval": 1.5}, "positive integer"),
+        ({"port": -1}, "between 0 and 65535"),
+        ({"port": 65536}, "between 0 and 65535"),
+    ],
+)
+def test_dashboard_rejects_invalid_server_configuration(monkeypatch, kwargs, message):
+    _install_dashboard_dependency_stubs(monkeypatch)
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+
+    try:
+        with pytest.raises(ValueError, match=message):
+            dashboard_module.PerformanceDashboard(**kwargs)
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)
+
+
 def test_dashboard_data_uses_current_throughput_metric(monkeypatch):
     _install_dashboard_dependency_stubs(monkeypatch)
     sys.modules.pop("tracebook.visualization.dashboard", None)
     dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
 
     try:
+        with pytest.raises(ValueError, match="max_points"):
+            dashboard_module.DashboardData(max_points=0)
         data = dashboard_module.DashboardData()
         data.update_metrics(
             {

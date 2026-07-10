@@ -5,7 +5,7 @@ from collections import deque
 import pytest
 
 from tracebook.core.order import OrderSide
-from tracebook.core.orderbook import OrderBook, OrderResult
+from tracebook.core.orderbook import OrderBook
 
 
 def test_trade_history_is_bounded_while_total_stays_cumulative():
@@ -22,21 +22,21 @@ def test_trade_history_is_bounded_while_total_stays_cumulative():
     assert len(book.get_recent_trades(3)) == 3  # tail slice still works on the deque
 
 
-def test_replace_restores_original_when_replacement_submit_fails(monkeypatch):
+def test_replace_restores_original_when_atomic_processing_fails(monkeypatch):
     book = OrderBook("BTCUSD")
     resting = book.submit_limit_order(OrderSide.BUY, 100.0, 2.0)
     original_id = resting.order.order_id
     cancels_before = book.get_statistics()["orders_cancelled"]
 
-    # Force the replacement submission to fail *after* the cancel step.
-    def _fail_submit(order):
-        return OrderResult(order, [], False, False, "forced failure")
+    # Force an internal failure after the cancel step but before matching mutates
+    # another order. The transaction restores the original and re-raises.
+    def _fail_processing(order, validate=True, record=True):
+        raise RuntimeError("forced failure")
 
-    monkeypatch.setattr(book, "submit_order", _fail_submit)
+    monkeypatch.setattr(book, "_process_order_locked", _fail_processing)
 
-    result = book.replace_order(original_id, price=101.0, quantity=1.5)
-
-    assert result.rejected_reason == "forced failure"
+    with pytest.raises(RuntimeError, match="forced failure"):
+        book.replace_order(original_id, price=101.0, quantity=1.5)
     # Original resting order is restored, unchanged.
     restored = book.get_order(original_id)
     assert restored is not None
@@ -53,8 +53,11 @@ def test_replace_with_invalid_params_leaves_original_untouched():
     original_id = resting.order.order_id
 
     result = book.replace_order(original_id, price=-5.0)
+    timestamp_result = book.replace_order(original_id, timestamp=1.5)
 
     assert result.rejected_reason
+    assert timestamp_result.accepted is False
+    assert "timestamp" in timestamp_result.rejected_reason
     assert book.get_order(original_id) is not None
     assert book.get_active_order_ids(OrderSide.BUY) == [original_id]
 
