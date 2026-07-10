@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+Development version: `0.3.0.dev0`.
+
 - Added the dependency-free `tracebook-coinbase` offline adapter for Coinbase
   Exchange REST L3 snapshots plus recorded `full` or compact `level3` feeds. It
   validates dynamic compact schemas and per-product sequences, streams

@@ -70,7 +70,7 @@ jobs:
           python -m pip uninstall -y tracebook-sim
           python -m pip install --no-deps dist/*.whl
           cd /tmp
-          python -c "import tracebook; assert tracebook.__version__ == '0.2.0'"
+          python -c "import importlib.metadata as m, tracebook; assert tracebook.__version__ == m.version('tracebook-sim')"
           tracebook-sim --version
           tracebook-benchmark --version
           tracebook-dashboard --version
