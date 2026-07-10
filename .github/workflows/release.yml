@@ -26,7 +26,7 @@ jobs:
         run: |
           python -m black --check src tests examples install_deps.py test_system.py
           python -m flake8 src tests examples install_deps.py test_system.py
-          python -m mypy src/tracebook
+          python -m mypy --python-version 3.13 src/tracebook
           python -m bandit -q -r src
           python -m compileall -q src tests examples install_deps.py test_system.py
           python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
