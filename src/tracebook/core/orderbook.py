@@ -416,6 +416,41 @@ class OrderBook:
                 self._recorder.record_cancel(order_id)
         return success
 
+    def reduce_order(self, order_id: int, quantity: float) -> bool:
+        """Reduce a resting order without changing its queue priority.
+
+        ``quantity`` is the amount removed from the order, not its new absolute
+        size. A full reduction removes the order. Invalid or excessive
+        reductions raise ``ValueError`` and leave the book unchanged; a missing
+        order returns ``False`` like :meth:`cancel_order`.
+        """
+        if isinstance(order_id, bool) or not isinstance(order_id, Integral) or order_id <= 0:
+            raise ValueError(f"Order id must be a positive integer: {order_id!r}")
+        quantity = self.order_factory._validate_quantity(quantity)
+
+        with self._lock:
+            order_id = int(order_id)
+            order = self._get_order_unlocked(order_id)
+            if order is None:
+                return False
+            if quantity > order.remaining_quantity + 1e-12:
+                raise ValueError(
+                    "Reduction quantity cannot exceed remaining quantity: "
+                    f"{quantity} > {order.remaining_quantity}"
+                )
+
+            reduction = min(quantity, order.remaining_quantity)
+            side_manager = (
+                self.matching_engine.buy_side
+                if int(order.side) == int(OrderSide.BUY)
+                else self.matching_engine.sell_side
+            )
+            if not side_manager.update_order_quantity(order_id, reduction):
+                return False
+            if self._recorder is not None:
+                self._recorder.record_reduce(order_id, reduction)
+            return True
+
     def start_recording(self) -> EventLog:
         """Begin recording mutating operations into a fresh event log.
 

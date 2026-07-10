@@ -22,6 +22,7 @@ python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json
 tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
+tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 ```
 
 For packaging changes, also run:
@@ -34,6 +35,8 @@ python -m twine check dist/*
 Normalized feed adapters should emit `tracebook.MarketEvent` values and keep
 venue-specific parsing, sequence checks, and assumptions outside the core replay
 engine. Include a small fixture and strict rejection tests with each adapter.
+Fixtures must be synthetic or explicitly redistributable, and adapter semantics
+must cite the venue's primary documentation.
 
 The command reference in `docs/commands.md` is the source of truth for reviewer-facing smoke paths.
 

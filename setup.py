@@ -125,6 +125,7 @@ setup(
             "tracebook-dashboard=tracebook.visualization.dashboard:main",
             "tracebook-web=tracebook.visualization.web_server:main",
             "tracebook-replay=tracebook.events.cli:main",
+            "tracebook-coinbase=tracebook.events.coinbase_cli:main",
         ],
     },
     package_data={

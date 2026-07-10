@@ -29,6 +29,7 @@ Every event requires `op` and `symbol`.
 | --- | --- | --- |
 | `new` | `order_id`, `side`, `quantity`; `price` except for market orders | `order_type`, `price` for market orders, `owner`, `timestamp_ns` |
 | `cancel` | `order_id` | `timestamp_ns` |
+| `reduce` | `order_id`, positive reduction `quantity` | `timestamp_ns` |
 | `replace` | `order_id`, and `price` and/or `quantity` | `timestamp_ns` |
 | `clear` | none | `timestamp_ns` |
 
@@ -45,6 +46,15 @@ returns the current active engine id when one exists.
 
 `timestamp_ns` is retained on new and replacement engine orders. It is metadata;
 event application and queue priority follow source-file order.
+
+`reduce.quantity` is the amount removed from remaining size, not the new
+absolute size. A partial reduction preserves the order's engine id and queue
+position; a full reduction removes it. This operation is used by L3 adapters for
+maker fills and same-price size decreases.
+
+Replay summaries use schema version 2 beginning after `tracebook-sim` 0.2.0;
+version 2 adds the `reductions` counter. Core `EventLog` version 2 adds recorded
+`reduce` operations while continuing to read version 1 logs.
 
 Example JSONL:
 
@@ -75,3 +85,6 @@ print(book.get_best_bid(), book.get_best_ask())
 Exchange-specific adapters should emit `MarketEvent` objects and keep venue
 sequence validation, checksum handling, and feed-specific semantics in the
 adapter rather than weakening this normalized contract.
+
+The first maintained adapter is documented in [Coinbase Exchange L3
+Adapter](coinbase-l3.md).

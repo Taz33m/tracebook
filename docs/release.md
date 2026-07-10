@@ -22,6 +22,7 @@ tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --warmup
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/release-smoke.json
 tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
+tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 python -m build --sdist --wheel --outdir dist
 python -m twine check dist/*
 python -m pip check
@@ -43,6 +44,10 @@ Configure a PyPI Trusted Publisher for:
 - workflow: `release.yml`
 - environment: `pypi`
 
+Repository settings enforce pull requests and the Python 3.10-3.13 CI matrix on
+`main`. The `pypi` deployment environment accepts only `v*` tags; keep those
+protections aligned if workflow or check names change.
+
 Publishing a GitHub release whose tag matches `v<package-version>` builds,
 validates, and publishes the wheel and sdist. The workflow rejects a mismatched
 tag before requesting a PyPI token.
@@ -53,6 +58,7 @@ After publishing, verify from a clean environment:
 python -m pip install tracebook-sim==0.2.0
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-replay --help
+tracebook-coinbase --help
 ```
 
 ## Release Notes

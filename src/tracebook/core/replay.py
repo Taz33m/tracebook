@@ -1,6 +1,6 @@
 """Deterministic record and replay for order books.
 
-A recorder captures every mutating operation (submissions, cancels, and clears)
+A recorder captures every mutating operation (submissions, reductions, cancels, and clears)
 as a serializable event log. Replaying that log against a fresh book reconstructs
 the identical sequence of trades -- by ``(buy_order_id, sell_order_id, price,
 quantity)`` -- and the identical final book state.
@@ -24,7 +24,7 @@ from .order import NO_OWNER, Order, SelfTradePolicy
 class RecordedEvent:
     """One recorded mutating operation against a book."""
 
-    op: str  # "submit" | "cancel" | "clear"
+    op: str  # "submit" | "reduce" | "cancel" | "clear"
     order_id: int
     side: Optional[int] = None
     order_type: Optional[int] = None
@@ -52,7 +52,7 @@ class EventLog:
     tick_size: float = 0.01
     self_trade_policy: int = int(SelfTradePolicy.NONE)
     events: List[RecordedEvent] = field(default_factory=list)
-    schema_version: int = 1
+    schema_version: int = 2
 
     def record_submit(self, order: Order) -> None:
         """Capture an accepted order as submitted (pre-matching values)."""
@@ -75,6 +75,12 @@ class EventLog:
         """Capture a successful cancellation."""
         self.events.append(RecordedEvent(op="cancel", order_id=int(order_id)))
 
+    def record_reduce(self, order_id: int, quantity: float) -> None:
+        """Capture a priority-preserving reduction in remaining quantity."""
+        self.events.append(
+            RecordedEvent(op="reduce", order_id=int(order_id), quantity=float(quantity))
+        )
+
     def record_clear(self) -> None:
         """Capture a full book reset."""
         self.events.append(RecordedEvent(op="clear", order_id=0))
@@ -92,7 +98,7 @@ class EventLog:
     @classmethod
     def from_dict(cls, data: dict) -> "EventLog":
         schema_version = int(data.get("schema_version", 1))
-        if schema_version != 1:
+        if schema_version not in {1, 2}:
             raise ValueError(f"Unsupported event log schema_version: {schema_version}")
         log = cls(
             symbol=data["symbol"],
@@ -102,6 +108,8 @@ class EventLog:
             schema_version=schema_version,
         )
         log.events = [RecordedEvent.from_dict(event) for event in data.get("events", [])]
+        if schema_version == 1 and any(event.op == "reduce" for event in log.events):
+            raise ValueError("Event log schema_version 1 does not support reduce operations")
         return log
 
     def to_json(self, **kwargs) -> str:
@@ -163,6 +171,16 @@ def replay(event_log: EventLog):
             if not book.cancel_order(event.order_id):
                 raise ValueError(
                     f"Replay diverged: cancel of order {event.order_id} "
+                    "found no matching resting order"
+                )
+        elif event.op == "reduce":
+            if event.quantity is None:
+                raise ValueError(
+                    f"Replay diverged: reduction of order {event.order_id} has no quantity"
+                )
+            if not book.reduce_order(event.order_id, event.quantity):
+                raise ValueError(
+                    f"Replay diverged: reduction of order {event.order_id} "
                     "found no matching resting order"
                 )
         elif event.op == "clear":

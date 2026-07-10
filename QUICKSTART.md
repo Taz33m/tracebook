@@ -93,3 +93,18 @@ tracebook-replay examples/data/sample_events.jsonl --include-trades --output rep
 The normalized schema accepts CSV, JSON, and JSONL and preserves source order ids
 through replacement. See `docs/event-replay.md` for fields, self-trade policy,
 and strict/lenient behavior.
+
+## Replay Coinbase Exchange L3 Data
+
+```bash
+tracebook-coinbase \
+  examples/data/coinbase_btcusd_l3_snapshot.json \
+  examples/data/coinbase_btcusd_full.jsonl \
+  --tick-size 0.01 \
+  --events-output /tmp/coinbase-events.jsonl \
+  --output /tmp/coinbase-replay.json
+```
+
+This offline adapter validates the snapshot/feed sequence and converts Coinbase
+order IDs and lifecycle messages into normalized events. See
+`docs/coinbase-l3.md` before using a captured dataset.

@@ -59,6 +59,7 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
 
     assert 'name="tracebook-sim"' in setup_text
     assert "tracebook-replay=tracebook.events.cli:main" in setup_text
+    assert "tracebook-coinbase=tracebook.events.coinbase_cli:main" in setup_text
     assert (ROOT / "src" / "tracebook" / "py.typed").is_file()
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 

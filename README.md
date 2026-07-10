@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-203%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-223%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -42,6 +42,7 @@ python -m pip install -e ".[dev,dashboard]"
 python -m pytest
 python test_system.py
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
+tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --cancel-ratio 0.05 --replace-ratio 0.02 --warmup-seconds 0.01
 tracebook-benchmark --scenario smoke --seed 1337 --warmup-seconds 0.01 --output benchmark_results/smoke.json
 ```
@@ -83,7 +84,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `203` pytest tests passing with a `75%` coverage gate |
+| Unit tests | `223` pytest tests passing with a `75%` coverage gate |
 | System smoke | `python test_system.py` passes all 4 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -102,9 +103,10 @@ All checks below were run during the latest production repo pass in this checkou
 | Pro-rata matching | Allocates fills by resting size at a price level | Supports futures-style allocation experiments |
 | Decimal quantities | Handles float quantities for crypto-style sizing | Avoids legacy integer-only simulator behavior |
 | Order types | Supports limit, market, IOC, and FOK semantics | Covers common execution workflows |
-| Lifecycle APIs | Cancels, replaces, active-order lookup, and structured `OrderResult` submissions | Makes simulations and demos inspectable |
+| Lifecycle APIs | Cancels, priority-preserving quantity reductions, replaces, active-order lookup, and structured `OrderResult` submissions | Makes simulations and imported books inspectable |
 | Self-trade prevention | Owner-tagged orders with `CANCEL_RESTING`/`CANCEL_INCOMING` policies | Stops a participant from matching its own resting liquidity |
 | Historical event replay | Loads normalized CSV, JSON, and JSONL order events across symbols while preserving source ids through replacement | Connects real feed adapters to the validated matching path |
+| Coinbase Exchange L3 adapter | Streams REST L3 snapshots plus recorded `full`/compact `level3` messages with sequence validation | Provides one concrete, auditable path from venue data to normalized events |
 | Detached public state | Returns copies from submission, lookup, trade, and callback APIs | Prevents callers from mutating live engine indexes |
 | Event simulation | Interleaves `NEW`, `CANCEL`, and `REPLACE` events with deterministic seeds | Exercises more than one-way order ingestion |
 | Synthetic streams | Generates random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows | Enables repeatable workload variation |
@@ -128,6 +130,7 @@ flowchart LR
     G --> H["Market data snapshots"]
     I["SyntheticOrderStream"] --> J["Simulation events"]
     J --> B
+    N["Normalized + Coinbase L3 events"] --> B
     B --> K["PerformanceMonitor"]
     K --> L["Benchmark JSON"]
     K --> M["Dashboard"]
@@ -140,6 +143,7 @@ Core paths:
 - `src/tracebook/core/orderbook.py`: public book API, validation, lifecycle operations, callbacks, snapshots.
 - `src/tracebook/core/matching_engine.py`: FIFO and pro-rata matching coordination.
 - `src/tracebook/core/price_level.py`: price-level storage and depth snapshots.
+- `src/tracebook/events/`: normalized event replay and Coinbase Exchange L3 adaptation.
 - `src/tracebook/simulation/`: synthetic order streams and event-based simulation engine.
 - `src/tracebook/benchmarks/runner.py`: reproducible benchmark scenarios and JSON reports.
 - `src/tracebook/profiling/`: performance monitor and magic-trace/fallback profiling.
@@ -324,6 +328,27 @@ addressable after cancel-and-new replacement; optional trade output includes
 both source and engine ids. See
 [`docs/event-replay.md`](docs/event-replay.md) for the schema and adapter guidance.
 
+### Coinbase Exchange L3
+
+Normalize and replay the included Coinbase-style REST L3 snapshot and recorded
+`full` feed without adding a network or authentication dependency:
+
+```bash
+tracebook-coinbase \
+  examples/data/coinbase_btcusd_l3_snapshot.json \
+  examples/data/coinbase_btcusd_full.jsonl \
+  --tick-size 0.01 \
+  --events-output /tmp/coinbase-events.jsonl \
+  --include-trades \
+  --output /tmp/coinbase-replay.json
+```
+
+The adapter enforces per-product sequence continuity, parses the compact
+channel's announced schema, preserves maker reductions without resetting FIFO
+priority, and keeps observed exchange trades separate from simulated trades.
+See [`docs/coinbase-l3.md`](docs/coinbase-l3.md) for synchronization and
+limitations.
+
 ## Reproducible Paced Workloads
 
 ```bash
@@ -399,6 +424,7 @@ requires `--allow-remote`.
 | `tracebook-benchmark --scenario smoke` | Run the benchmark smoke scenario |
 | `tracebook-benchmark --scenario all --output benchmark_results/local.json` | Produce a full local benchmark report |
 | `tracebook-replay events.jsonl --output replay.json` | Replay normalized historical order events |
+| `tracebook-coinbase snapshot.json full.jsonl --tick-size 0.01` | Normalize and replay Coinbase Exchange L3 data |
 | `tracebook-dashboard --demo-simulation` | Launch the Dash dashboard with live demo data |
 | `tracebook-web --port 8080` | Serve the dependency-free live order-book frontend |
 | `python -m pytest` | Run unit tests |

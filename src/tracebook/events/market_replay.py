@@ -21,7 +21,7 @@ from ..core.order import NO_OWNER, OrderSide, OrderType, SelfTradePolicy, Trade,
 from ..core.orderbook import OrderBook, OrderBookManager
 
 _INTEGER_PATTERN = re.compile(r"^[+-]?\d+$")
-_OPS = {"new", "cancel", "replace", "clear"}
+_OPS = {"new", "reduce", "cancel", "replace", "clear"}
 
 
 class MarketReplayError(ValueError):
@@ -160,6 +160,11 @@ class MarketEvent:
         if op == "cancel":
             return
 
+        if op == "reduce":
+            if quantity is None or quantity <= 0:
+                raise MarketReplayError("reduce requires a positive quantity")
+            return
+
         if op == "replace":
             if price is None and quantity is None:
                 raise MarketReplayError("replace requires price and/or quantity")
@@ -236,6 +241,7 @@ class MarketReplayResult:
     applied_events: int = 0
     submissions: int = 0
     cancellations: int = 0
+    reductions: int = 0
     replacements: int = 0
     clears: int = 0
     trades: List[ReplayTrade] = field(default_factory=list)
@@ -272,7 +278,7 @@ class MarketReplayResult:
                 "statistics": state["statistics"],
             }
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "replay_config": {
                 "matching_algorithm": self.matching_algorithm,
                 "tick_size": self.tick_size,
@@ -283,6 +289,7 @@ class MarketReplayResult:
             "rejected_events": len(self.rejections),
             "submissions": self.submissions,
             "cancellations": self.cancellations,
+            "reductions": self.reductions,
             "replacements": self.replacements,
             "clears": self.clears,
             "trades_executed": len(self.trades),
@@ -399,7 +406,7 @@ def replay_market_events(
         try:
             book = manager.get_order_book(event.symbol)
             if book is None:
-                if event.op in {"cancel", "replace"}:
+                if event.op in {"cancel", "reduce", "replace"}:
                     raise MarketReplayError(f"Order {event.order_id} is not active")
                 book = manager.create_order_book(
                     event.symbol,
@@ -443,6 +450,20 @@ def _apply_event(
         del active_ids[event.order_id]
         engine_to_source.pop(engine_order_id, None)
         result.cancellations += 1
+        return
+
+    if event.op == "reduce":
+        engine_order_id = active_ids.get(event.order_id)
+        if engine_order_id is None:
+            raise MarketReplayError(f"Order {event.order_id} is not active")
+        if event.quantity is None:
+            raise MarketReplayError("reduce requires a positive quantity")
+        if not book.reduce_order(engine_order_id, event.quantity):
+            raise MarketReplayError(f"Order {event.order_id} is not active")
+        if book.get_order(engine_order_id) is None:
+            del active_ids[event.order_id]
+            engine_to_source.pop(engine_order_id, None)
+        result.reductions += 1
         return
 
     if event.op == "replace":

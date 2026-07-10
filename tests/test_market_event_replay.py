@@ -241,6 +241,16 @@ def test_lenient_unknown_symbol_cancel_does_not_create_a_ghost_book():
     assert result.manager.get_all_symbols() == []
 
 
+def test_lenient_unknown_symbol_reduce_does_not_create_a_ghost_book():
+    event = MarketEvent.from_mapping(
+        {"op": "reduce", "symbol": "BTCUSD", "order_id": 99, "quantity": 1}
+    )
+
+    result = replay_market_events([event], strict=False)
+
+    assert result.manager.get_all_symbols() == []
+
+
 def test_strict_replay_fails_with_event_context():
     event = MarketEvent.from_mapping({"op": "cancel", "symbol": "BTCUSD", "order_id": 99})
 
@@ -347,7 +357,7 @@ def test_replay_cli_writes_machine_readable_summary(tmp_path, capsys):
     )
     payload = json.loads(output.read_text(encoding="utf-8"))
 
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["trades_included"] is True
     assert payload["books"]["BTCUSD"]["bids"] == [[100.0, 1.0, 1]]
     assert "Replay summary written" in capsys.readouterr().out
