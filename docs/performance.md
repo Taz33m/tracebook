@@ -1,6 +1,6 @@
 # Performance Baselines
 
-`tracebook` does not publish fixed throughput or latency claims until they are measured on the target machine. Use the benchmark runner to create local, reproducible reports.
+`tracebook` does not publish fixed throughput or latency claims until they are measured on the target machine. The benchmark runner creates local, reproducible paced-workload reports; it does not measure maximum engine capacity.
 
 ## Benchmark Command
 
@@ -18,6 +18,10 @@ tracebook-benchmark \
 - `fifo_baseline`: FIFO matching baseline.
 - `pro_rata_baseline`: pro-rata matching baseline.
 - `cancellation_mix`: FIFO run with cancel and replace events.
+- `deep_book`: FIFO run that builds deeper resting liquidity.
+- `high_cancellation`: FIFO run with a heavier lifecycle-event mix.
+- `pro_rata_cancellation`: pro-rata run with cancel and replace events.
+- `multi_symbol`: FIFO run across three independent books.
 - `all`: runs every scenario above.
 
 ## Report Shape
@@ -26,7 +30,7 @@ Each JSON report includes:
 
 - machine metadata and dependency versions
 - scenario config, seed, and warmup duration
-- measured order throughput
+- achieved new-order input rate and total event rate
 - mean, p50, p95, p99, and max matching latency
 - generation latency reported separately from matching latency
 - cancel/replace event latency reported separately from new-order matching latency
@@ -36,45 +40,26 @@ Use these files as local baselines. If README performance numbers are added late
 
 ## Local Baseline Sample
 
-Measured on May 9, 2026 with:
-
-- Python: 3.11.5
-- Platform: macOS-15.4.1-arm64-arm-64bit
-- Command: `tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /private/tmp/tracebook-benchmark-doc-baseline-current.json`
-
-These are local smoke baselines only. They are useful for regression checks on this machine, not portable performance claims.
-
-| Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| smoke | 100 | 99.93 | 2.922 | 0.060 | 0.219 | 3.186 | 0.855 | 0.000 | 134.28 |
-| fifo_baseline | 110 | 109.98 | 0.139 | 0.112 | 0.363 | 0.512 | 1.181 | 0.000 | 134.31 |
-| pro_rata_baseline | 100 | 99.93 | 0.124 | 0.095 | 0.398 | 0.630 | 0.868 | 0.000 | 134.19 |
-| cancellation_mix | 112 | 111.53 | 0.130 | 0.087 | 0.369 | 0.590 | 1.752 | 0.036 | 100.03 |
-
-## Scenario Baselines (all scenarios)
-
-A separate local sample covering every scenario, including the newer ones
-(`deep_book`, `high_cancellation`, `pro_rata_cancellation`, `multi_symbol`).
-Measured on July 2, 2026 with:
+Measured for 0.2.0 on July 10, 2026 with:
 
 - Python: 3.10.5
 - Platform: macOS-15.4.1-arm64-arm-64bit
-- Command: `tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05`
+- Command: `tracebook-benchmark --scenario all --duration 1 --throughput 100 --seed 2026 --warmup-seconds 0.05 --output /tmp/tracebook-v020-baseline.json`
 
-Local sample only, on a different machine than the table above; latency is
-wall-clock and thread-scheduling dependent, so tail figures vary run to run
-(the `multi_symbol` P99 below is one such spike across its three books).
+These are paced local smoke baselines only. They are useful for regression checks
+on this machine, not portable performance or maximum-capacity claims. New-order
+rate is separate from total event rate, which also includes cancel and replace.
 
-| Scenario | Orders | Throughput ops/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| smoke | 100 | 99.9 | 0.045 | 0.030 | 0.128 | 0.240 | 0.512 | 0.000 | 32.8 |
-| fifo_baseline | 110 | 110.0 | 0.038 | 0.028 | 0.105 | 0.145 | 0.436 | 0.000 | 27.1 |
-| pro_rata_baseline | 100 | 99.9 | 0.052 | 0.032 | 0.143 | 0.307 | 0.586 | 0.000 | 27.4 |
-| cancellation_mix | 102 | 101.9 | 0.046 | 0.030 | 0.143 | 0.159 | 0.511 | 0.026 | 26.1 |
-| deep_book | 100 | 99.9 | 0.062 | 0.036 | 0.163 | 0.335 | 0.846 | 0.000 | 21.9 |
-| high_cancellation | 113 | 112.9 | 0.038 | 0.028 | 0.085 | 0.199 | 0.405 | 0.031 | 22.2 |
-| pro_rata_cancellation | 103 | 102.9 | 0.043 | 0.029 | 0.102 | 0.180 | 0.455 | 0.033 | 22.6 |
-| multi_symbol | 108 | 108.0 | 0.127 | 0.034 | 0.219 | 2.336 | 1.219 | 0.000 | 23.2 |
+| Scenario | New | New/s | Events/s | Mean ms | P50 ms | P95 ms | P99 ms | Generation mean ms | Event mean ms | Memory MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `smoke` | 100 | 99.91 | 99.91 | 0.045 | 0.035 | 0.095 | 0.119 | 0.282 | 0.000 | 34.38 |
+| `fifo_baseline` | 110 | 109.91 | 109.91 | 0.040 | 0.032 | 0.081 | 0.093 | 0.260 | 0.000 | 35.62 |
+| `pro_rata_baseline` | 100 | 99.92 | 99.92 | 0.041 | 0.032 | 0.092 | 0.105 | 0.268 | 0.000 | 35.67 |
+| `cancellation_mix` | 100 | 99.91 | 109.90 | 0.041 | 0.032 | 0.089 | 0.112 | 0.287 | 0.017 | 36.00 |
+| `deep_book` | 100 | 99.96 | 99.96 | 0.051 | 0.037 | 0.120 | 0.200 | 0.381 | 0.000 | 36.23 |
+| `high_cancellation` | 100 | 99.88 | 147.82 | 0.040 | 0.032 | 0.084 | 0.147 | 0.259 | 0.016 | 36.45 |
+| `pro_rata_cancellation` | 100 | 99.97 | 115.97 | 0.052 | 0.036 | 0.125 | 0.233 | 0.431 | 0.021 | 36.69 |
+| `multi_symbol` | 108 | 107.92 | 107.92 | 0.043 | 0.035 | 0.080 | 0.118 | 0.135 | 0.000 | 36.92 |
 
 ## Operation Microbenchmarks
 

@@ -15,18 +15,25 @@ pip install -e ".[dev,dashboard]"
 Run these before opening a pull request:
 
 ```bash
-python -m flake8 src tests
-python -m pytest
+python -m black --check src tests examples install_deps.py test_system.py
+python -m flake8 src tests examples install_deps.py test_system.py
+python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json
 tracebook-dashboard --demo-simulation --help
+tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 ```
 
 For packaging changes, also run:
 
 ```bash
 python -m build --sdist --wheel --outdir dist
+python -m twine check dist/*
 ```
+
+Normalized feed adapters should emit `tracebook.MarketEvent` values and keep
+venue-specific parsing, sequence checks, and assumptions outside the core replay
+engine. Include a small fixture and strict rejection tests with each adapter.
 
 The command reference in `docs/commands.md` is the source of truth for reviewer-facing smoke paths.
 

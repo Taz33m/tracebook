@@ -9,7 +9,7 @@ docs/performance.md for the measured before/after.
 """
 
 from enum import IntEnum
-from numbers import Real
+from numbers import Integral, Real
 import math
 import threading
 import time
@@ -179,6 +179,8 @@ class OrderFactory:
     def _allocate_order_id(self) -> int:
         """Allocate a unique order id."""
         with self._lock:
+            if self._next_id >= 2**63:
+                raise OverflowError("Order id allocator exhausted the positive int64 range")
             order_id = self._next_id
             self._next_id += 1
             return order_id
@@ -191,12 +193,9 @@ class OrderFactory:
 
     def _validate_side(self, side: OrderSide):
         """Validate and normalize an order side."""
-        if isinstance(side, bool):
+        if isinstance(side, bool) or not isinstance(side, Integral):
             raise ValueError(f"Unsupported order side: {side}")
-        try:
-            side_value = int(side)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Unsupported order side: {side}") from exc
+        side_value = int(side)
 
         if side_value not in (int(OrderSide.BUY), int(OrderSide.SELL)):
             raise ValueError(f"Unsupported order side: {side}")
@@ -204,12 +203,9 @@ class OrderFactory:
 
     def _validate_order_type(self, order_type: OrderType):
         """Validate and normalize an order type."""
-        if isinstance(order_type, bool):
+        if isinstance(order_type, bool) or not isinstance(order_type, Integral):
             raise ValueError(f"Unsupported order type: {order_type}")
-        try:
-            order_type_value = int(order_type)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Unsupported order type: {order_type}") from exc
+        order_type_value = int(order_type)
 
         valid_types = (
             int(OrderType.MARKET),
@@ -232,8 +228,9 @@ class OrderFactory:
 
     def _validate_owner(self, owner: int):
         """Validate an owner id (an int64; NO_OWNER means anonymous)."""
-        if isinstance(owner, bool) or not isinstance(owner, int):
+        if isinstance(owner, bool) or not isinstance(owner, Integral):
             raise ValueError(f"Order owner must be an integer id: {owner!r}")
+        owner = int(owner)
         if not (-(2**63) <= owner < 2**63):
             raise ValueError(f"Order owner id is out of range for int64: {owner}")
         return owner
@@ -404,3 +401,36 @@ def calculate_match_quantity(buy_order: Order, sell_order: Order) -> float:
         float: Execution quantity
     """
     return min(buy_order.remaining_quantity, sell_order.remaining_quantity)
+
+
+def copy_order(order: Order) -> Order:
+    """Return a detached copy of an order.
+
+    The matching engine intentionally mutates order state while processing fills.
+    Public APIs use detached copies so callers and callbacks cannot mutate the
+    live price-level indexes through a returned ``Order`` reference.
+    """
+    copied = Order(
+        order_id=order.order_id,
+        symbol=order.symbol,
+        side=order.side,
+        order_type=order.order_type,
+        price=order.price,
+        quantity=order.quantity,
+        timestamp=order.timestamp,
+        owner=order.owner,
+    )
+    copied.remaining_quantity = order.remaining_quantity
+    copied.priority = order.priority
+    return copied
+
+
+def copy_trade(trade: Trade) -> Trade:
+    """Return a detached copy of a trade record."""
+    return Trade(
+        buy_order_id=trade.buy_order_id,
+        sell_order_id=trade.sell_order_id,
+        price=trade.price,
+        quantity=trade.quantity,
+        timestamp=trade.timestamp,
+    )

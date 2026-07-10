@@ -18,6 +18,7 @@ import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from numbers import Integral
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -34,6 +35,8 @@ _CONTENT_TYPES = {
 
 def is_loopback_host(host: str) -> bool:
     """Return True if host is loopback (so an unauthenticated bind is safe)."""
+    if not isinstance(host, str):
+        return False
     if host == "localhost":
         return True
     try:
@@ -70,13 +73,13 @@ def build_state(
     if book is None:
         return empty
 
-    depth = book.get_order_book_depth(levels=depth_levels)
+    state = book.get_state_snapshot(levels=depth_levels, trade_count=trade_count)
     trades = [
         {"price": t.price, "quantity": t.quantity, "timestamp": t.timestamp}
-        for t in book.get_recent_trades(trade_count)
+        for t in state["trades"]
     ]
 
-    stats = book.get_statistics()
+    stats = state["statistics"]
     summary = engine.performance_monitor.get_performance_summary()
     perf = summary.get("performance_metrics", {})
     latency = perf.get("order_processing_latency_ms", {})
@@ -85,12 +88,12 @@ def build_state(
     return {
         "symbol": symbol,
         "tick_size": book.tick_size,
-        "best_bid": book.get_best_bid(),
-        "best_ask": book.get_best_ask(),
-        "mid": book.get_mid_price(),
-        "spread": book.get_spread(),
-        "bids": [list(level) for level in depth["bids"]],
-        "asks": [list(level) for level in depth["asks"]],
+        "best_bid": state["best_bid"],
+        "best_ask": state["best_ask"],
+        "mid": state["mid"],
+        "spread": state["spread"],
+        "bids": [list(level) for level in state["bids"]],
+        "asks": [list(level) for level in state["asks"]],
         "trades": trades,
         "stats": {
             "orders": stats.get("orders_added", 0),
@@ -101,7 +104,7 @@ def build_state(
             "latency_p95_ms": latency.get("p95", 0.0),
             "latency_p99_ms": latency.get("p99", 0.0),
         },
-        "timestamp": time.time_ns(),
+        "timestamp": state["timestamp"],
     }
 
 
@@ -118,7 +121,7 @@ def _make_handler(engine, symbol: str, depth_levels: int, trade_count: int):
                 self._serve_static(path)
 
         def _send_json(self, payload: Dict[str, Any]):
-            body = json.dumps(payload, default=str).encode("utf-8")
+            body = json.dumps(payload, allow_nan=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -155,8 +158,17 @@ def create_server(
     allow_remote: bool = False,
 ) -> ThreadingHTTPServer:
     """Create (but do not start) the web server bound to host:port."""
-    if depth_levels < 0:
-        raise ValueError("depth_levels must be non-negative")
+    if not isinstance(host, str) or not host:
+        raise ValueError("host must be a non-empty string")
+    if isinstance(port, bool) or not isinstance(port, Integral) or not 0 <= port <= 65535:
+        raise ValueError("port must be an integer between 0 and 65535")
+    if isinstance(depth_levels, bool) or not isinstance(depth_levels, Integral) or depth_levels < 0:
+        raise ValueError("depth_levels must be a non-negative integer")
+    if isinstance(trade_count, bool) or not isinstance(trade_count, Integral) or trade_count < 0:
+        raise ValueError("trade_count must be a non-negative integer")
+    port = int(port)
+    depth_levels = int(depth_levels)
+    trade_count = int(trade_count)
     if not is_loopback_host(host) and not allow_remote:
         raise ValueError(
             "Non-loopback host requires allow_remote=True because the web "
@@ -168,6 +180,7 @@ def create_server(
 
     class _Server(ThreadingHTTPServer):
         address_family = family
+        daemon_threads = True
 
     return _Server((host, port), handler)
 
@@ -215,7 +228,6 @@ def main(argv: Optional[list] = None) -> int:
         replace_ratio=0.03,
     )
     engine = SimulationEngine(config)
-    threading.Thread(target=engine.run_simulation, daemon=True).start()
 
     server = create_server(
         engine,
@@ -225,13 +237,20 @@ def main(argv: Optional[list] = None) -> int:
         depth_levels=args.depth_levels,
         allow_remote=args.allow_remote,
     )
+    simulation_thread = threading.Thread(target=engine.run_simulation, daemon=True)
+    simulation_started = False
     print(f"tracebook live book on http://{args.host}:{args.port}  (symbol {args.symbol})")
     try:
+        simulation_thread.start()
+        simulation_started = True
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        server.shutdown()
+        engine.stop()
+        server.server_close()
+        if simulation_started:
+            simulation_thread.join(timeout=5.0)
     return 0
 
 

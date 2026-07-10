@@ -74,14 +74,17 @@ function renderTrades(trades, pd) {
     return;
   }
   const frag = document.createDocumentFragment();
-  let prev = null;
   // Server sends oldest-first; show newest at the top.
-  for (const t of [...trades].reverse()) {
+  const newestFirst = [...trades].reverse();
+  for (let index = 0; index < newestFirst.length; index += 1) {
+    const t = newestFirst[index];
+    const previousTrade = newestFirst[index + 1];
     const row = document.createElement("div");
     row.className = "trade";
     let dir = "flat";
-    if (prev !== null) dir = t.price > prev ? "up" : t.price < prev ? "down" : "flat";
-    prev = t.price;
+    if (previousTrade) {
+      dir = t.price > previousTrade.price ? "up" : t.price < previousTrade.price ? "down" : "flat";
+    }
     const time = t.timestamp
       ? new Date(t.timestamp / 1e6).toLocaleTimeString(undefined, { hour12: false })
       : "";

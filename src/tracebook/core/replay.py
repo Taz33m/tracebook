@@ -1,7 +1,7 @@
 """Deterministic record and replay for order books.
 
-A recorder captures every mutating operation (order submissions and cancels) as
-a serializable event log. Replaying that log against a fresh book reconstructs
+A recorder captures every mutating operation (submissions, cancels, and clears)
+as a serializable event log. Replaying that log against a fresh book reconstructs
 the identical sequence of trades -- by ``(buy_order_id, sell_order_id, price,
 quantity)`` -- and the identical final book state.
 
@@ -24,12 +24,13 @@ from .order import NO_OWNER, Order, SelfTradePolicy
 class RecordedEvent:
     """One recorded mutating operation against a book."""
 
-    op: str  # "submit" | "cancel"
+    op: str  # "submit" | "cancel" | "clear"
     order_id: int
     side: Optional[int] = None
     order_type: Optional[int] = None
     price: Optional[float] = None
     quantity: Optional[float] = None
+    remaining_quantity: Optional[float] = None
     symbol: Optional[str] = None
     timestamp: Optional[int] = None
     owner: int = NO_OWNER
@@ -51,6 +52,7 @@ class EventLog:
     tick_size: float = 0.01
     self_trade_policy: int = int(SelfTradePolicy.NONE)
     events: List[RecordedEvent] = field(default_factory=list)
+    schema_version: int = 1
 
     def record_submit(self, order: Order) -> None:
         """Capture an accepted order as submitted (pre-matching values)."""
@@ -62,6 +64,7 @@ class EventLog:
                 order_type=int(order.order_type),
                 price=float(order.price),
                 quantity=float(order.quantity),
+                remaining_quantity=float(order.remaining_quantity),
                 symbol=order.symbol,
                 timestamp=int(order.timestamp),
                 owner=int(order.owner),
@@ -72,8 +75,13 @@ class EventLog:
         """Capture a successful cancellation."""
         self.events.append(RecordedEvent(op="cancel", order_id=int(order_id)))
 
+    def record_clear(self) -> None:
+        """Capture a full book reset."""
+        self.events.append(RecordedEvent(op="clear", order_id=0))
+
     def to_dict(self) -> dict:
         return {
+            "schema_version": self.schema_version,
             "symbol": self.symbol,
             "matching_algorithm": self.matching_algorithm,
             "tick_size": self.tick_size,
@@ -83,16 +91,21 @@ class EventLog:
 
     @classmethod
     def from_dict(cls, data: dict) -> "EventLog":
+        schema_version = int(data.get("schema_version", 1))
+        if schema_version != 1:
+            raise ValueError(f"Unsupported event log schema_version: {schema_version}")
         log = cls(
             symbol=data["symbol"],
             matching_algorithm=data.get("matching_algorithm", "fifo"),
             tick_size=data.get("tick_size", 0.01),
             self_trade_policy=int(data.get("self_trade_policy", int(SelfTradePolicy.NONE))),
+            schema_version=schema_version,
         )
         log.events = [RecordedEvent.from_dict(event) for event in data.get("events", [])]
         return log
 
     def to_json(self, **kwargs) -> str:
+        kwargs.setdefault("allow_nan", False)
         return json.dumps(self.to_dict(), **kwargs)
 
     @classmethod
@@ -134,6 +147,8 @@ def replay(event_log: EventLog):
                 timestamp=event.timestamp or 0,
                 owner=event.owner if event.owner is not None else NO_OWNER,
             )
+            if event.remaining_quantity is not None:
+                order.remaining_quantity = event.remaining_quantity
             result = book.submit_order(order)
             # A soft rejection (e.g. unfillable FOK) keeps accepted=True and is
             # a faithful outcome; only a hard validation rejection diverges.
@@ -150,6 +165,8 @@ def replay(event_log: EventLog):
                     f"Replay diverged: cancel of order {event.order_id} "
                     "found no matching resting order"
                 )
+        elif event.op == "clear":
+            book.clear()
         else:
             raise ValueError(f"Unknown recorded op: {event.op!r}")
 

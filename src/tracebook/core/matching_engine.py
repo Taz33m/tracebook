@@ -377,8 +377,9 @@ class MatchingEngine:
         - NONE: all resting quantity counts.
         - CANCEL_RESTING: the order's own resting quantity is skipped (it would
           be cancelled), and matching continues past it.
-        - CANCEL_INCOMING: matching halts at the first same-owner order, so any
-          liquidity reachable only beyond that order does not count.
+        - CANCEL_INCOMING: FIFO matching halts at the first same-owner order;
+          pro-rata can use all non-self liquidity at that price level before the
+          incoming remainder is cancelled.
         """
         remaining_needed = order.remaining_quantity
         side_manager = self.sell_side if order.is_buy() else self.buy_side
@@ -394,6 +395,27 @@ class MatchingEngine:
                 remaining_needed -= level.total_quantity
                 if remaining_needed <= EPSILON:
                     return True
+                continue
+
+            # Pro-rata considers every resting order at a level together. Under
+            # CANCEL_INCOMING it allocates against all non-self liquidity at that
+            # level, then cancels only an unfilled remainder if self liquidity was
+            # present. FOK preflight must mirror that level-wide behavior rather
+            # than inheriting FIFO insertion-order semantics.
+            if self.matching_algorithm == "pro_rata" and policy == SelfTradePolicy.CANCEL_INCOMING:
+                self_trade_seen = False
+                for resting_id in level.orders:
+                    resting = side_manager.get_order(resting_id)
+                    if resting is None:
+                        continue
+                    if resting.owner == order.owner:
+                        self_trade_seen = True
+                    else:
+                        remaining_needed -= resting.remaining_quantity
+                if remaining_needed <= EPSILON:
+                    return True
+                if self_trade_seen:
+                    return False
                 continue
 
             for resting_id in level.orders:

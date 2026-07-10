@@ -99,9 +99,9 @@ SCENARIOS = {
 
 
 def run_all(n: int, warmup: int = 1000) -> dict:
-    """Warm up (JIT compile + caches) then measure each scenario."""
+    """Warm caches, then measure each scenario."""
     for fn in SCENARIOS.values():
-        fn(warmup)  # discard: warms Numba/CPython caches
+        fn(warmup)  # discard: warms interpreter and allocation caches
 
     return {name: fn(n) for name, fn in SCENARIOS.items()}
 

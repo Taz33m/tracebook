@@ -1,5 +1,5 @@
 """
-High-performance simulation engine for order book testing.
+Instrumented simulation engine for order-book testing.
 
 Coordinates order generation, order book processing, and performance monitoring
 to provide comprehensive simulation capabilities.
@@ -8,7 +8,10 @@ to provide comprehensive simulation capabilities.
 import argparse
 import json
 import math
+import sys
+import threading
 import time
+from numbers import Integral
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,31 +54,72 @@ class SimulationConfig:
         if not self.symbols:
             raise ValueError("symbols must contain at least one symbol")
         self.symbols = [normalize_symbol(symbol) for symbol in self.symbols]
+        if len(set(self.symbols)) != len(self.symbols):
+            raise ValueError("symbols must not contain duplicates")
 
         self.order_pattern = OrderPattern(self.order_pattern)
-        self.matching_algorithm = self.matching_algorithm.upper()
+        if not isinstance(self.matching_algorithm, str):
+            raise ValueError("matching_algorithm must be FIFO or PRO_RATA")
+        self.matching_algorithm = self.matching_algorithm.strip().upper()
         if self.matching_algorithm not in ("FIFO", "PRO_RATA"):
             raise ValueError(f"Unsupported matching algorithm: {self.matching_algorithm}")
+        if self.seed is not None and (
+            isinstance(self.seed, bool) or not isinstance(self.seed, Integral) or self.seed < 0
+        ):
+            raise ValueError("seed must be a non-negative integer or None")
+        if self.seed is not None:
+            self.seed = int(self.seed)
 
-        if self.duration_seconds < 0:
+        if (
+            isinstance(self.duration_seconds, bool)
+            or not isinstance(self.duration_seconds, (int, float))
+            or not math.isfinite(self.duration_seconds)
+            or self.duration_seconds < 0
+        ):
             raise ValueError("duration_seconds must be non-negative")
-        if self.target_throughput <= 0:
+        if (
+            isinstance(self.target_throughput, bool)
+            or not isinstance(self.target_throughput, (int, float))
+            or not math.isfinite(self.target_throughput)
+            or self.target_throughput <= 0
+        ):
             raise ValueError("target_throughput must be positive")
+        if isinstance(self.batch_size, bool) or not isinstance(self.batch_size, int):
+            raise ValueError("batch_size must be a positive integer")
         if self.batch_size <= 0:
             raise ValueError("batch_size must be positive")
-        if self.warmup_seconds < 0:
+        if (
+            isinstance(self.warmup_seconds, bool)
+            or not isinstance(self.warmup_seconds, (int, float))
+            or not math.isfinite(self.warmup_seconds)
+            or self.warmup_seconds < 0
+        ):
             raise ValueError("warmup_seconds must be non-negative")
-        if not 0 <= self.cancel_ratio <= 1:
-            raise ValueError("cancel_ratio must be between 0 and 1")
-        if not 0 <= self.replace_ratio <= 1:
-            raise ValueError("replace_ratio must be between 0 and 1")
+        for name, value in {
+            "cancel_ratio": self.cancel_ratio,
+            "replace_ratio": self.replace_ratio,
+        }.items():
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0 <= value <= 1
+            ):
+                raise ValueError(f"{name} must be between 0 and 1")
         if self.cancel_ratio + self.replace_ratio > 1:
             raise ValueError("cancel_ratio + replace_ratio must be <= 1")
+        for name, value in {
+            "enable_profiling": self.enable_profiling,
+            "enable_magic_trace": self.enable_magic_trace,
+            "batch_processing": self.batch_processing,
+        }.items():
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
 
 
 class SimulationEngine:
     """
-    High-performance simulation engine.
+    Instrumented simulation engine.
 
     Orchestrates order generation, order book processing, and performance
     monitoring to provide comprehensive testing and benchmarking capabilities.
@@ -95,12 +139,14 @@ class SimulationEngine:
 
         # Simulation state
         self.is_running = False
-        self.simulation_thread = None
         self.start_time = 0
         self.end_time = 0
+        self._has_run = False
+        self._run_lock = threading.Lock()
 
         # Statistics
         self.total_orders_processed = 0
+        self.total_new_orders_processed = 0
         self.total_events_processed = 0
         self.total_cancel_events = 0
         self.total_replace_events = 0
@@ -111,7 +157,7 @@ class SimulationEngine:
         # Event callbacks
         self.trade_callbacks: List[Callable] = []
         self.order_callbacks: List[Callable] = []
-        self.simulation_callbacks: List[Callable] = []
+        self.simulation_callbacks: List[Callable[[Dict[str, Any]], None]] = []
 
     def _setup_order_streams(self):
         """Setup order streams for each symbol."""
@@ -136,7 +182,12 @@ class SimulationEngine:
                 seed=stream_seed,
             )
 
-            stream = SyntheticOrderStream(market_params, stream_config, self.performance_monitor)
+            stream = SyntheticOrderStream(
+                market_params,
+                stream_config,
+                self.performance_monitor,
+                enable_metrics=self.config.enable_profiling,
+            )
             self.order_streams[symbol] = stream
 
             # Setup order book for symbol
@@ -154,64 +205,89 @@ class SimulationEngine:
 
     def register_trade_callback(self, callback: Callable):
         """Register callback for trade events."""
+        if not callable(callback):
+            raise ValueError("trade callback must be callable")
         self.trade_callbacks.append(callback)
 
     def register_order_callback(self, callback: Callable):
         """Register callback for order events."""
+        if not callable(callback):
+            raise ValueError("order callback must be callable")
         self.order_callbacks.append(callback)
 
-    def register_simulation_callback(self, callback: Callable):
-        """Register callback for simulation events."""
+    def register_simulation_callback(self, callback: Callable[[Dict[str, Any]], None]):
+        """Register a callback that receives the completed result dictionary."""
+        if not callable(callback):
+            raise ValueError("simulation callback must be callable")
         self.simulation_callbacks.append(callback)
 
     def run_simulation(self) -> Dict[str, Any]:
         """Run the complete simulation."""
-        print(
-            f"Starting simulation - Duration: {self.config.duration_seconds}s, "
-            f"Target: {self.config.target_throughput} orders/sec"
-        )
+        with self._run_lock:
+            if self.is_running:
+                raise RuntimeError("Simulation is already running")
+            if self._has_run:
+                raise RuntimeError("SimulationEngine instances are single-use; create a new engine")
+            self._has_run = True
+            self.is_running = True
 
-        if self.config.warmup_seconds > 0:
-            self._warm_up()
-
-        # Start monitoring
-        self.performance_monitor.start_monitoring()
-
-        # Start profiling session if enabled
         profiling_session = None
-        if self.config.enable_magic_trace:
-            profiling_session = self.performance_monitor.profile_session("full_simulation")
-            profiling_session.__enter__()
+        profiling_entered = False
+        monitor_started = False
 
         try:
+            print(
+                f"Starting simulation - Duration: {self.config.duration_seconds}s, "
+                f"Target: {self.config.target_throughput} orders/sec"
+            )
+
+            if self.config.warmup_seconds > 0:
+                self._warm_up()
+
+            if self.config.enable_profiling:
+                self.performance_monitor.start_monitoring()
+                monitor_started = True
+
+            if self.config.enable_profiling and self.config.enable_magic_trace:
+                profiling_session = self.performance_monitor.profile_session("full_simulation")
+                profiling_session.__enter__()
+                profiling_entered = True
+
             # Start order streams
             for stream in self.order_streams.values():
                 stream.start_stream()
 
             # Run simulation
             self.start_time = time.time_ns()
-            self.is_running = True
 
             # Main simulation loop
             self._simulation_loop()
 
-            self.end_time = time.time_ns()
+        finally:
+            error_info = sys.exc_info()
+            if self.start_time:
+                self.end_time = time.time_ns()
             self.is_running = False
 
-        finally:
-            # Stop order streams
-            for stream in self.order_streams.values():
-                stream.stop_stream()
-
-            # Stop profiling
-            if profiling_session:
-                profiling_session.__exit__(None, None, None)
-
-            # Stop monitoring
-            self.performance_monitor.stop_monitoring()
+            try:
+                for stream in self.order_streams.values():
+                    stream.stop_stream()
+            finally:
+                try:
+                    if profiling_entered and profiling_session is not None:
+                        profiling_session.__exit__(*error_info)
+                finally:
+                    if monitor_started:
+                        self.performance_monitor.stop_monitoring()
 
         # Generate results
         results = self._generate_results()
+
+        for callback in list(self.simulation_callbacks):
+            try:
+                callback(results)
+            except Exception as exc:
+                print(f"Error in simulation callback: {exc}")
 
         if self.config.output_path:
             self.export_results(results, self.config.output_path)
@@ -223,6 +299,10 @@ class SimulationEngine:
 
         return results
 
+    def stop(self) -> None:
+        """Request a running simulation to stop at the next loop boundary."""
+        self.is_running = False
+
     def _simulation_loop(self):
         """Main simulation processing loop."""
         end_time = time.time() + self.config.duration_seconds
@@ -232,7 +312,8 @@ class SimulationEngine:
 
             # Process events from all streams
             for symbol, stream in self.order_streams.items():
-                events = stream.get_events(self.config.batch_size)
+                event_limit = self.config.batch_size if self.config.batch_processing else 1
+                events = stream.get_events(event_limit)
 
                 if events:
                     order_book = self._get_order_book(symbol)
@@ -259,32 +340,35 @@ class SimulationEngine:
 
         if event.event_type == SimulationEventType.NEW and event.order is not None:
             trades = order_book.add_order(event.order)
+            self.total_new_orders_processed += 1
             processing_time = time.time_ns() - processing_start
-            self.performance_monitor.record_order_processing(processing_time, 1)
+            if self.config.enable_profiling:
+                self.performance_monitor.record_order_processing(processing_time, 1)
 
         elif event.event_type == SimulationEventType.CANCEL and event.order_id is not None:
             order_book.cancel_order(event.order_id)
             self.total_cancel_events += 1
             processing_time = time.time_ns() - processing_start
-            self.performance_monitor.metrics_collector.record_metric(
-                name="order_event_latency_ms",
-                value=processing_time / 1_000_000,
-                unit="milliseconds",
-                category="performance",
-                metadata={"event_type": "cancel"},
-            )
+            if self.config.enable_profiling:
+                self.performance_monitor.metrics_collector.record_metric(
+                    name="order_event_latency_ms",
+                    value=processing_time / 1_000_000,
+                    unit="milliseconds",
+                    category="performance",
+                    metadata={"event_type": "cancel"},
+                )
 
         elif event.event_type == SimulationEventType.REPLACE and event.order_id is not None:
             result = order_book.replace_order(event.order_id, event.price, event.quantity)
             trades = result.trades
             self.total_replace_events += 1
             processing_time = time.time_ns() - processing_start
-            if trades:
+            if trades and self.config.enable_profiling:
                 # A replacement that crosses the book is matching work; count it
                 # as matching latency so replace-heavy scenarios don't hide the
                 # matching cost under lifecycle-event latency.
                 self.performance_monitor.record_order_processing(processing_time, 1)
-            else:
+            elif self.config.enable_profiling:
                 self.performance_monitor.metrics_collector.record_metric(
                     name="order_event_latency_ms",
                     value=processing_time / 1_000_000,
@@ -297,7 +381,7 @@ class SimulationEngine:
 
         self.total_events_processed += 1
 
-        if trades:
+        if trades and self.config.enable_profiling:
             self.performance_monitor.record_trade_execution(
                 len(trades), sum(trade.quantity * trade.price for trade in trades)
             )
@@ -362,7 +446,7 @@ class SimulationEngine:
         self.total_trades_executed += len(trades)
         self.total_volume += sum(trade.quantity * trade.price for trade in trades)
 
-        for callback in self.trade_callbacks:
+        for callback in list(self.trade_callbacks):
             try:
                 callback(trades)
             except Exception as e:
@@ -372,7 +456,7 @@ class SimulationEngine:
         """Handle order processed events."""
         self.total_orders_processed += 1
 
-        for callback in self.order_callbacks:
+        for callback in list(self.order_callbacks):
             try:
                 callback(order, trades)
             except Exception as e:
@@ -381,6 +465,8 @@ class SimulationEngine:
     def _generate_results(self) -> Dict[str, Any]:
         """Generate comprehensive simulation results."""
         duration_seconds = (self.end_time - self.start_time) / 1_000_000_000
+        achieved_new_order_rate = self.total_new_orders_processed / max(duration_seconds, 0.001)
+        achieved_event_rate = self.total_events_processed / max(duration_seconds, 0.001)
 
         # Performance summary
         performance_summary = self.performance_monitor.get_performance_summary()
@@ -409,7 +495,9 @@ class SimulationEngine:
         }
 
         return {
+            "schema_version": 1,
             "simulation_config": {
+                "measurement_model": "paced_workload",
                 "duration_seconds": self.config.duration_seconds,
                 "target_throughput": self.config.target_throughput,
                 "actual_duration": duration_seconds,
@@ -419,15 +507,22 @@ class SimulationEngine:
                 "cancel_ratio": self.config.cancel_ratio,
                 "replace_ratio": self.config.replace_ratio,
                 "warmup_seconds": self.config.warmup_seconds,
+                "enable_profiling": self.config.enable_profiling,
+                "enable_magic_trace": self.config.enable_magic_trace,
+                "batch_processing": self.config.batch_processing,
+                "batch_size": self.config.batch_size,
             },
             "summary_metrics": {
                 "total_orders_processed": self.total_orders_processed,
+                "total_new_orders_processed": self.total_new_orders_processed,
                 "total_events_processed": self.total_events_processed,
                 "total_cancel_events": self.total_cancel_events,
                 "total_replace_events": self.total_replace_events,
                 "total_trades_executed": self.total_trades_executed,
                 "total_volume": self.total_volume,
-                "actual_throughput": self.total_orders_processed / max(duration_seconds, 0.001),
+                "actual_throughput": achieved_new_order_rate,
+                "achieved_new_order_rate": achieved_new_order_rate,
+                "achieved_event_rate": achieved_event_rate,
                 "trade_ratio": self.total_trades_executed / max(self.total_orders_processed, 1),
                 "trades_per_order": self.total_trades_executed
                 / max(self.total_orders_processed, 1),
@@ -489,7 +584,7 @@ class SimulationEngine:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with output_path.open("w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, default=str)
+                json.dump(results, f, indent=2, default=str, allow_nan=False)
 
             print(f"Results exported to: {output_path}")
             return str(output_path)
@@ -584,7 +679,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--warmup-seconds",
         type=float,
         default=0.0,
-        help="JIT warmup duration excluded from results.",
+        help="Warmup duration excluded from results.",
     )
     args = parser.parse_args(argv)
 

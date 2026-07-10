@@ -52,10 +52,11 @@ DEV_REQUIREMENTS = [
     "pytest>=9.1.1",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",
+    "twine>=6.1.0",
 ]
 
 setup(
-    name="tracebook",
+    name="tracebook-sim",
     version=read_version(),
     author="Taz33m",
     author_email="tazeemmahashin@gmail.com",
@@ -86,6 +87,9 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Typing :: Typed",
         "Topic :: Office/Business :: Financial",
         "Topic :: Scientific/Engineering",
         "Topic :: Software Development :: Libraries :: Python Modules",
@@ -120,9 +124,13 @@ setup(
             "tracebook-benchmark=tracebook.benchmarks.runner:main",
             "tracebook-dashboard=tracebook.visualization.dashboard:main",
             "tracebook-web=tracebook.visualization.web_server:main",
+            "tracebook-replay=tracebook.events.cli:main",
         ],
     },
-    package_data={"tracebook.visualization": ["web/*.html", "web/*.css", "web/*.js"]},
+    package_data={
+        "tracebook": ["py.typed"],
+        "tracebook.visualization.web": ["*.html", "*.css", "*.js"],
+    },
     include_package_data=True,
     zip_safe=False,
 )

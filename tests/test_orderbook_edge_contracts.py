@@ -121,6 +121,13 @@ def test_manager_global_statistics_do_not_sum_rates_or_averages():
                 "last_trade_time": 20,
             }
         ),
+        "EMPTY": FakeBook(
+            {
+                "orders_added": 0,
+                "min_processing_time_ns": 0,
+                "uptime_seconds": 1.0,
+            }
+        ),
     }
 
     stats = manager.get_global_statistics()

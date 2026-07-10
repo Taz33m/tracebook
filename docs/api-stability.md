@@ -1,0 +1,23 @@
+# API Stability
+
+`0.2.x` remains an alpha series, but public behavior is now divided deliberately.
+
+## Compatibility Intent
+
+- Top-level imports listed in `tracebook.__all__` are public.
+- Installed `tracebook-*` console commands are public.
+- Benchmark, simulation, event-log, and replay-summary JSON structures are public
+  artifacts and require schema tests plus changelog notes when changed.
+- Objects returned by order submission, lookup, recent-trade, and callback APIs
+  are detached from internal mutable state.
+- Normalized replay `order_id` values are source identifiers; replacement keeps
+  them addressable even when the engine allocates a new internal id.
+
+Private methods, internal matching data structures, dashboard layout internals,
+and synthetic generator implementation details may change during the alpha.
+
+## Deprecation Policy
+
+Before 1.0, avoidable breaking changes receive a changelog entry and at least one
+minor release of migration guidance when practical. Security and correctness
+fixes may change previously unsafe behavior immediately.

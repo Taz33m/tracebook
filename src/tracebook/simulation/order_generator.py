@@ -7,8 +7,10 @@ and benchmarking the order book system.
 """
 
 import numpy as np
+import math
 import time
 import threading
+from numbers import Integral, Real
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass, replace
 from enum import IntEnum
@@ -80,6 +82,61 @@ class MarketParameters:
 
     def __post_init__(self):
         self.symbol = normalize_symbol(self.symbol)
+        positive_fields = {
+            "initial_price": self.initial_price,
+            "tick_size": self.tick_size,
+            "min_quantity": self.min_quantity,
+            "max_quantity": self.max_quantity,
+            "order_arrival_rate": self.order_arrival_rate,
+            "mm_spread_multiplier": self.mm_spread_multiplier,
+            "mm_quantity_multiplier": self.mm_quantity_multiplier,
+        }
+        for name, value in positive_fields.items():
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise ValueError(f"{name} must be a positive finite number")
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be a positive finite number")
+        if self.max_quantity < self.min_quantity:
+            raise ValueError("max_quantity must be greater than or equal to min_quantity")
+        if (
+            isinstance(self.price_volatility, bool)
+            or not isinstance(self.price_volatility, Real)
+            or not math.isfinite(self.price_volatility)
+            or self.price_volatility < 0
+        ):
+            raise ValueError("price_volatility must be a non-negative finite number")
+        if isinstance(self.spread_bps, bool) or not isinstance(self.spread_bps, Integral):
+            raise ValueError("spread_bps must be a non-negative integer")
+        self.spread_bps = int(self.spread_bps)
+        if self.spread_bps < 0:
+            raise ValueError("spread_bps must be a non-negative integer")
+        for name, value in {
+            "market_order_ratio": self.market_order_ratio,
+            "cancel_ratio": self.cancel_ratio,
+            "volatility_clustering": self.volatility_clustering,
+            "mm_order_ratio": self.mm_order_ratio,
+        }.items():
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not math.isfinite(value)
+                or not 0 <= value <= 1
+            ):
+                raise ValueError(f"{name} must be between 0 and 1")
+        if (
+            isinstance(self.trend_strength, bool)
+            or not isinstance(self.trend_strength, Real)
+            or not math.isfinite(self.trend_strength)
+            or not -1 <= self.trend_strength <= 1
+        ):
+            raise ValueError("trend_strength must be between -1 and 1")
+        if (
+            isinstance(self.mean_reversion_speed, bool)
+            or not isinstance(self.mean_reversion_speed, Real)
+            or not math.isfinite(self.mean_reversion_speed)
+            or self.mean_reversion_speed < 0
+        ):
+            raise ValueError("mean_reversion_speed must be a non-negative finite number")
 
 
 @dataclass
@@ -97,12 +154,31 @@ class OrderGenerationConfig:
 
     def __post_init__(self):
         self.pattern = OrderPattern(self.pattern)
-        if self.duration_seconds < 0:
+        if (
+            isinstance(self.duration_seconds, bool)
+            or not isinstance(self.duration_seconds, Real)
+            or not math.isfinite(self.duration_seconds)
+            or self.duration_seconds < 0
+        ):
             raise ValueError("duration_seconds must be non-negative")
-        if self.target_throughput <= 0:
+        if (
+            isinstance(self.target_throughput, bool)
+            or not isinstance(self.target_throughput, Real)
+            or not math.isfinite(self.target_throughput)
+            or self.target_throughput <= 0
+        ):
             raise ValueError("target_throughput must be positive")
+        if isinstance(self.batch_size, bool) or not isinstance(self.batch_size, Integral):
+            raise ValueError("batch_size must be a positive integer")
+        self.batch_size = int(self.batch_size)
         if self.batch_size <= 0:
             raise ValueError("batch_size must be positive")
+        if self.seed is not None and (
+            isinstance(self.seed, bool) or not isinstance(self.seed, Integral) or self.seed < 0
+        ):
+            raise ValueError("seed must be a non-negative integer or None")
+        if self.seed is not None:
+            self.seed = int(self.seed)
 
 
 class PriceModel:
@@ -528,7 +604,7 @@ class AggressiveOrderGenerator(OrderGenerator):
 
 class SyntheticOrderStream:
     """
-    High-performance synthetic order stream generator.
+    Paced synthetic order stream generator.
 
     Coordinates multiple order generators to create realistic market conditions
     with configurable throughput and patterns.
@@ -539,7 +615,10 @@ class SyntheticOrderStream:
         market_params: MarketParameters,
         config: OrderGenerationConfig,
         performance_monitor=None,
+        enable_metrics: bool = True,
     ):
+        if not isinstance(enable_metrics, bool):
+            raise ValueError("enable_metrics must be a boolean")
         self.market_params = market_params
         self.config = config
         self.rng = np.random.default_rng(config.seed)
@@ -559,7 +638,10 @@ class SyntheticOrderStream:
         self.queue_lock = threading.Lock()
 
         # Performance monitoring
-        self.performance_monitor = performance_monitor or get_performance_monitor()
+        self.performance_monitor = (
+            performance_monitor if performance_monitor is not None else get_performance_monitor()
+        )
+        self.enable_metrics = enable_metrics
 
         # Statistics
         self.total_orders_generated = 0
@@ -795,13 +877,14 @@ class SyntheticOrderStream:
                     self.generation_times = self.generation_times[-500:]
 
                 # Keep generation metrics separate from order-book matching latency.
-                self.performance_monitor.metrics_collector.record_metric(
-                    name="order_generation_latency_ms",
-                    value=generation_time / 1_000_000,
-                    unit="milliseconds",
-                    category="generation",
-                    metadata={"order_count": len(new_orders)},
-                )
+                if self.enable_metrics:
+                    self.performance_monitor.metrics_collector.record_metric(
+                        name="order_generation_latency_ms",
+                        value=generation_time / 1_000_000,
+                        unit="milliseconds",
+                        category="generation",
+                        metadata={"order_count": len(new_orders)},
+                    )
 
                 # Trigger callbacks
                 for callback in self.order_callbacks:

@@ -8,7 +8,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from tracebook import EventLog, OrderBook, OrderSide, replay
+from tracebook import EventLog, Order, OrderBook, OrderSide, replay
 from tracebook.core.order import OrderType
 from tracebook.core.replay import RecordedEvent
 
@@ -90,9 +90,15 @@ def test_event_log_survives_json_round_trip():
     restored = EventLog.from_json(log.to_json())
     replayed = replay(restored)
 
+    assert restored.schema_version == 1
     assert _trade_keys(replayed) == _trade_keys(live)
     assert replayed.get_best_bid() == live.get_best_bid()
     assert replayed.get_best_ask() == live.get_best_ask()
+
+
+def test_event_log_rejects_unknown_schema_version():
+    with pytest.raises(ValueError, match="schema_version"):
+        EventLog.from_dict({"schema_version": 999, "symbol": "BTCUSD"})
 
 
 def test_unfillable_fok_replays_without_diverging():
@@ -175,3 +181,28 @@ def test_start_recording_requires_an_empty_book():
 
     with pytest.raises(ValueError, match="empty book"):
         book.start_recording()
+
+
+def test_start_recording_requires_no_prior_non_resting_activity():
+    book = OrderBook("BTCUSD")
+    book.submit_market_order(OrderSide.BUY, 1.0)
+
+    with pytest.raises(ValueError, match="pristine book"):
+        book.start_recording()
+
+    book.clear()
+    assert len(book.start_recording()) == 0
+
+
+def test_external_partial_remaining_quantity_replays_deterministically():
+    live = OrderBook("BTCUSD")
+    log = live.start_recording()
+    partial = Order(50, "BTCUSD", OrderSide.BUY, OrderType.LIMIT, 100.0, 5.0, 10, -1)
+    partial.remaining_quantity = 2.0
+
+    assert live.submit_order(partial).accepted is True
+    live.stop_recording()
+    rebuilt = replay(EventLog.from_json(log.to_json()))
+
+    assert log.events[0].remaining_quantity == pytest.approx(2.0)
+    assert rebuilt.get_order_book_depth()["bids"] == [(100.0, 2.0, 1)]

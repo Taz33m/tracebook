@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 import subprocess
 import threading
@@ -108,7 +109,9 @@ def test_symbols_are_non_empty_and_normalized():
     manual_result = book.submit_order(manual_order)
 
     assert manual_result.rejected_reason is None
-    assert manual_order.symbol == "BTCUSD"
+    # External objects are normalized into detached engine-owned copies.
+    assert manual_order.symbol == " BTCUSD "
+    assert manual_result.order.symbol == "BTCUSD"
 
 
 def test_reused_order_ids_are_rejected_after_cancel():
@@ -316,3 +319,25 @@ def test_magic_trace_uses_thread_safe_subprocess_options(monkeypatch, tmp_path: 
     assert kwargs["start_new_session"] is True
     assert kwargs["stdout"] is subprocess.DEVNULL
     assert kwargs["stderr"] is subprocess.DEVNULL
+
+
+def test_magic_trace_fallback_profiles_selected_matching_functions(monkeypatch, tmp_path: Path):
+    config = MagicTraceConfig()
+    config.output_dir = str(tmp_path)
+    config.profile_functions = ["add_order", "_execute_fifo_match"]
+    session = MagicTraceSession(config, "fallback_profile")
+    monkeypatch.setattr(session, "_check_magic_trace_available", lambda: False)
+
+    assert session.start() is True
+    book = OrderBook("BTCUSD")
+    book.add_limit_order(OrderSide.BUY, 100.0, 1.0)
+    book.add_limit_order(OrderSide.SELL, 100.0, 1.0)
+    assert session.stop() is True
+
+    analysis_path = tmp_path / "fallback_profile_fallback_analysis.json"
+    analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+    names = {call["function_name"] for call in analysis["completed_calls"]}
+
+    assert any(name.endswith(".add_order") for name in names)
+    assert any(name.endswith("._execute_fifo_match") for name in names)
+    assert "error" not in analysis

@@ -4,6 +4,14 @@ This guide collects the commands a reviewer, contributor, or benchmark author is
 
 ## Setup
 
+User install:
+
+```bash
+python -m pip install tracebook-sim
+```
+
+Contributor install:
+
 ```bash
 python -m venv venv
 source venv/bin/activate
@@ -20,12 +28,13 @@ make setup
 
 | Command | Purpose |
 | --- | --- |
-| `python -m pytest` | Run the unit test suite |
+| `python -m pytest --cov=tracebook --cov-fail-under=75` | Run tests and enforce the coverage baseline |
 | `python test_system.py` | Run integration smoke checks |
-| `python -m black --check src tests examples install_deps.py` | Check formatting |
-| `python -m flake8 src tests examples install_deps.py` | Run lint checks |
-| `python -m compileall -q src tests examples install_deps.py` | Check source compilation |
+| `python -m black --check src tests examples install_deps.py test_system.py` | Check formatting |
+| `python -m flake8 src tests examples install_deps.py test_system.py` | Run lint checks |
+| `python -m compileall -q src tests examples install_deps.py test_system.py` | Check source compilation |
 | `python -m build --sdist --wheel --outdir dist` | Build package artifacts |
+| `python -m twine check dist/*` | Validate distribution metadata and README rendering |
 | `python -m pip check` | Validate installed dependency consistency |
 
 ## Simulation CLI
@@ -61,7 +70,7 @@ Options:
 | `--output` | Optional JSON result path |
 | `--cancel-ratio` | Probability of a cancel lifecycle event after a new order |
 | `--replace-ratio` | Probability of a replace lifecycle event after a new order |
-| `--warmup-seconds` | JIT warmup excluded from measured run |
+| `--warmup-seconds` | Interpreter/cache warmup excluded from measured run |
 | `--magic-trace` | Enable magic-trace integration or fallback tracing |
 
 ## Benchmark CLI
@@ -86,7 +95,7 @@ Options:
 
 | Option | Meaning |
 | --- | --- |
-| `--scenario` | `smoke`, `fifo_baseline`, `pro_rata_baseline`, `cancellation_mix`, or `all` |
+| `--scenario` | Any documented scenario (`smoke`, FIFO/pro-rata baselines, lifecycle/deep/multi-symbol), or `all` |
 | `--seed` | Base random seed |
 | `--warmup-seconds` | Warmup excluded from results |
 | `--duration` | Override scenario duration |
@@ -114,6 +123,22 @@ Options:
 
 The dashboard binds to loopback by default. Binding to a non-loopback address requires
 `--allow-remote` because the demo dashboard does not provide authentication.
+
+## Historical Event Replay
+
+```bash
+tracebook-replay examples/data/sample_events.jsonl \
+  --algorithm fifo \
+  --tick-size 0.01 \
+  --self-trade-policy NONE \
+  --include-trades \
+  --output replay-summary.json
+```
+
+Use `--lenient` to record invalid or inapplicable events and continue. Strict
+mode is the default. `--include-trades` adds source-id annotated executions to
+the otherwise compact summary. See `docs/event-replay.md` for the normalized
+schema.
 
 ## Benchmark Claim Checklist
 

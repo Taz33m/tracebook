@@ -1,4 +1,4 @@
-.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput profile dashboard demo format lint quality docs clean clean-all monitor help
+.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput profile dashboard demo replay-demo format format-check lint typecheck security compile build quality docs clean clean-all monitor help
 
 # Python and virtual environment
 PYTHON := python3
@@ -23,7 +23,7 @@ install-dev:
 
 # Run all tests
 test:
-	$(PYTHON_VENV) -m pytest tests/ -v --cov=tracebook --cov-report=term-missing
+	$(PYTHON_VENV) -m pytest tests/ -v --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 
 # Run tests with HTML coverage report
 test-coverage:
@@ -54,16 +54,37 @@ dashboard:
 demo:
 	$(PYTHON_VENV) examples/full_simulation_demo.py
 
+# Replay the bundled normalized order-event sample
+replay-demo:
+	$(PYTHON_VENV) -m tracebook.events.cli examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
+
 # Code formatting with black
 format:
-	$(PYTHON_VENV) -m black src/ tests/ examples/ install_deps.py
+	$(PYTHON_VENV) -m black src/ tests/ examples/ install_deps.py test_system.py
+
+# Check formatting without modifying files
+format-check:
+	$(PYTHON_VENV) -m black --check src/ tests/ examples/ install_deps.py test_system.py
 
 # Lint code with flake8
 lint:
-	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ install_deps.py
+	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ install_deps.py test_system.py
 
-# Run code quality checks used for the alpha CI gate
-quality: format lint
+typecheck:
+	$(PYTHON_VENV) -m mypy src/tracebook
+
+security:
+	$(PYTHON_VENV) -m bandit -q -r src
+
+compile:
+	$(PYTHON_VENV) -m compileall -q src tests examples install_deps.py test_system.py
+
+build:
+	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist
+	$(PYTHON_VENV) -m twine check dist/*
+
+# Run the core quality gates used by CI
+quality: format-check lint typecheck security compile test
 
 # Generate documentation
 docs:
@@ -105,8 +126,14 @@ help:
 	@echo "  profile         - Run simulation with magic-trace/fallback profiling"
 	@echo "  dashboard       - Launch performance dashboard"
 	@echo "  demo            - Run basic simulation demo"
+	@echo "  replay-demo     - Replay the bundled normalized event sample"
 	@echo "  format          - Format code with black"
+	@echo "  format-check    - Check code formatting"
 	@echo "  lint            - Lint code with flake8"
+	@echo "  typecheck       - Type-check the package"
+	@echo "  security        - Run Bandit security checks"
+	@echo "  compile         - Compile source and tests"
+	@echo "  build           - Build and validate wheel/sdist"
 	@echo "  quality         - Run all code quality checks"
 	@echo "  docs            - Generate documentation"
 	@echo "  clean           - Clean generated files"

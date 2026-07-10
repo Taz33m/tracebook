@@ -34,6 +34,13 @@ def test_order_stream_exposes_new_order_events():
     assert all(event.event_type == SimulationEventType.NEW for event in events)
 
 
+def test_order_generation_config_rejects_ambiguous_numbers_and_seed():
+    with pytest.raises(ValueError, match="duration_seconds"):
+        OrderGenerationConfig(duration_seconds="1")
+    with pytest.raises(ValueError, match="seed"):
+        OrderGenerationConfig(seed=-1)
+
+
 def _order_signature(orders):
     return [
         (
@@ -86,8 +93,28 @@ def test_simulation_processes_cancel_and_replace_events_with_seed():
     summary = results["summary_metrics"]
 
     assert summary["total_orders_processed"] > 0
+    assert summary["total_new_orders_processed"] > 0
     assert summary["total_events_processed"] >= summary["total_orders_processed"]
+    assert summary["actual_throughput"] == summary["achieved_new_order_rate"]
+    assert summary["achieved_event_rate"] >= summary["achieved_new_order_rate"]
     assert "order_generation_latency_ms" in results["performance_data"]["performance_metrics"]
+
+
+def test_simulation_can_disable_metrics_collection():
+    engine = SimulationEngine(
+        SimulationConfig(
+            duration_seconds=0.1,
+            target_throughput=20.0,
+            enable_profiling=False,
+            enable_magic_trace=False,
+            seed=31,
+        )
+    )
+
+    results = engine.run_simulation()
+
+    assert results["summary_metrics"]["total_new_orders_processed"] > 0
+    assert results["performance_data"]["performance_metrics"] == {}
 
 
 def test_simulation_algorithm_analysis_is_explicitly_not_collected():
@@ -129,8 +156,26 @@ def test_simulation_and_market_parameters_normalize_symbols():
     with pytest.raises(ValueError, match="non-empty string"):
         SimulationConfig(symbols=["   "])
 
+    with pytest.raises(ValueError, match="duplicates"):
+        SimulationConfig(symbols=["BTCUSD", " BTCUSD "])
+
     with pytest.raises(ValueError, match="non-empty string"):
         MarketParameters(symbol="")
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"tick_size": 0}, "tick_size"),
+        ({"min_quantity": 2, "max_quantity": 1}, "max_quantity"),
+        ({"market_order_ratio": 1.5}, "market_order_ratio"),
+        ({"trend_strength": -2}, "trend_strength"),
+        ({"price_volatility": float("nan")}, "price_volatility"),
+    ],
+)
+def test_market_parameters_reject_invalid_numeric_domains(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        MarketParameters(**kwargs)
 
 
 def test_simulation_reports_missing_configured_order_book_clearly():
@@ -150,6 +195,26 @@ def test_simulation_reports_missing_configured_order_book_clearly():
         assert "No order book configured for symbol 'BTCUSD'" in str(exc)
     else:
         raise AssertionError("Expected missing order book to raise RuntimeError")
+
+    assert engine.is_running is False
+
+
+def test_simulation_engine_is_explicitly_single_use():
+    engine = SimulationEngine(
+        SimulationConfig(
+            duration_seconds=0.0,
+            target_throughput=1.0,
+            enable_magic_trace=False,
+        )
+    )
+    completed = []
+    engine.register_simulation_callback(completed.append)
+    results = engine.run_simulation()
+
+    assert completed == [results]
+
+    with pytest.raises(RuntimeError, match="single-use"):
+        engine.run_simulation()
 
 
 def test_simulation_adapts_batch_size_for_low_throughput_short_runs():

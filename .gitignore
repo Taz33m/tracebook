@@ -6,6 +6,10 @@ __pycache__/
 .Python
 .mypy_cache/
 .pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
 build/
 develop-eggs/
 dist/

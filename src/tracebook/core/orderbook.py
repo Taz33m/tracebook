@@ -1,16 +1,17 @@
 """
-Main OrderBook implementation - the primary interface for the high-performance order book.
+Main OrderBook implementation - the primary interface for the matching simulator.
 
 This module provides the main OrderBook class that coordinates all components
 and provides a clean API for order management and market data access.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Deque, Dict, List, Optional, Set
 from dataclasses import dataclass
+from numbers import Integral, Real
 import math
 import time
 import threading
-from collections import defaultdict, deque
+from collections import deque
 
 from .order import (
     NO_OWNER,
@@ -20,11 +21,20 @@ from .order import (
     OrderType,
     SelfTradePolicy,
     Trade,
+    copy_order,
+    copy_trade,
     normalize_symbol,
 )
 from .matching_engine import MatchingEngine
 from .price_level import MarketDataSnapshot, infer_price_decimals
 from .replay import EventLog
+
+
+def _validate_nonnegative_count(value: int, name: str) -> int:
+    """Validate a public depth/history count without accepting bools or floats."""
+    if isinstance(value, bool) or not isinstance(value, Integral) or value < 0:
+        raise ValueError(f"{name} must be non-negative integer")
+    return int(value)
 
 
 @dataclass
@@ -56,13 +66,33 @@ class OrderBook:
     - Event-driven architecture for callbacks
     """
 
+    symbol: str
+    matching_algorithm: str
+    tick_size: float
+    _price_decimals: int
+    self_trade_policy: SelfTradePolicy
+    matching_engine: MatchingEngine
+    order_factory: OrderFactory
+    _lock: Any
+    _trade_callbacks: List[Callable]
+    _order_callbacks: List[Callable]
+    _market_data_callbacks: List[Callable]
+    _start_time: int
+    _last_snapshot_time: int
+    _snapshot_interval_ns: int
+    stats: Dict[str, float]
+    _seen_id_cap: int
+    _seen_order_ids: Set[int]
+    _seen_order_id_queue: Deque[int]
+    _recorder: Optional[EventLog]
+
     def __init__(
         self,
         symbol: str,
         matching_algorithm: str = "fifo",
         tick_size: float = 0.01,
         self_trade_policy: SelfTradePolicy = SelfTradePolicy.NONE,
-    ):
+    ) -> None:
         """
         Initialize order book.
 
@@ -74,8 +104,18 @@ class OrderBook:
                 owner's resting order (see SelfTradePolicy); requires orders to
                 carry an owner id via the `owner` argument
         """
+        if isinstance(tick_size, bool) or not isinstance(tick_size, Real):
+            raise ValueError("tick_size must be a positive, finite number")
+        tick_size = float(tick_size)
         if not math.isfinite(tick_size) or tick_size <= 0:
             raise ValueError("tick_size must be a positive, finite number")
+        if isinstance(self_trade_policy, bool):
+            raise ValueError("self_trade_policy must be a SelfTradePolicy value")
+        if not isinstance(matching_algorithm, str):
+            raise ValueError("matching_algorithm must be 'fifo' or 'pro_rata'")
+        matching_algorithm = matching_algorithm.strip().lower()
+        if matching_algorithm not in {"fifo", "pro_rata"}:
+            raise ValueError("matching_algorithm must be 'fifo' or 'pro_rata'")
         self.symbol = normalize_symbol(symbol)
         self.matching_algorithm = matching_algorithm
         self.tick_size = tick_size
@@ -116,18 +156,14 @@ class OrderBook:
         # beyond that window may be reused (a degenerate case for real workloads).
         self._seen_id_cap = 1_000_000
         self._seen_order_ids: Set[int] = set()
-        self._seen_order_id_queue: deque = deque()
+        self._seen_order_id_queue = deque()
 
         # Optional event recorder for deterministic replay (see start_recording).
         self._recorder: Optional[EventLog] = None
 
-        # Bumped on clear(); lets replace_order's off-lock rollback detect that the
-        # book was reset in between (so it doesn't restore into a cleared book).
-        self._generation = 0
-
     # The book exposes two submission surfaces over one core (`_process_order`):
-    #   * submit_* -> OrderResult (canonical): never raises; input and validation
-    #     errors surface as `rejected_reason`.
+    #   * submit_* -> OrderResult (canonical): input and validation errors surface
+    #     as `rejected_reason`.
     #   * add_*    -> List[Trade] (terse convenience): raises ValueError on invalid
     #     input, and returns the executed trades otherwise. Note that an
     #     unfillable FOK is a normal empty result here, not an error.
@@ -207,11 +243,17 @@ class OrderBook:
         return self._process_order(order).trades
 
     def submit_order(self, order: Order) -> OrderResult:
-        """Submit an existing order and return a structured result (never raises)."""
+        """Submit an existing order and return a structured result.
+
+        The supplied object is normalized into a detached engine-owned copy. This
+        prevents later caller mutation from corrupting live price-level indexes.
+        Input and validation failures are returned as hard rejections.
+        """
         try:
             return self._process_order(order)
-        except ValueError as exc:
-            return OrderResult(order, [], False, False, str(exc), accepted=False)
+        except (TypeError, ValueError, OverflowError) as exc:
+            rejected_order = order if isinstance(order, Order) else None
+            return OrderResult(rejected_order, [], False, False, str(exc), accepted=False)
 
     def _submit_new_order(self, create, *args) -> OrderResult:
         """Build an order via the factory and submit it.
@@ -221,14 +263,14 @@ class OrderBook:
         """
         try:
             order = create(self.symbol, *args)
-        except ValueError as exc:
+        except (TypeError, ValueError, OverflowError) as exc:
             return OrderResult(None, [], False, False, str(exc), accepted=False)
         # The factory already validated the order, so use the trusted fast path.
         # Price snapping still runs and may reject a sub-tick price, so capture
         # that as a structured rejection rather than raising.
         try:
             return self._process_order(order, validate=False)
-        except ValueError as exc:
+        except (TypeError, ValueError, OverflowError) as exc:
             return OrderResult(order, [], False, False, str(exc), accepted=False)
 
     def _process_order(self, order: Order, validate: bool = True) -> OrderResult:
@@ -239,59 +281,71 @@ class OrderBook:
         uses the book symbol with a fresh id), so the redundant book-level
         validation and factory-id reconciliation are skipped.
         """
-        start_time = time.time_ns()
-        snapshot = None
-
         with self._lock:
-            order_id = int(order.order_id)
-            # Snap the price onto the tick grid up front so the match decision and
-            # the resting price agree (matching compares this order's price against
-            # already-snapped resting prices). Done before validation so a price
-            # that snaps to a non-positive tick is rejected.
-            self._snap_order_price(order)
-            if validate:
-                self._validate_order(order)
-                # Reconcile a caller-supplied id; factory ids are already ahead.
-                self.order_factory.advance_past(order_id)
-            self._mark_seen(order_id)
+            result, snapshot, _ = self._process_order_locked(order, validate=validate)
 
-            # Record the order as submitted, before matching mutates its price
-            # (tick snapping) or remaining quantity.
-            if self._recorder is not None:
-                self._recorder.record_submit(order)
+        self._dispatch_order_events(result, snapshot)
+        return result
 
-            # Execute order through matching engine
-            trades = self.matching_engine.add_order(order)
+    def _process_order_locked(
+        self,
+        order: Order,
+        validate: bool = True,
+        record: bool = True,
+    ) -> tuple[OrderResult, Optional[MarketDataSnapshot], Order]:
+        """Process an order while the caller holds ``self._lock``.
 
-            # Update statistics
-            self.stats["orders_added"] += 1
-            self.stats["trades_executed"] += len(trades)
+        The split lets replacement remain one atomic cancel-and-new transaction
+        while still delivering user callbacks after the lock is released.
+        """
+        start_time = time.time_ns()
+        working_order = self._normalize_external_order(order) if validate else order
+        order_id = working_order.order_id
 
-            # Calculate volume
-            total_volume = sum(trade.price * trade.quantity for trade in trades)
-            self.stats["total_volume"] += total_volume
+        # Matching and resting prices must use the same canonical tick.
+        self._snap_order_price(working_order)
+        if validate:
+            self.order_factory.advance_past(order_id)
+        self._mark_seen(order_id)
 
-            # Update processing time stats
-            processing_time = time.time_ns() - start_time
-            self._update_processing_time_stats(processing_time)
+        # Capture the submitted state before the matching engine mutates remaining
+        # quantity. Recording is committed only after matching succeeds.
+        submitted_order = copy_order(working_order)
+        trades = self.matching_engine.add_order(working_order)
+        if record and self._recorder is not None:
+            self._recorder.record_submit(submitted_order)
 
-            snapshot = self._get_market_data_snapshot_if_due()
+        self.stats["orders_added"] += 1
+        self.stats["trades_executed"] += len(trades)
+        self.stats["total_volume"] += sum(trade.price * trade.quantity for trade in trades)
+        self._update_processing_time_stats(time.time_ns() - start_time)
 
-            # The engine rests leftover quantity only for can_rest() orders, so
-            # this matches book membership without a second index lookup.
-            rested = order.can_rest() and order.remaining_quantity > 1e-12
-            cancelled = order.remaining_quantity > 1e-12 and not rested
-            rejected_reason = None
-            if order.is_fok_order() and cancelled and not trades:
-                rejected_reason = "FOK order could not be fully filled"
+        snapshot = self._get_market_data_snapshot_if_due()
+        rested = working_order.can_rest() and working_order.remaining_quantity > 1e-12
+        cancelled = working_order.remaining_quantity > 1e-12 and not rested
+        rejected_reason = None
+        if working_order.is_fok_order() and cancelled and not trades:
+            rejected_reason = "FOK order could not be fully filled"
 
-        self._trigger_order_callbacks(order, trades)
-        if trades:
-            self._trigger_trade_callbacks(trades)
+        result = OrderResult(
+            copy_order(working_order),
+            [copy_trade(trade) for trade in trades],
+            rested,
+            cancelled,
+            rejected_reason,
+        )
+        return result, snapshot, submitted_order
+
+    def _dispatch_order_events(
+        self, result: OrderResult, snapshot: Optional[MarketDataSnapshot]
+    ) -> None:
+        """Deliver detached callback payloads after book mutation is complete."""
+        if result.order is not None:
+            self._trigger_order_callbacks(result.order, result.trades)
+        if result.trades:
+            self._trigger_trade_callbacks(result.trades)
         if snapshot is not None:
             self._trigger_market_data_callbacks(snapshot)
-
-        return OrderResult(order, trades, rested, cancelled, rejected_reason)
 
     def _snap_order_price(self, order: Order) -> None:
         """Snap a price-bearing order onto the book's tick grid before matching.
@@ -348,12 +402,19 @@ class OrderBook:
             bool: True if order was found and cancelled
         """
         with self._lock:
-            success = self.matching_engine.cancel_order(order_id)
-            if success:
-                self.stats["orders_cancelled"] += 1
-                if self._recorder is not None:
-                    self._recorder.record_cancel(order_id)
-            return success
+            return self._cancel_order_locked(order_id)
+
+    def _cancel_order_locked(self, order_id: int, record: bool = True) -> bool:
+        """Cancel an order while the caller holds ``self._lock``."""
+        if isinstance(order_id, bool) or not isinstance(order_id, Integral) or order_id <= 0:
+            raise ValueError(f"Order id must be a positive integer: {order_id!r}")
+        order_id = int(order_id)
+        success = self.matching_engine.cancel_order(order_id)
+        if success:
+            self.stats["orders_cancelled"] += 1
+            if record and self._recorder is not None:
+                self._recorder.record_cancel(order_id)
+        return success
 
     def start_recording(self) -> EventLog:
         """Begin recording mutating operations into a fresh event log.
@@ -362,16 +423,20 @@ class OrderBook:
         `tracebook.core.replay.replay` to reconstruct identical trades and book
         state. Recording an already-recording book restarts the log.
 
-        The book must be empty: the log records only operations from this point
-        on and cannot capture pre-existing resting liquidity, so recording a
-        non-empty book would replay to a different result. Raises ValueError if
-        any orders are resting.
+        The book must be pristine: the log records only operations from this
+        point on and cannot capture pre-existing trades, statistics, or resting
+        liquidity. Call ``clear()`` before recording a previously used book.
         """
         with self._lock:
-            if self.matching_engine.buy_side.orders or self.matching_engine.sell_side.orders:
+            if (
+                self.stats["orders_added"]
+                or self.matching_engine.trades
+                or self.matching_engine.buy_side.orders
+                or self.matching_engine.sell_side.orders
+            ):
                 raise ValueError(
-                    "start_recording requires an empty book; it cannot capture "
-                    "pre-existing resting liquidity for faithful replay"
+                    "start_recording requires an empty book; a pristine book has no "
+                    "pre-existing activity (call clear() before recording)"
                 )
             self._recorder = EventLog(
                 self.symbol,
@@ -393,21 +458,28 @@ class OrderBook:
         order_id: int,
         price: Optional[float] = None,
         quantity: Optional[float] = None,
+        timestamp: Optional[int] = None,
     ) -> OrderResult:
         """
         Replace a resting limit order by cancelling it and submitting a new order.
 
-        Cancel-then-new: an invalid replacement is rejected before the original is
-        cancelled, and if the replacement fails to submit after cancellation the
-        original resting order is restored, so a replace never destroys resting
-        liquidity. The replacement receives a new order id and timestamp.
-
-        The replacement is submitted with the book lock released, so its callbacks
-        fire lock-free like every other submission (holding the lock across a user
-        callback here was a deadlock vector).
+        Cancel-and-new is one locked transaction. Invalid input leaves the original
+        untouched, the replacement receives a new id and timestamp, and callbacks
+        are dispatched only after the transaction releases the book lock.
         """
+        snapshot = None
         with self._lock:
-            existing_order = self.get_order(order_id)
+            if isinstance(order_id, bool) or not isinstance(order_id, Integral) or order_id <= 0:
+                return OrderResult(
+                    None,
+                    [],
+                    False,
+                    False,
+                    f"Order id must be a positive integer: {order_id!r}",
+                    accepted=False,
+                )
+            order_id = int(order_id)
+            existing_order = self._get_order_unlocked(order_id)
             if existing_order is None:
                 return OrderResult(None, [], False, False, "Order not found", accepted=False)
 
@@ -415,6 +487,17 @@ class OrderBook:
             replacement_quantity = (
                 existing_order.remaining_quantity if quantity is None else quantity
             )
+            if timestamp is not None and (
+                isinstance(timestamp, bool) or not isinstance(timestamp, Integral) or timestamp < 0
+            ):
+                return OrderResult(
+                    None,
+                    [],
+                    False,
+                    False,
+                    f"Order timestamp must be a non-negative integer: {timestamp!r}",
+                    accepted=False,
+                )
 
             try:
                 replacement_order = self.order_factory.create_limit_order(
@@ -422,28 +505,34 @@ class OrderBook:
                     OrderSide(existing_order.side),
                     replacement_price,
                     replacement_quantity,
+                    existing_order.owner,
                 )
-            except ValueError as exc:
+                if timestamp is not None:
+                    replacement_order.timestamp = int(timestamp)
+                    replacement_order.priority = int(timestamp)
+            except (TypeError, ValueError, OverflowError) as exc:
                 # Invalid replacement: original order is left untouched.
                 return OrderResult(None, [], False, False, str(exc), accepted=False)
 
-            if not self.cancel_order(order_id):
+            if not self._cancel_order_locked(order_id, record=False):
                 return OrderResult(
                     None, [], False, False, "Order could not be cancelled", accepted=False
                 )
-            generation = self._generation
 
-        # Lock released before submitting so the replacement's callbacks are
-        # delivered without the book lock held.
-        result = self.submit_order(replacement_order)
-        if result.rejected_reason is not None:
-            # Replacement failed after cancellation: restore the original, unless
-            # a concurrent clear() reset the book in the meantime (in which case
-            # the cancel is already gone and there is nothing to undo).
-            with self._lock:
-                if self._generation == generation:
-                    self._restore_resting_order(existing_order)
-                    self.stats["orders_cancelled"] -= 1
+            try:
+                result, snapshot, submitted_replacement = self._process_order_locked(
+                    replacement_order, validate=False, record=False
+                )
+            except Exception:
+                self._restore_resting_order(existing_order)
+                self.stats["orders_cancelled"] -= 1
+                raise
+
+            if self._recorder is not None:
+                self._recorder.record_cancel(order_id)
+                self._recorder.record_submit(submitted_replacement)
+
+        self._dispatch_order_events(result, snapshot)
         return result
 
     def _restore_resting_order(self, order: Order) -> None:
@@ -454,12 +543,19 @@ class OrderBook:
             self.matching_engine.sell_side.add_order(order)
 
     def get_order(self, order_id: int) -> Optional[Order]:
-        """Return a resting order by id, if it is currently active."""
+        """Return a detached copy of a resting order, if it is active."""
+        if isinstance(order_id, bool) or not isinstance(order_id, Integral) or order_id <= 0:
+            raise ValueError(f"Order id must be a positive integer: {order_id!r}")
         with self._lock:
-            order = self.matching_engine.buy_side.get_order(order_id)
-            if order is not None:
-                return order
-            return self.matching_engine.sell_side.get_order(order_id)
+            order = self._get_order_unlocked(int(order_id))
+            return copy_order(order) if order is not None else None
+
+    def _get_order_unlocked(self, order_id: int) -> Optional[Order]:
+        """Return the live internal order while the caller holds the book lock."""
+        order = self.matching_engine.buy_side.get_order(order_id)
+        if order is not None:
+            return order
+        return self.matching_engine.sell_side.get_order(order_id)
 
     def get_active_order_ids(self, side: Optional[OrderSide] = None) -> List[int]:
         """Return active resting order ids, optionally filtered by side."""
@@ -470,7 +566,7 @@ class OrderBook:
                     + list(self.matching_engine.sell_side.orders.keys())
                 )
 
-            side_value = int(side)
+            side_value = int(self.order_factory._validate_side(side))
             if side_value == int(OrderSide.BUY):
                 return sorted(self.matching_engine.buy_side.orders.keys())
             if side_value == int(OrderSide.SELL):
@@ -490,19 +586,21 @@ class OrderBook:
 
     def get_spread(self) -> Optional[float]:
         """Get bid-ask spread."""
-        bid = self.get_best_bid()
-        ask = self.get_best_ask()
-        if bid is not None and ask is not None:
-            return ask - bid
-        return None
+        with self._lock:
+            bid = self.matching_engine.buy_side.get_best_price()
+            ask = self.matching_engine.sell_side.get_best_price()
+            if bid is not None and ask is not None:
+                return ask - bid
+            return None
 
     def get_mid_price(self) -> Optional[float]:
         """Get mid price."""
-        bid = self.get_best_bid()
-        ask = self.get_best_ask()
-        if bid is not None and ask is not None:
-            return (bid + ask) / 2.0
-        return None
+        with self._lock:
+            bid = self.matching_engine.buy_side.get_best_price()
+            ask = self.matching_engine.sell_side.get_best_price()
+            if bid is not None and ask is not None:
+                return (bid + ask) / 2.0
+            return None
 
     def get_market_data_snapshot(self) -> MarketDataSnapshot:
         """Get current market data snapshot."""
@@ -511,105 +609,175 @@ class OrderBook:
 
     def get_order_book_depth(self, levels: int = 5) -> Dict[str, Any]:
         """Get order book depth."""
-        if levels < 0:
-            raise ValueError("levels must be non-negative")
+        levels = _validate_nonnegative_count(levels, "levels")
         with self._lock:
             return self.matching_engine.get_order_book_depth(levels)
 
     def get_recent_trades(self, count: int = 10) -> List[Trade]:
-        """Get recent trades."""
+        """Get detached copies of recent trades."""
+        if isinstance(count, bool) or not isinstance(count, Integral):
+            raise ValueError("count must be an integer")
+        count = int(count)
         if count <= 0:
             return []
         with self._lock:
             # self.matching_engine.trades is a bounded deque; materialize to slice.
-            return list(self.matching_engine.trades)[-count:]
+            return [copy_trade(trade) for trade in list(self.matching_engine.trades)[-count:]]
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get comprehensive statistics."""
         with self._lock:
-            engine_stats = self.matching_engine.get_statistics()
+            return self._get_statistics_unlocked()
 
-            # Combine with order book stats
-            combined_stats = {
-                **self.stats,
-                **engine_stats,
-                "uptime_seconds": (time.time_ns() - self._start_time) / 1_000_000_000,
-                "orders_per_second": self._calculate_orders_per_second(),
-                "trades_per_second": self._calculate_trades_per_second(),
+    def _get_statistics_unlocked(self) -> Dict[str, Any]:
+        """Return statistics while the caller holds the book lock."""
+        book_stats = dict(self.stats)
+        if book_stats["min_processing_time_ns"] == float("inf"):
+            book_stats["min_processing_time_ns"] = 0
+        return {
+            **book_stats,
+            **self.matching_engine.get_statistics(),
+            "uptime_seconds": (time.time_ns() - self._start_time) / 1_000_000_000,
+            "orders_per_second": self._calculate_orders_per_second(),
+            "trades_per_second": self._calculate_trades_per_second(),
+        }
+
+    def get_state_snapshot(self, levels: int = 5, trade_count: int = 10) -> Dict[str, Any]:
+        """Return one coherent, detached view of depth, trades, and statistics.
+
+        All values are captured under a single lock acquisition so live UIs do not
+        combine depth from one book state with top-of-book values from another.
+        """
+        levels = _validate_nonnegative_count(levels, "levels")
+        trade_count = _validate_nonnegative_count(trade_count, "trade_count")
+
+        with self._lock:
+            market = self.matching_engine.get_market_data_snapshot()
+            trades = (
+                [copy_trade(trade) for trade in list(self.matching_engine.trades)[-trade_count:]]
+                if trade_count
+                else []
+            )
+            return {
+                "symbol": self.symbol,
+                "tick_size": self.tick_size,
+                "timestamp": market.timestamp,
+                "best_bid": market.best_bid,
+                "best_ask": market.best_ask,
+                "mid": market.mid_price,
+                "spread": market.spread,
+                "bids": list(market.bid_levels[:levels]),
+                "asks": list(market.ask_levels[:levels]),
+                "trades": trades,
+                "statistics": self._get_statistics_unlocked(),
             }
-
-            return combined_stats
 
     def register_trade_callback(self, callback):
         """Register callback for trade events."""
-        self._trade_callbacks.append(callback)
+        if not callable(callback):
+            raise ValueError("trade callback must be callable")
+        with self._lock:
+            self._trade_callbacks.append(callback)
 
     def register_order_callback(self, callback):
         """Register callback for order events."""
-        self._order_callbacks.append(callback)
+        if not callable(callback):
+            raise ValueError("order callback must be callable")
+        with self._lock:
+            self._order_callbacks.append(callback)
 
     def register_market_data_callback(self, callback):
         """Register callback for market data events."""
-        self._market_data_callbacks.append(callback)
+        if not callable(callback):
+            raise ValueError("market data callback must be callable")
+        with self._lock:
+            self._market_data_callbacks.append(callback)
 
     def set_snapshot_interval(self, interval_ms: float):
         """Set market data snapshot interval in milliseconds."""
-        if interval_ms <= 0:
-            raise ValueError("snapshot interval must be positive")
-        self._snapshot_interval_ns = int(interval_ms * 1_000_000)
+        if isinstance(interval_ms, bool) or not isinstance(interval_ms, Real):
+            raise ValueError("snapshot interval must be positive and finite")
+        interval_ms = float(interval_ms)
+        if not math.isfinite(interval_ms) or interval_ms <= 0:
+            raise ValueError("snapshot interval must be positive and finite")
+        with self._lock:
+            self._snapshot_interval_ns = int(interval_ms * 1_000_000)
 
-    def _validate_order(self, order: Order):
-        """Validate an incoming order before matching."""
+    def _normalize_external_order(self, order: Order) -> Order:
+        """Validate an external order and return an engine-owned normalized copy."""
+        if not isinstance(order, Order):
+            raise ValueError(f"Expected an Order instance: {order!r}")
+
         order_symbol = normalize_symbol(order.symbol)
         if order_symbol != self.symbol:
             raise ValueError(
                 f"Order symbol {order.symbol!r} does not match book symbol {self.symbol!r}"
             )
-        order.symbol = order_symbol
 
+        if isinstance(order.order_id, bool) or not isinstance(order.order_id, Integral):
+            raise ValueError(f"Order id must be a positive integer: {order.order_id!r}")
         order_id = int(order.order_id)
-        if order_id <= 0:
-            raise ValueError("Order id must be positive")
+        if order_id <= 0 or order_id >= 2**63:
+            raise ValueError("Order id must be a positive int64")
 
-        if self.get_order(order.order_id) is not None:
+        if self._get_order_unlocked(order_id) is not None:
             raise ValueError(f"Order id {order.order_id} is already active")
-
         if order_id in self._seen_order_ids:
             raise ValueError(f"Order id {order.order_id} has already been processed")
 
-        if int(order.side) not in (int(OrderSide.BUY), int(OrderSide.SELL)):
-            raise ValueError(f"Unsupported order side: {order.side}")
+        side = self.order_factory._validate_side(order.side)
+        order_type = self.order_factory._validate_order_type(order.order_type)
+        quantity = self.order_factory._validate_quantity(order.quantity)
+        owner = self.order_factory._validate_owner(order.owner)
 
-        supported_types = (
-            int(OrderType.MARKET),
-            int(OrderType.LIMIT),
-            int(OrderType.IOC),
-            int(OrderType.FOK),
-        )
-        if int(order.order_type) not in supported_types:
-            raise ValueError(f"Unsupported order type: {order.order_type}")
-
+        if isinstance(order.remaining_quantity, bool) or not isinstance(
+            order.remaining_quantity, Real
+        ):
+            raise ValueError(
+                f"Order remaining quantity must be numeric: {order.remaining_quantity!r}"
+            )
+        remaining_quantity = float(order.remaining_quantity)
         if (
-            not math.isfinite(order.quantity)
-            or not math.isfinite(order.remaining_quantity)
-            or order.quantity <= 0
-            or order.remaining_quantity <= 1e-12
-            or order.remaining_quantity > order.quantity + 1e-12
+            not math.isfinite(remaining_quantity)
+            or remaining_quantity <= 1e-12
+            or remaining_quantity > quantity + 1e-12
         ):
             raise ValueError("Order quantity must be positive")
 
-        if not math.isfinite(order.price):
+        if isinstance(order.price, bool) or not isinstance(order.price, Real):
+            raise ValueError(f"Order price must be numeric: {order.price!r}")
+        price = float(order.price)
+        if not math.isfinite(price):
             raise ValueError("Order price must be finite")
-
-        if (
-            int(order.order_type) in (int(OrderType.LIMIT), int(OrderType.IOC), int(OrderType.FOK))
-            and order.price <= 0
-        ):
+        if order_type == OrderType.MARKET:
+            if price != 0.0:
+                raise ValueError("Market orders must use price 0.0")
+        elif price <= 0:
             raise ValueError("Limit-style orders must have a positive price")
+
+        if isinstance(order.timestamp, bool) or not isinstance(order.timestamp, Integral):
+            raise ValueError(f"Order timestamp must be a non-negative integer: {order.timestamp!r}")
+        if order.timestamp < 0:
+            raise ValueError("Order timestamp must be a non-negative integer")
+
+        normalized = Order(
+            order_id=order_id,
+            symbol=order_symbol,
+            side=int(side),
+            order_type=int(order_type),
+            price=price,
+            quantity=quantity,
+            timestamp=int(order.timestamp),
+            owner=owner,
+        )
+        normalized.remaining_quantity = remaining_quantity
+        return normalized
 
     def clear(self):
         """Clear all orders and reset statistics."""
         with self._lock:
+            if self._recorder is not None:
+                self._recorder.record_clear()
             self.matching_engine.clear()
             self.stats = {
                 "orders_added": 0,
@@ -621,9 +789,9 @@ class OrderBook:
                 "min_processing_time_ns": float("inf"),
             }
             self._start_time = time.time_ns()
+            self._last_snapshot_time = 0
             self._seen_order_ids.clear()
             self._seen_order_id_queue.clear()
-            self._generation += 1
 
     def _update_processing_time_stats(self, processing_time_ns: int):
         """Update processing time statistics."""
@@ -660,26 +828,32 @@ class OrderBook:
 
     def _trigger_trade_callbacks(self, trades: List[Trade]):
         """Trigger trade event callbacks."""
-        for callback in self._trade_callbacks:
+        with self._lock:
+            callbacks = list(self._trade_callbacks)
+        for callback in callbacks:
             try:
-                callback(trades)
+                callback([copy_trade(trade) for trade in trades])
             except Exception as e:
                 # Log error but don't let callback failures affect order processing
                 print(f"Trade callback error: {e}")
 
     def _trigger_order_callbacks(self, order: Order, trades: List[Trade]):
         """Trigger order event callbacks."""
-        for callback in self._order_callbacks:
+        with self._lock:
+            callbacks = list(self._order_callbacks)
+        for callback in callbacks:
             try:
-                callback(order, trades)
+                callback(copy_order(order), [copy_trade(trade) for trade in trades])
             except Exception as e:
                 print(f"Order callback error: {e}")
 
     def _trigger_market_data_callbacks(self, snapshot: MarketDataSnapshot):
         """Trigger market data callbacks."""
-        for callback in self._market_data_callbacks:
+        with self._lock:
+            callbacks = list(self._market_data_callbacks)
+        for callback in callbacks:
             try:
-                callback(snapshot)
+                callback(snapshot.copy())
             except Exception as e:
                 print(f"Market data callback error: {e}")
 
@@ -730,9 +904,11 @@ class OrderBookManager:
     with shared performance monitoring and event handling.
     """
 
-    def __init__(self):
+    order_books: Dict[str, OrderBook]
+    _lock: Any
+
+    def __init__(self) -> None:
         self.order_books: Dict[str, OrderBook] = {}
-        self._global_stats = defaultdict(int)
         self._lock = threading.RLock()
 
     def create_order_book(
@@ -784,68 +960,73 @@ class OrderBookManager:
     def get_global_statistics(self) -> Dict[str, Any]:
         """Get aggregated statistics across all order books."""
         with self._lock:
-            summed_keys = {
-                "orders_added",
-                "orders_cancelled",
-                "trades_executed",
-                "total_volume",
-                "total_orders_processed",
-                "total_matches",
-                "total_trades",
-                "buy_side_orders",
-                "sell_side_orders",
-                "buy_side_quantity",
-                "sell_side_quantity",
-            }
-            aggregate: Dict[str, float] = {key: 0 for key in summed_keys}
-            max_processing_time = 0
-            min_processing_time = float("inf")
-            weighted_processing_time = 0.0
-            processing_weight = 0
-            max_uptime = 0.0
-            last_trade_time = 0
+            order_books = list(self.order_books.values())
 
-            for order_book in self.order_books.values():
-                stats = order_book.get_statistics()
+        # Do not hold the manager lock while acquiring individual book locks.
+        # This avoids lock-order inversion for callers that already hold a book.
+        summed_keys = {
+            "orders_added",
+            "orders_cancelled",
+            "trades_executed",
+            "total_volume",
+            "total_orders_processed",
+            "total_matches",
+            "total_trades",
+            "buy_side_orders",
+            "sell_side_orders",
+            "buy_side_quantity",
+            "sell_side_quantity",
+        }
+        aggregate: Dict[str, float] = {key: 0 for key in summed_keys}
+        max_processing_time = 0
+        min_processing_time = float("inf")
+        weighted_processing_time = 0.0
+        processing_weight = 0
+        max_uptime = 0.0
+        last_trade_time = 0
 
-                for key in summed_keys:
-                    aggregate[key] += stats.get(key, 0)
+        for order_book in order_books:
+            stats = order_book.get_statistics()
 
-                max_processing_time = max(
-                    max_processing_time, stats.get("max_processing_time_ns", 0)
-                )
+            for key in summed_keys:
+                aggregate[key] += stats.get(key, 0)
+
+            max_processing_time = max(max_processing_time, stats.get("max_processing_time_ns", 0))
+            orders_added = stats.get("orders_added", 0)
+            if orders_added:
                 min_processing_time = min(
-                    min_processing_time, stats.get("min_processing_time_ns", float("inf"))
+                    min_processing_time,
+                    stats.get("min_processing_time_ns", float("inf")),
                 )
-                orders_added = stats.get("orders_added", 0)
-                weighted_processing_time += stats.get("avg_processing_time_ns", 0) * orders_added
-                processing_weight += orders_added
-                max_uptime = max(max_uptime, stats.get("uptime_seconds", 0.0))
-                last_trade_time = max(last_trade_time, stats.get("last_trade_time", 0))
+            weighted_processing_time += stats.get("avg_processing_time_ns", 0) * orders_added
+            processing_weight += orders_added
+            max_uptime = max(max_uptime, stats.get("uptime_seconds", 0.0))
+            last_trade_time = max(last_trade_time, stats.get("last_trade_time", 0))
 
-            aggregate["avg_processing_time_ns"] = (
-                weighted_processing_time / processing_weight if processing_weight else 0
-            )
-            aggregate["max_processing_time_ns"] = max_processing_time
-            aggregate["min_processing_time_ns"] = (
-                0 if min_processing_time == float("inf") else min_processing_time
-            )
-            aggregate["uptime_seconds"] = max_uptime
-            aggregate["orders_per_second"] = (
-                aggregate["orders_added"] / max_uptime if max_uptime > 0 else 0
-            )
-            aggregate["trades_per_second"] = (
-                aggregate["trades_executed"] / max_uptime if max_uptime > 0 else 0
-            )
-            aggregate["last_trade_time"] = last_trade_time
+        aggregate["avg_processing_time_ns"] = (
+            weighted_processing_time / processing_weight if processing_weight else 0
+        )
+        aggregate["max_processing_time_ns"] = max_processing_time
+        aggregate["min_processing_time_ns"] = (
+            0 if min_processing_time == float("inf") else min_processing_time
+        )
+        aggregate["uptime_seconds"] = max_uptime
+        aggregate["orders_per_second"] = (
+            aggregate["orders_added"] / max_uptime if max_uptime > 0 else 0
+        )
+        aggregate["trades_per_second"] = (
+            aggregate["trades_executed"] / max_uptime if max_uptime > 0 else 0
+        )
+        aggregate["last_trade_time"] = last_trade_time
 
-            return aggregate
+        return aggregate
 
     def clear_all(self):
         """Clear all order books."""
         with self._lock:
-            for order_book in self.order_books.values():
-                order_book.clear()
+            order_books = list(self.order_books.values())
+        for order_book in order_books:
+            order_book.clear()
 
     def remove_order_book(self, symbol: str) -> bool:
         """Remove an order book."""

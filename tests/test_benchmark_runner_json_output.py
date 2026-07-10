@@ -84,6 +84,7 @@ def test_benchmark_main_writes_valid_json_report_with_event_summary(tmp_path, mo
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     scenario = payload["scenarios"][0]
 
+    assert payload["schema_version"] == 1
     assert payload["metadata"]["python"]
     assert scenario["name"] == "cancellation_mix"
     assert scenario["config"]["duration_seconds"] == 0.5
