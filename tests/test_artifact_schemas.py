@@ -18,6 +18,7 @@ from tracebook import (
     replay_market_events,
 )
 from tracebook.benchmarks import runner
+from tracebook.events import CoinbaseL3Adapter
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
 
 
@@ -220,6 +221,8 @@ def test_event_log_schema_and_roundtrip():
     book.add_limit_order(OrderSide.BUY, 100.0, 1.0, owner=1)
     book.add_limit_order(OrderSide.SELL, 100.0, 0.5, owner=2)
     resting = book.submit_limit_order(OrderSide.SELL, 101.0, 1.0)
+    reduced = book.submit_limit_order(OrderSide.BUY, 99.0, 1.0)
+    book.reduce_order(reduced.order.order_id, 0.25)
     book.cancel_order(resting.order.order_id)
     log = book.stop_recording()
 
@@ -236,13 +239,14 @@ def test_event_log_schema_and_roundtrip():
         ],
         "event_log",
     )
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["self_trade_policy"] == int(SelfTradePolicy.CANCEL_RESTING)
     assert payload["tick_size"] == 0.01
 
     submit_events = [e for e in payload["events"] if e["op"] == "submit"]
+    reduce_events = [e for e in payload["events"] if e["op"] == "reduce"]
     cancel_events = [e for e in payload["events"] if e["op"] == "cancel"]
-    assert submit_events and cancel_events
+    assert submit_events and reduce_events and cancel_events
     _require_keys(
         submit_events[0],
         [
@@ -259,6 +263,7 @@ def test_event_log_schema_and_roundtrip():
         ],
         "submit_event",
     )
+    _require_keys(reduce_events[0], ["op", "order_id", "quantity"], "reduce_event")
     _require_keys(cancel_events[0], ["op", "order_id"], "cancel_event")
 
     # The round-tripped payload reconstructs an equivalent log.
@@ -302,6 +307,7 @@ def test_market_replay_summary_schema():
             "rejected_events",
             "submissions",
             "cancellations",
+            "reductions",
             "replacements",
             "clears",
             "trades_executed",
@@ -332,4 +338,84 @@ def test_market_replay_summary_schema():
             "timestamp_ns",
         ],
         "market_replay.trades[0]",
+    )
+
+
+def test_coinbase_adapter_summary_schema():
+    maker_id = "11111111-1111-4111-8111-111111111111"
+    snapshot = {
+        "product_id": "BTC-USD",
+        "sequence": 10,
+        "bids": [],
+        "asks": [["101", "1", maker_id]],
+    }
+    adapter = CoinbaseL3Adapter(snapshot, retain_id_map=True, retain_trades=True)
+    list(
+        adapter.iter_events(
+            [
+                {
+                    "type": "match",
+                    "product_id": "BTC-USD",
+                    "sequence": 11,
+                    "trade_id": 1,
+                    "maker_order_id": maker_id,
+                    "taker_order_id": "22222222-2222-4222-8222-222222222222",
+                    "side": "sell",
+                    "price": "101",
+                    "size": "0.5",
+                    "time": "2026-01-01T00:00:00Z",
+                }
+            ]
+        )
+    )
+    payload = _json_roundtrip(adapter.to_dict(include_trades=True, include_id_map=True))
+
+    _require_keys(
+        payload,
+        [
+            "schema_version",
+            "venue",
+            "channel",
+            "product_id",
+            "snapshot_sequence",
+            "final_sequence",
+            "sequence_complete",
+            "normalization_complete",
+            "snapshot_orders",
+            "messages_seen",
+            "messages_sequenced",
+            "messages_ignored",
+            "normalized_events",
+            "active_orders",
+            "issues",
+            "exchange_trades_observed",
+            "exchange_trades_included",
+            "exchange_trades",
+            "id_map_included",
+            "id_map",
+        ],
+        "coinbase_adapter",
+    )
+    assert payload["schema_version"] == 1
+    _require_keys(
+        payload["exchange_trades"][0],
+        [
+            "sequence",
+            "product_id",
+            "maker_order_id",
+            "taker_order_id",
+            "normalized_maker_order_id",
+            "normalized_taker_order_id",
+            "price",
+            "quantity",
+            "timestamp_ns",
+            "trade_id",
+            "maker_side",
+        ],
+        "coinbase_adapter.exchange_trade",
+    )
+    _require_keys(
+        payload["id_map"][0],
+        ["normalized_order_id", "venue_order_id"],
+        "coinbase_adapter.id_map",
     )

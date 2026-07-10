@@ -15,7 +15,7 @@ speed. It is not exchange connectivity or production trading infrastructure.
 ```text
 src/tracebook/
   core/             matching, lifecycle, snapshots, deterministic replay
-  events/           CSV/JSON/JSONL normalized event loading and replay
+  events/           normalized event replay and offline venue adapters
   simulation/       synthetic order flow and paced workload execution
   benchmarks/       reproducible local scenario reports
   profiling/        metrics, magic-trace, and selected-function fallback tracing
@@ -26,7 +26,7 @@ src/tracebook/
 
 1. Publish `tracebook-sim` 0.2.0 through PyPI Trusted Publishing and verify the
    clean-environment quickstart on macOS and Linux.
-2. Add documented adapters for one public crypto L3 feed and one equities order
+2. Follow the Coinbase Exchange L3 adapter with one documented equities order
    event format, both normalizing into `MarketEvent`.
 3. Separate paced workload reports from an explicit unpaced engine-capacity
    benchmark so the two measurements cannot be confused.

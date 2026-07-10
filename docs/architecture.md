@@ -17,6 +17,8 @@ flowchart TD
     F --> I["MarketDataSnapshot"]
     J["SyntheticOrderStream"] --> K["SimulationEvent"]
     Q["CSV / JSON / JSONL"] --> R["MarketEvent"]
+    S["Coinbase L3 snapshot + feed"] --> T["CoinbaseL3Adapter"]
+    T --> R
     R --> C
     K --> C
     C --> L["Callbacks"]
@@ -32,12 +34,13 @@ flowchart TD
 | Path | Responsibility |
 | --- | --- |
 | `src/tracebook/core/order.py` | `Order`, `Trade`, `OrderSide`, `OrderType`, and `OrderFactory` |
-| `src/tracebook/core/orderbook.py` | Public book API, validation, cancellation, replacement, snapshots, callbacks |
+| `src/tracebook/core/orderbook.py` | Public book API, validation, cancellation, priority-preserving reduction, replacement, snapshots, callbacks |
 | `src/tracebook/core/matching_engine.py` | Coordinates FIFO/pro-rata matching and trade creation |
 | `src/tracebook/core/price_level.py` | Price-level storage, depth aggregation, and market data snapshots |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
 | `src/tracebook/events/market_replay.py` | Normalized historical order-event loading and multi-symbol replay |
+| `src/tracebook/events/coinbase_l3.py` | Coinbase Exchange L3 snapshot/feed normalization and sequence validation |
 | `src/tracebook/benchmarks/runner.py` | Reproducible scenarios, warmup handling, JSON report writer |
 | `src/tracebook/profiling/performance_monitor.py` | Latency, throughput, resource, and overhead collection |
 | `src/tracebook/visualization/dashboard.py` | Dash application and demo-simulation wiring |
@@ -63,6 +66,7 @@ Mutation behavior:
 | --- | --- |
 | `NEW` | Validates and matches an incoming order |
 | `CANCEL` | Removes an active resting order by id when present |
+| `REDUCE` | Removes quantity from a resting order without changing its id or queue priority |
 | `REPLACE` | Cancels an active resting order and submits a new limit order with a new id and timestamp |
 | `CLEAR` | Resets the book and duplicate-id window; recorded explicitly during deterministic replay |
 

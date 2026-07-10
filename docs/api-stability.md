@@ -12,6 +12,9 @@
   are detached from internal mutable state.
 - Normalized replay `order_id` values are source identifiers; replacement keeps
   them addressable even when the engine allocates a new internal id.
+- `EventLog` version 2 and normalized replay-summary version 2 add
+  priority-preserving `reduce` lifecycle events. Version 1 event logs remain
+  readable; summary consumers should branch on `schema_version`.
 
 Private methods, internal matching data structures, dashboard layout internals,
 and synthetic generator implementation details may change during the alpha.

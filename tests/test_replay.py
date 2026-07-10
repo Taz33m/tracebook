@@ -90,7 +90,7 @@ def test_event_log_survives_json_round_trip():
     restored = EventLog.from_json(log.to_json())
     replayed = replay(restored)
 
-    assert restored.schema_version == 1
+    assert restored.schema_version == 2
     assert _trade_keys(replayed) == _trade_keys(live)
     assert replayed.get_best_bid() == live.get_best_bid()
     assert replayed.get_best_ask() == live.get_best_ask()

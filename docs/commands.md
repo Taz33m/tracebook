@@ -140,6 +140,24 @@ mode is the default. `--include-trades` adds source-id annotated executions to
 the otherwise compact summary. See `docs/event-replay.md` for the normalized
 schema.
 
+## Coinbase Exchange L3 Replay
+
+```bash
+tracebook-coinbase \
+  examples/data/coinbase_btcusd_l3_snapshot.json \
+  examples/data/coinbase_btcusd_full.jsonl \
+  --tick-size 0.01 \
+  --events-output /tmp/coinbase-events.jsonl \
+  --include-trades \
+  --output /tmp/coinbase-replay.json
+```
+
+The command accepts recorded Coinbase `full` objects and compact `level3`
+arrays, validates per-product sequence continuity, and keeps observed exchange
+matches separate from simulator-generated trades. `--tick-size` must equal the
+product's Coinbase `quote_increment`. See `docs/coinbase-l3.md` for capture,
+synchronization, strictness, and limitation details.
+
 ## Benchmark Claim Checklist
 
 Do not publish a performance claim unless the report includes:

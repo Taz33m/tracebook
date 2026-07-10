@@ -6,6 +6,17 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+Development version: `0.3.0.dev0`.
+
+- Added the dependency-free `tracebook-coinbase` offline adapter for Coinbase
+  Exchange REST L3 snapshots plus recorded `full` or compact `level3` feeds. It
+  validates dynamic compact schemas and per-product sequences, streams
+  normalized events, preserves observed exchange trades separately, and rejects
+  auction/crossed books rather than manufacturing queue state.
+- Added priority-preserving `reduce_order()` and normalized `reduce` events for
+  partial maker fills and same-price size decreases. Core event logs and replay
+  summaries move to schema version 2; version 1 event logs remain readable.
+
 ## 0.2.0 - 2026-07-10
 
 Trust, installability, and real-data workflow release.

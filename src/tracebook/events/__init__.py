@@ -1,5 +1,15 @@
 """Normalized historical order-event loading and replay."""
 
+from .coinbase_l3 import (
+    CoinbaseAdapterIssue,
+    CoinbaseExchangeTrade,
+    CoinbaseL3Adapter,
+    CoinbaseL3Error,
+    coinbase_order_id,
+    iter_coinbase_l3_messages,
+    load_coinbase_l3_snapshot,
+    normalize_coinbase_l3,
+)
 from .market_replay import (
     MarketEvent,
     MarketReplayError,
@@ -11,6 +21,14 @@ from .market_replay import (
 )
 
 __all__ = [
+    "CoinbaseAdapterIssue",
+    "CoinbaseExchangeTrade",
+    "CoinbaseL3Adapter",
+    "CoinbaseL3Error",
+    "coinbase_order_id",
+    "iter_coinbase_l3_messages",
+    "load_coinbase_l3_snapshot",
+    "normalize_coinbase_l3",
     "MarketEvent",
     "MarketReplayError",
     "MarketReplayResult",
