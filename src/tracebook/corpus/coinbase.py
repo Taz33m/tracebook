@@ -177,7 +177,10 @@ def _positive_seconds(value: Any, field_name: str) -> float:
 def _positive_finite_metric(value: Any, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise CoinbaseCorpusError(f"{field_name} must be a positive finite number")
-    parsed = float(value)
+    try:
+        parsed = float(value)
+    except OverflowError as exc:
+        raise CoinbaseCorpusError(f"{field_name} must be a positive finite number") from exc
     if not math.isfinite(parsed) or parsed <= 0:
         raise CoinbaseCorpusError(f"{field_name} must be a positive finite number")
     return parsed

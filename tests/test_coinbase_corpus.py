@@ -275,6 +275,7 @@ def test_benchmark_comparison_rejects_malformed_reports(tmp_path, capsys):
     for field, value in (
         ("median_ns", "nan"),
         ("events_per_second_median", float("inf")),
+        ("median_ns", 10**400),
     ):
         malformed = copy.deepcopy(baseline)
         malformed["phases"]["replay_only"][field] = value

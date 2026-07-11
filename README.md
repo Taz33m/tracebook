@@ -87,7 +87,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `238` pytest tests passing with `78.51%` statement coverage and a `75%` gate |
+| Unit tests | `238` pytest tests passing with `78.52%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 5 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
