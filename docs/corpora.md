@@ -76,6 +76,11 @@ The capture sequence follows Coinbase's documented synchronization model:
 6. Build the normalized event stream and reject gaps, crossed books, malformed
    lifecycle messages, or simulated trades.
 
+`--max-messages` caps all retained frames, including the synchronization queue.
+If that cap is exhausted before the REST snapshot completes, capture fails and
+removes its staging directory instead of emitting a corpus with no verified
+post-snapshot interval. Increase the cap and retry.
+
 References:
 
 - [Coinbase full and level3 channels](https://docs.cdp.coinbase.com/exchange/websocket-feed/channels)

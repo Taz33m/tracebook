@@ -174,6 +174,15 @@ def _positive_seconds(value: Any, field_name: str) -> float:
     return parsed
 
 
+def _positive_finite_metric(value: Any, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CoinbaseCorpusError(f"{field_name} must be a positive finite number")
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise CoinbaseCorpusError(f"{field_name} must be a positive finite number")
+    return parsed
+
+
 def _canonical_json_bytes(payload: Any) -> bytes:
     return (
         json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
@@ -890,6 +899,7 @@ async def _capture_session(
     stop = asyncio.Event()
     reader_errors: List[BaseException] = []
     stop_reason = "connection_closed"
+    snapshot_acquired = False
 
     try:
         connection = connector(
@@ -927,7 +937,9 @@ async def _capture_session(
                     if sanitized is not None:
                         feed_handle.write(_canonical_json_bytes(sanitized))
                     if sanitizer.stats.frames_written >= max_messages:
-                        stop_reason = "message_limit"
+                        stop_reason = (
+                            "message_limit" if snapshot_acquired else "pre_snapshot_message_limit"
+                        )
                         stop.set()
                         return
             except asyncio.CancelledError:
@@ -948,6 +960,7 @@ async def _capture_session(
             with contextlib.suppress(asyncio.CancelledError):
                 await reader
             raise
+        snapshot_acquired = True
 
         timed_out = False
         try:
@@ -965,6 +978,11 @@ async def _capture_session(
             if isinstance(error, CoinbaseCorpusError):
                 raise error
             raise CoinbaseCorpusError(f"Coinbase WebSocket capture failed: {error}") from error
+        if stop_reason == "pre_snapshot_message_limit":
+            raise CoinbaseCorpusError(
+                "max_messages was reached before the REST snapshot completed; "
+                "increase the limit so capture includes a post-snapshot interval"
+            )
         if not timed_out and stop_reason != "message_limit":
             raise CoinbaseCorpusError("Coinbase WebSocket closed before the capture completed")
 
@@ -1198,12 +1216,31 @@ def _load_benchmark_report(value: str | Path | Mapping[str, Any], label: str) ->
             report = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise CoinbaseCorpusError(f"invalid {label} benchmark report: {exc}") from exc
+    if not isinstance(report, dict):
+        raise CoinbaseCorpusError(f"{label} benchmark report must be a JSON object")
     if report.get("schema_version") != BENCHMARK_SCHEMA_VERSION:
         raise CoinbaseCorpusError(
             f"{label} benchmark schema_version must be {BENCHMARK_SCHEMA_VERSION}"
         )
-    if not isinstance(report.get("corpus"), dict) or not isinstance(report.get("phases"), dict):
+    corpus = report.get("corpus")
+    phases = report.get("phases")
+    if not isinstance(corpus, dict) or not isinstance(phases, dict) or not phases:
         raise CoinbaseCorpusError(f"{label} benchmark is missing corpus or phases")
+    corpus_id = corpus.get("corpus_id")
+    if (
+        not isinstance(corpus_id, str)
+        or not corpus_id.startswith("sha256:")
+        or len(corpus_id) != 71
+        or any(character not in "0123456789abcdef" for character in corpus_id[7:])
+    ):
+        raise CoinbaseCorpusError(f"{label} benchmark corpus_id is invalid")
+    manifest_digest = corpus.get("manifest_sha256")
+    if (
+        not isinstance(manifest_digest, str)
+        or len(manifest_digest) != 64
+        or any(character not in "0123456789abcdef" for character in manifest_digest)
+    ):
+        raise CoinbaseCorpusError(f"{label} benchmark manifest_sha256 is invalid")
     return report
 
 
@@ -1248,25 +1285,37 @@ def compare_corpus_benchmarks(
         after = candidate_phases[phase]
         if not isinstance(before, dict) or not isinstance(after, dict):
             raise CoinbaseCorpusError(f"benchmark phase {phase!r} must be an object")
-        if before.get("event_count") != after.get("event_count"):
+        baseline_event_count = _positive_integer(
+            before.get("event_count"), f"baseline benchmark phase {phase!r} event_count"
+        )
+        candidate_event_count = _positive_integer(
+            after.get("event_count"), f"candidate benchmark phase {phase!r} event_count"
+        )
+        if baseline_event_count != candidate_event_count:
             raise CoinbaseCorpusError(f"benchmark phase {phase!r} event counts differ")
-        baseline_median = float(before.get("median_ns", 0))
-        candidate_median = float(after.get("median_ns", 0))
-        if baseline_median <= 0 or candidate_median <= 0:
-            raise CoinbaseCorpusError(f"benchmark phase {phase!r} has invalid medians")
-        baseline_rate = float(before.get("events_per_second_median", 0))
-        candidate_rate = float(after.get("events_per_second_median", 0))
+        baseline_median = _positive_finite_metric(
+            before.get("median_ns"), f"baseline benchmark phase {phase!r} median_ns"
+        )
+        candidate_median = _positive_finite_metric(
+            after.get("median_ns"), f"candidate benchmark phase {phase!r} median_ns"
+        )
+        baseline_rate = _positive_finite_metric(
+            before.get("events_per_second_median"),
+            f"baseline benchmark phase {phase!r} events_per_second_median",
+        )
+        candidate_rate = _positive_finite_metric(
+            after.get("events_per_second_median"),
+            f"candidate benchmark phase {phase!r} events_per_second_median",
+        )
         comparisons[phase] = {
-            "event_count": before["event_count"],
+            "event_count": baseline_event_count,
             "baseline_median_ns": baseline_median,
             "candidate_median_ns": candidate_median,
             "duration_ratio_candidate_to_baseline": candidate_median / baseline_median,
             "speedup_baseline_over_candidate": baseline_median / candidate_median,
             "baseline_events_per_second": baseline_rate,
             "candidate_events_per_second": candidate_rate,
-            "throughput_change_percent": (
-                ((candidate_rate / baseline_rate) - 1.0) * 100.0 if baseline_rate > 0 else None
-            ),
+            "throughput_change_percent": ((candidate_rate / baseline_rate) - 1.0) * 100.0,
         }
 
     return {

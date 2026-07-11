@@ -81,7 +81,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default="production",
     )
     capture.add_argument("--post-snapshot-seconds", type=float, default=10.0)
-    capture.add_argument("--max-messages", type=int, default=100_000)
+    capture.add_argument(
+        "--max-messages",
+        type=int,
+        default=100_000,
+        help=(
+            "Maximum retained frames; capture fails if this limit is reached before "
+            "the REST snapshot completes."
+        ),
+    )
     capture.add_argument("--snapshot-timeout", type=float, default=30.0)
     capture.add_argument(
         "--acknowledge-market-data-terms",

@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -258,6 +259,29 @@ def test_benchmark_report_and_environment_aware_comparison(tmp_path):
         compare_corpus_benchmarks(baseline, mismatch)
 
 
+def test_benchmark_comparison_rejects_malformed_reports(tmp_path, capsys):
+    corpus, _ = _prepare(tmp_path)
+    baseline = benchmark_coinbase_corpus(corpus, iterations=1, warmups=0)
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    array_path = tmp_path / "array.json"
+    array_path.write_text("[]", encoding="utf-8")
+
+    code = main(["compare", str(array_path), str(baseline_path)])
+
+    assert code == 2
+    assert "JSON object" in capsys.readouterr().err
+
+    for field, value in (
+        ("median_ns", "nan"),
+        ("events_per_second_median", float("inf")),
+    ):
+        malformed = copy.deepcopy(baseline)
+        malformed["phases"]["replay_only"][field] = value
+        with pytest.raises(CoinbaseCorpusError, match="positive finite number"):
+            compare_corpus_benchmarks(baseline, malformed)
+
+
 class _FakeWebSocket:
     def __init__(self, frames):
         self.frames = list(frames)
@@ -327,8 +351,8 @@ def test_live_capture_queues_feed_before_snapshot_and_marks_rights(tmp_path):
             product_id="BTC-USD",
             tick_size="0.01",
             channel="full",
-            post_snapshot_seconds=1.0,
-            max_messages=2,
+            post_snapshot_seconds=0.01,
+            max_messages=10,
             snapshot_timeout=1.0,
             acknowledge_market_data_terms=True,
             id_key=FIXED_KEY,
@@ -340,10 +364,47 @@ def test_live_capture_queues_feed_before_snapshot_and_marks_rights(tmp_path):
     assert websocket.sent == [
         {"type": "subscribe", "product_ids": ["BTC-USD"], "channels": ["full"]}
     ]
-    assert manifest["capture"]["stop_reason"] == "message_limit"
+    assert manifest["capture"]["stop_reason"] == "duration"
     assert manifest["rights"]["redistribution"] == "not_granted"
     assert verify_coinbase_corpus(corpus)["final_sequence"] == 11
     assert "must-not-persist" not in (corpus / "feed.jsonl").read_text(encoding="utf-8")
+
+
+def test_live_capture_rejects_a_pre_snapshot_message_limit(tmp_path):
+    websocket = _FakeWebSocket([{"type": "subscriptions", "channels": []}])
+
+    def connector(url, **kwargs):
+        return _FakeConnection(websocket)
+
+    def delayed_snapshot(product_id, environment, timeout):
+        time.sleep(0.05)
+        return {
+            "product_id": product_id,
+            "sequence": 10,
+            "bids": [],
+            "asks": [],
+        }
+
+    corpus = tmp_path / "too-short"
+    with pytest.raises(CoinbaseCorpusError, match="before the REST snapshot"):
+        asyncio.run(
+            capture_coinbase_corpus_async(
+                corpus,
+                product_id="BTC-USD",
+                tick_size="0.01",
+                channel="full",
+                post_snapshot_seconds=1.0,
+                max_messages=1,
+                snapshot_timeout=1.0,
+                acknowledge_market_data_terms=True,
+                id_key=FIXED_KEY,
+                websocket_connector=connector,
+                snapshot_fetcher=delayed_snapshot,
+            )
+        )
+
+    assert not corpus.exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_capture_cli_requires_market_data_acknowledgement(tmp_path, capsys):
