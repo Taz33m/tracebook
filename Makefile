@@ -1,4 +1,4 @@
-.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput profile dashboard demo replay-demo format format-check lint typecheck security compile build quality docs clean clean-all monitor help
+.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput corpus-verify profile dashboard demo replay-demo format format-check lint typecheck security compile build quality docs clean clean-all monitor help
 
 # Python and virtual environment
 PYTHON := python3
@@ -41,6 +41,10 @@ benchmark-latency:
 # Run throughput benchmarks specifically
 benchmark-throughput:
 	$(PYTHON_VENV) -m tracebook.benchmarks.runner --scenario fifo_baseline --throughput 2000 --output benchmark_results/fifo-throughput.json
+
+# Reproduce the bundled corpus and golden final state
+corpus-verify:
+	$(PYTHON_VENV) -m tracebook.corpus.cli verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
 
 # Profile with magic-trace (requires magic-trace installation)
 profile:
@@ -123,6 +127,7 @@ help:
 	@echo "  benchmark       - Run reproducible benchmark smoke scenario"
 	@echo "  benchmark-latency - Run reproducible FIFO latency baseline"
 	@echo "  benchmark-throughput - Run reproducible FIFO throughput baseline"
+	@echo "  corpus-verify   - Verify the bundled synthetic Coinbase corpus"
 	@echo "  profile         - Run simulation with magic-trace/fallback profiling"
 	@echo "  dashboard       - Launch performance dashboard"
 	@echo "  demo            - Run basic simulation demo"

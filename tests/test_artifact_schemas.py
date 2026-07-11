@@ -8,6 +8,7 @@ way the CLIs write it, so the asserted shape is the shape a consumer reads back.
 
 import json
 import numbers
+from pathlib import Path
 
 from tracebook import (
     EventLog,
@@ -18,8 +19,12 @@ from tracebook import (
     replay_market_events,
 )
 from tracebook.benchmarks import runner
+from tracebook.corpus import benchmark_coinbase_corpus, compare_corpus_benchmarks
 from tracebook.events import CoinbaseL3Adapter
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
+
+ROOT = Path(__file__).parents[1]
+COINBASE_CORPUS = ROOT / "src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1"
 
 
 def _require_keys(obj, keys, ctx):
@@ -418,4 +423,76 @@ def test_coinbase_adapter_summary_schema():
         payload["id_map"][0],
         ["normalized_order_id", "venue_order_id"],
         "coinbase_adapter.id_map",
+    )
+
+
+def test_coinbase_corpus_and_benchmark_schemas():
+    manifest = json.loads((COINBASE_CORPUS / "manifest.json").read_text(encoding="utf-8"))
+    golden = json.loads((COINBASE_CORPUS / "golden.json").read_text(encoding="utf-8"))
+    benchmark = benchmark_coinbase_corpus(COINBASE_CORPUS, iterations=1, warmups=0)
+    comparison = compare_corpus_benchmarks(benchmark, benchmark)
+
+    _require_keys(
+        manifest,
+        [
+            "schema_version",
+            "corpus_id",
+            "created_at",
+            "tool",
+            "source",
+            "rights",
+            "sanitization",
+            "capture",
+            "replay",
+            "files",
+        ],
+        "coinbase_corpus.manifest",
+    )
+    _require_keys(
+        golden,
+        ["schema_version", "venue", "product_id", "normalization", "events", "replay"],
+        "coinbase_corpus.golden",
+    )
+    _require_keys(
+        benchmark,
+        [
+            "schema_version",
+            "measurement_model",
+            "generated_at",
+            "corpus",
+            "config",
+            "environment",
+            "phases",
+        ],
+        "coinbase_corpus.benchmark",
+    )
+    assert set(benchmark["phases"]) == {"stream_import_replay", "replay_only"}
+    for phase, summary in benchmark["phases"].items():
+        _require_keys(
+            summary,
+            [
+                "event_count",
+                "samples_ns",
+                "min_ns",
+                "median_ns",
+                "p95_ns",
+                "max_ns",
+                "events_per_second_median",
+            ],
+            f"coinbase_corpus.benchmark.{phase}",
+        )
+    _require_keys(
+        comparison,
+        [
+            "schema_version",
+            "corpus_id",
+            "manifest_match",
+            "baseline",
+            "candidate",
+            "environment_match",
+            "environment_differences",
+            "software_differences",
+            "phases",
+        ],
+        "coinbase_corpus.comparison",
     )

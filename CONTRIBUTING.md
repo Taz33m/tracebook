@@ -23,6 +23,7 @@ tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --
 tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
+tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
 ```
 
 For packaging changes, also run:
@@ -37,6 +38,11 @@ venue-specific parsing, sequence checks, and assumptions outside the core replay
 engine. Include a small fixture and strict rejection tests with each adapter.
 Fixtures must be synthetic or explicitly redistributable, and adapter semantics
 must cite the venue's primary documentation.
+
+Do not commit a live market-data corpus unless the repository has explicit
+redistribution permission. Pseudonymized captures are still market data. Corpus
+format changes must update schema tests, regenerate the synthetic fixture, and
+document an intentional corpus-ID change.
 
 The command reference in `docs/commands.md` is the source of truth for reviewer-facing smoke paths.
 

@@ -10,6 +10,7 @@ SETUP_REQUIREMENT_GROUPS = (
     "CORE_REQUIREMENTS",
     "DASHBOARD_REQUIREMENTS",
     "ANALYSIS_REQUIREMENTS",
+    "CAPTURE_REQUIREMENTS",
     "DEV_REQUIREMENTS",
 )
 
@@ -60,6 +61,8 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
     assert 'name="tracebook-sim"' in setup_text
     assert "tracebook-replay=tracebook.events.cli:main" in setup_text
     assert "tracebook-coinbase=tracebook.events.coinbase_cli:main" in setup_text
+    assert "tracebook-corpus=tracebook.corpus.cli:main" in setup_text
+    assert '"tracebook.corpus.fixtures": ["coinbase-btcusd-synthetic-v1/*"]' in setup_text
     assert (ROOT / "src" / "tracebook" / "py.typed").is_file()
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 

@@ -11,7 +11,7 @@ import subprocess
 import sys
 from typing import List
 
-EXTRAS = ("dev", "dashboard", "analysis", "all")
+EXTRAS = ("dev", "dashboard", "analysis", "capture", "all")
 
 
 def build_install_target(extras: List[str]) -> str:

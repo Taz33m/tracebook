@@ -1,0 +1,73 @@
+{
+  "capture": {
+    "max_messages": null,
+    "mode": "prepared_offline",
+    "post_snapshot_seconds": null,
+    "rest_url": null,
+    "websocket_url": null
+  },
+  "corpus_id": "sha256:ca32b618dda7906e7fe85fbddd9ca03fd25075cc9cc0adc071c72226462a82ec",
+  "created_at": "2026-07-10T12:00:00Z",
+  "files": [
+    {
+      "bytes": 322,
+      "path": "snapshot.json",
+      "role": "snapshot",
+      "sha256": "023bb3d02e6bff4e4fed2205baf996e38130582ce9251b029b11b4bc31e0f095"
+    },
+    {
+      "bytes": 2016,
+      "path": "feed.jsonl",
+      "role": "feed",
+      "sha256": "fff399f0920ff47124df43d84fb70578c21f0a663045bea4731315f6cc989564"
+    },
+    {
+      "bytes": 1383,
+      "path": "events.jsonl",
+      "role": "events",
+      "sha256": "a59094953cc361705dfad215bda3ccacc5bbc8af4b3a80606c5fb3d56d48c28e"
+    },
+    {
+      "bytes": 1030,
+      "path": "golden.json",
+      "role": "golden",
+      "sha256": "70fd29341db1e12012c452a65c68d14029ebeb81e60ce5fab73fe89daf6015d3"
+    }
+  ],
+  "replay": {
+    "matching_algorithm": "fifo",
+    "strict": true,
+    "tick_size": "0.01"
+  },
+  "rights": {
+    "contains_market_data": false,
+    "redistribution": "project_fixture",
+    "terms_url": null
+  },
+  "sanitization": {
+    "field_policy": "replay_allowlist",
+    "fields_removed": 10,
+    "frames_dropped_other_products": 0,
+    "frames_seen": 10,
+    "frames_written": 10,
+    "order_id_fields_pseudonymized": 12,
+    "order_ids": "keyed_blake2b_128",
+    "pseudonymization_key_persisted": false,
+    "pseudonymization_scope": "deterministic_fixture",
+    "schema_version": 1,
+    "sequenced_frames": 10
+  },
+  "schema_version": 1,
+  "source": {
+    "channel": "full",
+    "environment": "synthetic",
+    "final_sequence": 109,
+    "product_id": "BTC-USD",
+    "snapshot_sequence": 100,
+    "venue": "coinbase_exchange"
+  },
+  "tool": {
+    "name": "tracebook",
+    "version": "0.3.0.dev0"
+  }
+}

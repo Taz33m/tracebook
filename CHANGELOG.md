@@ -8,11 +8,21 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 Development version: `0.3.0.dev0`.
 
+- Added `tracebook-corpus` for synchronized local Coinbase capture, offline
+  corpus preparation, pre-write field allowlisting and order-ID
+  pseudonymization, hash-locked manifests, exact golden replay verification,
+  machine-attributed import benchmarks, and environment-aware report
+  comparison. Live capture is an optional dependency and records that Coinbase
+  market-data redistribution rights are not granted by sanitization.
+- Added a distributable synthetic BTC-USD corpus with canonical snapshot,
+  feed, normalized events, golden final state, and a stable corpus ID. System
+  smoke and wheel CI now reproduce it exactly.
 - Added the dependency-free `tracebook-coinbase` offline adapter for Coinbase
   Exchange REST L3 snapshots plus recorded `full` or compact `level3` feeds. It
   validates dynamic compact schemas and per-product sequences, streams
-  normalized events, preserves observed exchange trades separately, and rejects
-  auction/crossed books rather than manufacturing queue state.
+  normalized events, preserves observed exchange trades separately, ignores
+  future protocol message types without skipping sequence validation, and
+  rejects auction/crossed books rather than manufacturing queue state.
 - Added priority-preserving `reduce_order()` and normalized `reduce` events for
   partial maker fills and same-price size decreases. Core event logs and replay
   summaries move to schema version 2; version 1 event logs remain readable.

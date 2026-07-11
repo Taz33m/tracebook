@@ -38,6 +38,30 @@ Each JSON report includes:
 
 Use these files as local baselines. If README performance numbers are added later, they should cite the command, seed, machine, Python version, and report file used to produce them.
 
+## Corpus Import Benchmarks
+
+The scenario runner measures generated workloads. `tracebook-corpus benchmark`
+measures the venue-import path against a hash-locked corpus:
+
+```bash
+tracebook-corpus sample /tmp/tracebook-sample-corpus
+tracebook-corpus benchmark \
+  /tmp/tracebook-sample-corpus \
+  --warmups 2 \
+  --iterations 10 \
+  --output benchmark_results/corpus-baseline.json
+```
+
+It reports separate `stream_import_replay` and `replay_only` phases, retains
+every measured nanosecond sample, and binds the report to both `corpus_id` and
+the exact manifest SHA-256. Use `tracebook-corpus compare` to calculate ratios.
+The comparison refuses different corpora and explicitly reports machine,
+runtime, and dependency differences.
+
+Do not compare corpus throughput without matching corpus IDs. Prefer matching
+machines and Python versions, and publish the two source reports beside any
+comparison. See [`docs/corpora.md`](corpora.md) for artifact and rights details.
+
 ## Local Baseline Sample
 
 Measured for 0.2.0 on July 10, 2026 with:

@@ -108,3 +108,19 @@ tracebook-coinbase \
 This offline adapter validates the snapshot/feed sequence and converts Coinbase
 order IDs and lifecycle messages into normalized events. See
 `docs/coinbase-l3.md` before using a captured dataset.
+
+## Verify A Reproducible Corpus
+
+```bash
+tracebook-corpus sample /tmp/tracebook-sample-corpus
+tracebook-corpus verify /tmp/tracebook-sample-corpus
+
+tracebook-corpus benchmark \
+  /tmp/tracebook-sample-corpus \
+  --iterations 5 \
+  --warmups 1
+```
+
+Install `tracebook-sim[capture]` only when live public capture is needed. Live
+corpora remain local and are marked as not licensed for redistribution by
+default. Read `docs/corpora.md` before accessing Coinbase market data.

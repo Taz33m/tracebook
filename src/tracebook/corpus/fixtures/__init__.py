@@ -1,0 +1,1 @@
+"""Bundled distributable corpus fixtures."""

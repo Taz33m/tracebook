@@ -429,16 +429,21 @@ class CoinbaseL3Adapter:
             self.messages_ignored += 1
             return []
 
+        known_book_message = message_type in _BOOK_MESSAGE_TYPES
         product_value = mapping.get("product_id")
         if product_value is not None:
             product = _product_id(product_value)
             if product != self.product_id:
                 self.messages_ignored += 1
                 return []
-        if message_type not in _BOOK_MESSAGE_TYPES:
-            raise CoinbaseL3Error(f"unsupported full-channel message type: {message_type!r}")
         if product_value is None:
+            if not known_book_message:
+                self.messages_ignored += 1
+                return []
             raise CoinbaseL3Error("product_id is required for book messages")
+        if not known_book_message and mapping.get("sequence") is None:
+            self.messages_ignored += 1
+            return []
 
         sequence = cast(int, _integer(mapping.get("sequence"), "sequence"))
         if sequence <= self.snapshot_sequence or sequence <= self.final_sequence:
@@ -456,7 +461,7 @@ class CoinbaseL3Adapter:
         self.final_sequence = sequence
         self.messages_sequenced += 1
 
-        if message_type in {"received", "noop"}:
+        if not known_book_message or message_type in {"received", "noop"}:
             self.messages_ignored += 1
             return []
         if message_type == "open":
@@ -467,7 +472,7 @@ class CoinbaseL3Adapter:
             return self._done(mapping, compact)
         if message_type == "change":
             return self._change(mapping, compact)
-        raise CoinbaseL3Error(f"unsupported full-channel message type: {message_type!r}")
+        raise CoinbaseL3Error(f"unhandled full-channel message type: {message_type!r}")
 
     def _open(self, mapping: Mapping[str, Any], compact: bool) -> MarketEvent:
         venue_id = _text(mapping.get("order_id"), "order_id")

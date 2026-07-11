@@ -14,6 +14,8 @@ Please include:
 
 ## Scope
 
-`tracebook` is for matching experiments, normalized historical order-event replay,
-simulation, benchmarking, and profiling. It is not production trading
-infrastructure and does not connect to live exchanges.
+`tracebook` is for matching experiments, normalized historical order-event
+replay, local public-feed capture, simulation, benchmarking, and profiling. It
+is not production trading infrastructure, does not accept exchange credentials
+or place orders, and does not grant rights to redistribute captured market
+data.

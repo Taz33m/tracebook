@@ -3,12 +3,13 @@
 ## Product Position
 
 `tracebook` is an inspectable Python market-microstructure workbench for matching
-semantics, normalized order-event replay, synthetic workload experiments, and
-honest local profiling. It is distributed as `tracebook-sim` and imported as
-`tracebook`.
+semantics, normalized order-event replay, verified local data corpora,
+synthetic workload experiments, and honest local profiling. It is distributed
+as `tracebook-sim` and imported as `tracebook`.
 
 The project optimizes for deterministic behavior and auditability before raw
-speed. It is not exchange connectivity or production trading infrastructure.
+speed. Its optional public capture is research tooling, not a production feed
+handler or trading infrastructure.
 
 ## Maintained Surfaces
 
@@ -16,6 +17,7 @@ speed. It is not exchange connectivity or production trading infrastructure.
 src/tracebook/
   core/             matching, lifecycle, snapshots, deterministic replay
   events/           normalized event replay and offline venue adapters
+  corpus/           safe local capture, manifests, golden state, import benchmarks
   simulation/       synthetic order flow and paced workload execution
   benchmarks/       reproducible local scenario reports
   profiling/        metrics, magic-trace, and selected-function fallback tracing
@@ -24,8 +26,8 @@ src/tracebook/
 
 ## Next Milestones
 
-1. Publish `tracebook-sim` 0.2.0 through PyPI Trusted Publishing and verify the
-   clean-environment quickstart on macOS and Linux.
+1. Complete the 0.3.0 corpus contract with stable manifest, golden-state, and
+   benchmark/comparison schemas.
 2. Follow the Coinbase Exchange L3 adapter with one documented equities order
    event format, both normalizing into `MarketEvent`.
 3. Separate paced workload reports from an explicit unpaced engine-capacity

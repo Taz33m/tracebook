@@ -10,6 +10,12 @@ place orders, or claim to be production trading infrastructure.
 The included BTC-USD fixture is synthetic and documentation-shaped, not a
 redistributed market-data capture. Tracebook is not affiliated with Coinbase.
 
+Live public capture is a separate optional layer. See
+[`docs/corpora.md`](corpora.md) for synchronized capture, pre-write
+sanitization, hash-locked manifests, golden replay verification, and corpus
+benchmarking. Keeping capture separate preserves this adapter's dependency-free
+offline contract.
+
 ## Why Snapshot Plus Feed
 
 Coinbase documents a synchronization sequence: subscribe, queue messages, fetch
@@ -78,6 +84,7 @@ before their schema, crossed snapshots, and auction-mode snapshots.
 | `change` for an order not on the book | Ignore |
 | compact `noop` | Sequence is checked; no book mutation |
 | `activate` | Ignore; a triggered stop subsequently follows the normal lifecycle |
+| Future message type | Check its sequence when product and sequence are present, then ignore |
 
 Observed Coinbase matches are not inserted into Tracebook's simulated trade
 tape. The adapter report calls them `exchange_trades`; replay-generated matches
@@ -141,3 +148,9 @@ lenient-mode issue records grow only with the problems encountered.
   simulator's float-based core representation.
 - Lenient mode is for forensics. Any gap or invalid message marks the result
   incomplete; it must not be presented as an exact book reconstruction.
+- Unknown future message types are ignored for protocol compatibility. When a
+  message identifies the target product and sequence, continuity is still
+  enforced before it is ignored so a new type cannot hide a missing update.
+- Pseudonymizing venue identifiers does not grant permission to redistribute
+  market data. Live corpus manifests link Coinbase's market-data terms and mark
+  redistribution as not granted by default.

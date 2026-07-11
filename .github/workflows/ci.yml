@@ -75,14 +75,18 @@ jobs:
           tracebook-benchmark --version
           tracebook-dashboard --version
           tracebook-web --version
+          tracebook-corpus --version
           tracebook-replay "$GITHUB_WORKSPACE/examples/data/sample_events.jsonl" --output /tmp/replay.json
           tracebook-coinbase \
             "$GITHUB_WORKSPACE/examples/data/coinbase_btcusd_l3_snapshot.json" \
             "$GITHUB_WORKSPACE/examples/data/coinbase_btcusd_full.jsonl" \
             --tick-size 0.01 \
             --output /tmp/coinbase.json
+          tracebook-corpus sample /tmp/tracebook-sample-corpus
+          tracebook-corpus verify /tmp/tracebook-sample-corpus --output /tmp/corpus-verify.json
           python -c "import json; assert json.load(open('/tmp/replay.json'))['applied_events'] == 5"
           python -c "import json; assert json.load(open('/tmp/coinbase.json'))['normalization']['sequence_complete'] is True"
+          python -c "import json; assert json.load(open('/tmp/corpus-verify.json'))['verified'] is True"
 
       - name: Check installed dependencies
         run: python -m pip check

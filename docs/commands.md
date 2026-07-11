@@ -18,6 +18,12 @@ source venv/bin/activate
 pip install -e ".[dev,dashboard]"
 ```
 
+Add `capture` when live public Coinbase WebSocket input is needed:
+
+```bash
+pip install -e ".[dev,dashboard,capture]"
+```
+
 Alternative contributor setup:
 
 ```bash
@@ -155,8 +161,36 @@ tracebook-coinbase \
 The command accepts recorded Coinbase `full` objects and compact `level3`
 arrays, validates per-product sequence continuity, and keeps observed exchange
 matches separate from simulator-generated trades. `--tick-size` must equal the
-product's Coinbase `quote_increment`. See `docs/coinbase-l3.md` for capture,
+product's Coinbase `quote_increment`. See `docs/coinbase-l3.md` for replay
 synchronization, strictness, and limitation details.
+
+## Coinbase Corpus CLI
+
+Verify the checked synthetic corpus:
+
+```bash
+tracebook-corpus sample /tmp/tracebook-sample-corpus
+tracebook-corpus verify /tmp/tracebook-sample-corpus
+```
+
+Produce a machine-attributed report and compare two runs:
+
+```bash
+tracebook-corpus benchmark \
+  /tmp/tracebook-sample-corpus \
+  --iterations 10 \
+  --warmups 2 \
+  --output benchmark_results/corpus-baseline.json
+
+tracebook-corpus compare \
+  benchmark_results/corpus-baseline.json \
+  benchmark_results/corpus-candidate.json
+```
+
+`capture` and `prepare` create a new directory atomically and refuse to
+overwrite an existing corpus. Live capture requires the `capture` extra and an
+explicit market-data-terms acknowledgement. See `docs/corpora.md` for the full
+workflow, rights boundary, artifact schemas, and regeneration command.
 
 ## Benchmark Claim Checklist
 
