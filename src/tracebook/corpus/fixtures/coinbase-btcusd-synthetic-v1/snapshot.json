@@ -1,0 +1,20 @@
+{
+  "asks": [
+    [
+      "101.00",
+      "1.0",
+      "cb_92b76356316cf8121c0872fe29398d7b"
+    ]
+  ],
+  "auction_mode": false,
+  "bids": [
+    [
+      "100.00",
+      "2.0",
+      "cb_62f59cb02ea00a5a3ee8fedbbfdfac96"
+    ]
+  ],
+  "product_id": "BTC-USD",
+  "sequence": 100,
+  "time": "2026-07-10T12:00:00.000000000Z"
+}

@@ -1,0 +1,46 @@
+{
+  "events": {
+    "count": 8,
+    "sha256": "a59094953cc361705dfad215bda3ccacc5bbc8af4b3a80606c5fb3d56d48c28e"
+  },
+  "normalization": {
+    "active_orders": 1,
+    "exchange_trades_observed": 2,
+    "exchange_trades_sha256": "08218e197f6c6a9c12c93c817763c9d77014d9454c9c0a500afdb349c311344b",
+    "final_sequence": 109,
+    "messages_ignored": 4,
+    "messages_seen": 10,
+    "messages_sequenced": 9,
+    "normalized_events": 8,
+    "sequence_complete": true,
+    "snapshot_orders": 2,
+    "snapshot_sequence": 100
+  },
+  "product_id": "BTC-USD",
+  "replay": {
+    "applied_events": 8,
+    "books": {
+      "BTC-USD": {
+        "active_orders": 1,
+        "asks": [],
+        "bids": [
+          [
+            100.0,
+            2.0,
+            1
+          ]
+        ]
+      }
+    },
+    "cancellations": 1,
+    "clears": 0,
+    "input_events": 8,
+    "reductions": 3,
+    "rejected_events": 0,
+    "replacements": 1,
+    "submissions": 3,
+    "trades_executed": 0
+  },
+  "schema_version": 1,
+  "venue": "coinbase_exchange"
+}

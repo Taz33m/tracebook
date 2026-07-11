@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-223%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-236%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -34,8 +34,9 @@ Watch **Trace The Match** on YouTube: https://youtu.be/RXOcB2k7qTQ
 1. Run the unit tests and system smoke.
 2. Execute a deterministic simulation with cancel and replace events.
 3. Generate a benchmark JSON report with warmup excluded.
-4. Launch the dashboard demo if you want live depth and performance telemetry.
-5. Read the claims, non-claims, and limitations before treating any number as a production latency claim.
+4. Verify the checked Coinbase corpus and its deterministic golden state.
+5. Launch the dashboard demo if you want live depth and performance telemetry.
+6. Read the claims, non-claims, and limitations before treating any number as a production latency claim.
 
 ```bash
 python -m pip install -e ".[dev,dashboard]"
@@ -43,6 +44,8 @@ python -m pytest
 python test_system.py
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
+tracebook-corpus sample /tmp/tracebook-sample-corpus
+tracebook-corpus verify /tmp/tracebook-sample-corpus
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --cancel-ratio 0.05 --replace-ratio 0.02 --warmup-seconds 0.01
 tracebook-benchmark --scenario smoke --seed 1337 --warmup-seconds 0.01 --output benchmark_results/smoke.json
 ```
@@ -84,8 +87,8 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `223` pytest tests passing with a `75%` coverage gate |
-| System smoke | `python test_system.py` passes all 4 checks |
+| Unit tests | `236` pytest tests passing with `78.11%` statement coverage and a `75%` gate |
+| System smoke | `python test_system.py` passes all 5 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
@@ -107,6 +110,7 @@ All checks below were run during the latest production repo pass in this checkou
 | Self-trade prevention | Owner-tagged orders with `CANCEL_RESTING`/`CANCEL_INCOMING` policies | Stops a participant from matching its own resting liquidity |
 | Historical event replay | Loads normalized CSV, JSON, and JSONL order events across symbols while preserving source ids through replacement | Connects real feed adapters to the validated matching path |
 | Coinbase Exchange L3 adapter | Streams REST L3 snapshots plus recorded `full`/compact `level3` messages with sequence validation | Provides one concrete, auditable path from venue data to normalized events |
+| Verified market-data corpora | Captures or prepares sanitized local sessions with SHA-256 manifests, canonical events, deterministic golden state, and comparable import benchmarks | Makes adapter correctness and performance independently reproducible |
 | Detached public state | Returns copies from submission, lookup, trade, and callback APIs | Prevents callers from mutating live engine indexes |
 | Event simulation | Interleaves `NEW`, `CANCEL`, and `REPLACE` events with deterministic seeds | Exercises more than one-way order ingestion |
 | Synthetic streams | Generates random, trend, mean-reverting, momentum, passive, market-making, aggressive, and mixed flows | Enables repeatable workload variation |
@@ -131,6 +135,7 @@ flowchart LR
     I["SyntheticOrderStream"] --> J["Simulation events"]
     J --> B
     N["Normalized + Coinbase L3 events"] --> B
+    O["Verified corpus + golden state"] --> N
     B --> K["PerformanceMonitor"]
     K --> L["Benchmark JSON"]
     K --> M["Dashboard"]
@@ -144,6 +149,7 @@ Core paths:
 - `src/tracebook/core/matching_engine.py`: FIFO and pro-rata matching coordination.
 - `src/tracebook/core/price_level.py`: price-level storage and depth snapshots.
 - `src/tracebook/events/`: normalized event replay and Coinbase Exchange L3 adaptation.
+- `src/tracebook/corpus/`: safe local capture, corpus manifests, golden verification, and corpus benchmarks.
 - `src/tracebook/simulation/`: synthetic order streams and event-based simulation engine.
 - `src/tracebook/benchmarks/runner.py`: reproducible benchmark scenarios and JSON reports.
 - `src/tracebook/profiling/`: performance monitor and magic-trace/fallback profiling.
@@ -349,6 +355,29 @@ priority, and keeps observed exchange trades separate from simulated trades.
 See [`docs/coinbase-l3.md`](docs/coinbase-l3.md) for synchronization and
 limitations.
 
+### Verified Coinbase Corpora
+
+The checked synthetic corpus binds sanitized source input, normalized events,
+and complete final depth to one stable SHA-256 identity:
+
+```bash
+tracebook-corpus sample /tmp/tracebook-sample-corpus
+tracebook-corpus verify /tmp/tracebook-sample-corpus
+
+tracebook-corpus benchmark \
+  /tmp/tracebook-sample-corpus \
+  --iterations 10 \
+  --warmups 2 \
+  --output benchmark_results/corpus.json
+```
+
+Optional live capture subscribes before taking one REST L3 snapshot, sanitizes
+before disk, and never accepts credentials. Coinbase's market-data terms may
+restrict redistribution, so live manifests say `redistribution=not_granted`
+and the root `corpora/` directory is ignored by Git. Install
+`tracebook-sim[capture]` and review [`docs/corpora.md`](docs/corpora.md) before
+capturing.
+
 ## Reproducible Paced Workloads
 
 ```bash
@@ -425,6 +454,8 @@ requires `--allow-remote`.
 | `tracebook-benchmark --scenario all --output benchmark_results/local.json` | Produce a full local benchmark report |
 | `tracebook-replay events.jsonl --output replay.json` | Replay normalized historical order events |
 | `tracebook-coinbase snapshot.json full.jsonl --tick-size 0.01` | Normalize and replay Coinbase Exchange L3 data |
+| `tracebook-corpus verify corpus/` | Verify hashes, events, and deterministic golden state |
+| `tracebook-corpus benchmark corpus/ --output report.json` | Measure corpus import and replay phases |
 | `tracebook-dashboard --demo-simulation` | Launch the Dash dashboard with live demo data |
 | `tracebook-web --port 8080` | Serve the dependency-free live order-book frontend |
 | `python -m pytest` | Run unit tests |
@@ -481,6 +512,8 @@ Public top-level exports:
 | Simulation JSON | Raw simulation config, summary metrics, performance data, order book stats, stream stats, algorithm analysis |
 | Benchmark JSON | Scenario summaries plus raw simulation results, machine metadata, dependency versions, warmup and seed |
 | Event replay JSON | Config, applied/rejected counts, active source-id mapping, final depth, per-book statistics, and optional trades |
+| Corpus manifest and golden JSON | Source rights, sanitization/capture metadata, file hashes, canonical event digest, sequence range, and complete final depth |
+| Corpus benchmark/comparison JSON | Raw timing samples, machine/dependency metadata, corpus identity, phase summaries, and explicit environment differences |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
 | Performance docs | Local baseline samples and reporting rules |
 
@@ -492,13 +525,14 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
   events/                   normalized file loading and historical event replay
+  corpus/                   capture, manifests, bundled fixture, verification, benchmarks
   simulation/               synthetic order streams and event simulation
   benchmarks/               reproducible benchmark runner
   profiling/                performance monitor and tracing tools
   visualization/            Dash dashboard + static web frontend (web/)
 tests/                      pytest correctness and integration coverage
 docs/                       architecture, commands, and performance notes
-examples/                   runnable example scripts
+examples/                   runnable example scripts and source feed fixtures
 .github/workflows/          CI across supported Python versions
 setup.py                    package metadata, extras, console scripts
 pyproject.toml              build-system and tool configuration
@@ -513,6 +547,7 @@ Claims:
 - Validates symbols, sides, order types, prices, and quantities before matching.
 - Supports atomic replacement, cancellation, detached active-order lookup, and coherent state snapshots.
 - Replays normalized CSV, JSON, and JSONL order events across independent symbol books with stable source-id lifecycle mapping.
+- Verifies hash-locked corpus inputs by reproducing canonical events and golden final book state exactly.
 - Runs deterministic synthetic simulations with new, cancel, and replace events.
 - Reports benchmark output with warmup, seed, machine metadata, generation timing, matching latency, event latency, memory, and monitoring overhead.
 - Provides a dashboard demo path without requiring external market connectivity.
@@ -520,7 +555,8 @@ Claims:
 Non-claims:
 
 - Not a production exchange matching engine.
-- Not a trading venue, broker, market data vendor, or exchange connector.
+- Not a trading venue, broker, production feed handler, or market-data vendor.
+- Not a grant of rights to redistribute captured exchange market data.
 - Not investment advice.
 - Not a guarantee of live low-latency performance.
 - Not a full fixed-point implementation yet; prices snap to an integer tick grid but quantities remain float64.
@@ -533,14 +569,15 @@ Non-claims:
 - Current storage uses plain Python dicts and lists (orders per level are an insertion-ordered dict; price levels are a bisect-indexed list), not a final low-latency memory layout.
 - Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - The normalized replay contract is venue-neutral; exchange sequence checks and feed-specific semantics belong in adapters.
+- Live Coinbase corpora are local artifacts. Pseudonymization removes unnecessary identifiers but does not alter Coinbase's market-data terms.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.
 - Benchmark results are local artifacts and should always cite the command, seed, machine, Python version, and dependency versions.
 
 ## Roadmap
 
-- Publish `tracebook-sim` through PyPI Trusted Publishing.
-- Add documented adapters for public crypto and equities order-event formats.
+- Add a second venue adapter against the same corpus and golden-state contracts.
+- Add licensed or user-supplied larger corpus profiles without checking restricted market data into the repository.
 - Add an explicit unpaced capacity benchmark beside the existing paced workloads.
 - Stabilize artifact schemas and the top-level API for 1.0.
 

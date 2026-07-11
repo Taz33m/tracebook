@@ -18,6 +18,9 @@ flowchart TD
     J["SyntheticOrderStream"] --> K["SimulationEvent"]
     Q["CSV / JSON / JSONL"] --> R["MarketEvent"]
     S["Coinbase L3 snapshot + feed"] --> T["CoinbaseL3Adapter"]
+    U["Coinbase public capture"] --> V["Corpus sanitizer + manifest"]
+    V --> S
+    V --> W["Golden state + corpus benchmark"]
     T --> R
     R --> C
     K --> C
@@ -41,6 +44,7 @@ flowchart TD
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
 | `src/tracebook/events/market_replay.py` | Normalized historical order-event loading and multi-symbol replay |
 | `src/tracebook/events/coinbase_l3.py` | Coinbase Exchange L3 snapshot/feed normalization and sequence validation |
+| `src/tracebook/corpus/coinbase.py` | Optional public capture, pre-write sanitization, corpus manifests, golden verification, and import benchmarks |
 | `src/tracebook/benchmarks/runner.py` | Reproducible scenarios, warmup handling, JSON report writer |
 | `src/tracebook/profiling/performance_monitor.py` | Latency, throughput, resource, and overhead collection |
 | `src/tracebook/visualization/dashboard.py` | Dash application and demo-simulation wiring |
@@ -115,6 +119,11 @@ Benchmarks intentionally separate several timings:
 
 Simulation output reports achieved new-order rate separately from total event
 rate. Both are paced-workload observations, not unpaced capacity claims.
+
+Corpus benchmarks are a separate local wall-clock model. They bind reports to
+one corpus ID and split streaming JSON decode/normalization/replay from replay of
+already normalized events. Corpus reports do not flow through
+`PerformanceMonitor` and do not claim engine-only latency.
 
 This prevents a benchmark report from presenting synthetic data generation as matching-engine latency.
 

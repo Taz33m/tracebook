@@ -23,6 +23,7 @@ tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --
 tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
+tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
 python -m build --sdist --wheel --outdir dist
 python -m twine check dist/*
 python -m pip check
@@ -59,6 +60,7 @@ python -m pip install tracebook-sim==0.2.0
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-replay --help
 tracebook-coinbase --help
+tracebook-corpus --help
 ```
 
 ## Release Notes
@@ -67,7 +69,7 @@ Release notes should include:
 
 - user-visible matching or simulation changes
 - CLI changes
-- benchmark report schema changes
+- benchmark, corpus, manifest, or golden-state schema changes
 - dashboard changes
 - compatibility notes
 - known limitations

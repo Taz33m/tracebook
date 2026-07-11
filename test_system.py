@@ -37,6 +37,19 @@ def check_event_replay() -> None:
     assert set(summary["books"]) == {"BTCUSD", "ETHUSD"}
 
 
+def check_coinbase_corpus() -> None:
+    from tracebook.corpus import copy_bundled_coinbase_corpus, verify_coinbase_corpus
+
+    with tempfile.TemporaryDirectory(prefix="tracebook-corpus-smoke-") as directory:
+        corpus = Path(directory) / "sample"
+        copy_bundled_coinbase_corpus(corpus)
+        result = verify_coinbase_corpus(corpus)
+
+        assert result["verified"] is True
+        assert result["events_verified"] == 8
+        assert result["final_sequence"] == 109
+
+
 def check_performance_monitor() -> None:
     from tracebook.profiling.performance_monitor import PerformanceMonitor
 
@@ -77,6 +90,7 @@ def main() -> int:
     checks = [
         ("matching and lifecycle", check_matching),
         ("normalized event replay", check_event_replay),
+        ("verified Coinbase corpus", check_coinbase_corpus),
         ("performance monitoring", check_performance_monitor),
         ("paced simulation", check_simulation),
     ]

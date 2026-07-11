@@ -42,6 +42,10 @@ ANALYSIS_REQUIREMENTS = [
     "tables>=3.10.1",
 ]
 
+CAPTURE_REQUIREMENTS = [
+    "websockets>=16.1",
+]
+
 DEV_REQUIREMENTS = [
     "bandit>=1.9.4",
     "build>=1.5.0",
@@ -107,6 +111,7 @@ setup(
     install_requires=CORE_REQUIREMENTS,
     extras_require={
         "analysis": ANALYSIS_REQUIREMENTS,
+        "capture": CAPTURE_REQUIREMENTS,
         "dashboard": DASHBOARD_REQUIREMENTS,
         "dev": DEV_REQUIREMENTS,
         "all": sorted(
@@ -114,6 +119,7 @@ setup(
                 CORE_REQUIREMENTS
                 + DASHBOARD_REQUIREMENTS
                 + ANALYSIS_REQUIREMENTS
+                + CAPTURE_REQUIREMENTS
                 + DEV_REQUIREMENTS
             )
         ),
@@ -126,10 +132,12 @@ setup(
             "tracebook-web=tracebook.visualization.web_server:main",
             "tracebook-replay=tracebook.events.cli:main",
             "tracebook-coinbase=tracebook.events.coinbase_cli:main",
+            "tracebook-corpus=tracebook.corpus.cli:main",
         ],
     },
     package_data={
         "tracebook": ["py.typed"],
+        "tracebook.corpus.fixtures": ["coinbase-btcusd-synthetic-v1/*"],
         "tracebook.visualization.web": ["*.html", "*.css", "*.js"],
     },
     include_package_data=True,

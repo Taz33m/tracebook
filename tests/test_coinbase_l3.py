@@ -161,6 +161,45 @@ def test_duplicate_and_other_product_messages_do_not_break_target_sequence():
     assert adapter.messages_ignored == 3
 
 
+def test_unknown_message_types_are_sequence_checked_then_ignored():
+    messages = [
+        {
+            "type": "future_message",
+            "product_id": "BTC-USD",
+            "sequence": 11,
+            "time": "2026-01-01T00:00:00Z",
+            "future_field": "ignored",
+        },
+        {
+            "type": "noop",
+            "product_id": "BTC-USD",
+            "sequence": 12,
+            "time": "2026-01-01T00:00:01Z",
+        },
+    ]
+
+    adapter, events = normalize_coinbase_l3(_empty_snapshot(), messages)
+
+    assert events == []
+    assert adapter.final_sequence == 12
+    assert adapter.sequence_complete is True
+    assert adapter.messages_sequenced == 2
+    assert adapter.messages_ignored == 2
+
+    with pytest.raises(CoinbaseL3Error, match="sequence gap"):
+        normalize_coinbase_l3(
+            _empty_snapshot(),
+            [{"type": "future_message", "product_id": "BTC-USD", "sequence": 12}],
+        )
+
+    unsequenced, events = normalize_coinbase_l3(
+        _empty_snapshot(), [{"type": "future_control_message"}]
+    )
+    assert events == []
+    assert unsequenced.final_sequence == 10
+    assert unsequenced.messages_ignored == 1
+
+
 def test_compact_messages_require_a_complete_preceding_schema():
     adapter = CoinbaseL3Adapter(_empty_snapshot())
     with pytest.raises(CoinbaseL3Error, match="before its schema"):
