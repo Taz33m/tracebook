@@ -9,13 +9,15 @@ The conformance path has one central contract:
 
 ```mermaid
 flowchart LR
-    T["Normalized trace"] --> R["Runner"]
+    G["Versioned campaign"] --> R["Runner"]
+    T["Normalized trace"] --> R
     R --> O["Reference"]
     R --> A["Adapter"]
     A <--> E["External engine"]
     O --> D["Semantic diff"]
     A --> D
-    D --> P["Report"] --> M["Minimal trace"]
+    D --> P["Report"]
+    D --> M["Minimizer"] --> B["Failure bundle"]
 ```
 
 The adapter boundary is a versioned NDJSON stream, so the candidate engine does
@@ -27,6 +29,7 @@ not share process memory or implementation code with the reference.
 flowchart TD
     A["User code / CLI"] --> B["OrderFactory"]
     X["Canonical trace"] --> Y["Conformance runner"]
+    AG["Campaign generator"] --> X
     Y --> R
     Y --> Z["External stdio adapter"]
     R --> AA["Reference observation"]
@@ -67,6 +70,7 @@ flowchart TD
 | `src/tracebook/core/matching_engine.py` | Coordinates FIFO/pro-rata matching and trade creation |
 | `src/tracebook/core/price_level.py` | Price-level storage, depth aggregation, and market data snapshots |
 | `src/tracebook/conformance/model.py` | Versioned config, outcome, trade, queue-state, observation, and hashing contracts |
+| `src/tracebook/conformance/campaign.py` | Specified stateful trace generation, multi-trace execution, and atomic failure bundles |
 | `src/tracebook/conformance/reference.py` | Incremental adapter over normalized replay and reference matching semantics |
 | `src/tracebook/conformance/external.py` | Timeout-bounded external process and NDJSON transport |
 | `src/tracebook/conformance/compare.py` | Per-event semantic comparison and exact first-difference reports |
@@ -172,13 +176,21 @@ localization. Candidate process execution time is not reported as matching
 latency: it includes serialization, pipes, adapter translation, and scheduling.
 See `docs/conformance.md` for the protocol and canonical state rules.
 
+Campaign generation runs in a separate reference adapter before comparison. It
+uses only canonical reference state to choose valid active orders for lifecycle
+operations, then closes that generator-side adapter. Candidate behavior cannot
+change future events. Each completed trace is subsequently compared through a
+fresh candidate process, and the first divergence is passed to the existing
+deterministic minimizer.
+
 ## Extension Points
 
 Good first extension areas:
 
 - Add a candidate adapter without changing the reference semantics or protocol.
 - Add an adversarial case to the versioned suite with a new fixture hash.
-- Add a property generator whose shrunk output remains valid `MarketEvent` data.
+- Add a new versioned campaign profile without changing an existing profile's
+  generated traces.
 - Add benchmark scenarios in `src/tracebook/benchmarks/runner.py`.
 - Add order-flow patterns in `src/tracebook/simulation/order_generator.py`.
 - Add result-schema tests in `tests/test_benchmark_runner_json_output.py`.

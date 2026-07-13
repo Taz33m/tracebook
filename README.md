@@ -13,11 +13,45 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-260%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-285%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
 > **TL;DR:** Give Tracebook a normalized event trace and an adapter for your Rust, C++, Java, Python, or other matching engine. It runs the trace against an inspectable reference engine, identifies the first difference in outcomes, trades, resting orders, or queue priority, and reduces failures to a small reproducible trace. It also retains deterministic replay, verified L3 data workflows, and explicitly bounded local benchmarks.
+
+## Differential Campaigns
+
+Run a deterministic stateful campaign against any stdio adapter:
+
+```bash
+tracebook-conformance campaign \
+  --output-dir /tmp/tracebook-campaign \
+  --profile fifo-limit-v1 \
+  --seed 20260713 \
+  --traces 25 \
+  --events-per-trace 100 \
+  --candidate python examples/conformance_adapter.py
+```
+
+The generator consults only the reference book while creating each next event,
+so candidate behavior cannot steer the workload. Profile name, generator
+version, seed, and workload size produce a stable campaign ID. A passing run
+records every trace hash. A failing run stops at the first semantic drift and
+writes the complete evidence without overwriting an existing directory:
+
+```text
+/tmp/tracebook-campaign/
+  campaign.json
+  failure/
+    original.jsonl
+    original-report.json
+    minimized.jsonl
+    minimization.json
+```
+
+`failure/minimized.jsonl` is ready to promote into the candidate engine's
+regression suite. Use `fifo-limit-v1` for portable FIFO/LIMIT lifecycle
+semantics or `fifo-full-v1` to add market, IOC, and FOK instructions.
 
 ## Real-Engine Demo
 
@@ -52,6 +86,22 @@ Relevant report fields:
   "divergence": null
 }
 ```
+
+The same pinned engine also passes the first generated campaign gate:
+
+```bash
+tracebook-conformance campaign \
+  --output-dir /tmp/python-matching-engine-campaign \
+  --profile fifo-limit-v1 \
+  --seed 20260713 \
+  --traces 10 \
+  --events-per-trace 50 \
+  --timeout 20 \
+  --candidate python integrations/python_matching_engine/adapter.py
+```
+
+That run checks 500 generated events and records campaign ID
+`sha256:73cd8df3aefa3678f2d6a6750c39b4779d29f397aa406525e0c73e15fa2a491f`.
 
 Those 13 events cover FIFO fills, decimal partial fills, reduction, cancellation,
 replacement priority, rejection, clear, and multiple symbols. Against the full
@@ -90,6 +140,7 @@ python -m pytest
 python test_system.py
 tracebook-conformance sample /tmp/tracebook-conformance-v1
 tracebook-conformance suite /tmp/tracebook-conformance-v1 --candidate python examples/conformance_adapter.py
+tracebook-conformance campaign --output-dir /tmp/tracebook-campaign --traces 3 --events-per-trace 25 --candidate python examples/conformance_adapter.py
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-corpus sample /tmp/tracebook-sample-corpus
@@ -135,7 +186,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `260` pytest tests passing with `79.40%` statement coverage and a `75%` gate |
+| Unit tests | `285` pytest tests passing with `80.21%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -150,6 +201,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Component | What it does | Why it matters |
 | --- | --- | --- |
+| Differential campaigns | Generates versioned, stateful traces from a specified PRNG and minimizes the first drift | Finds lifecycle interactions that fixed cases miss while preserving exact, replayable evidence |
 | External-engine conformance | Drives any stdio NDJSON adapter event by event against the reference engine | Tests Rust, C++, Java, Python, or other engines without embedding them in Tracebook |
 | Semantic diffing | Compares outcomes, rejection codes, ordered trades, resting orders, and queue priority | Reports the exact first event and state path where behavior diverges |
 | Failing-trace minimization | Uses deterministic delta debugging to remove irrelevant events and reports whether the result is one-minimal or budget-limited | Turns long failures into reviewable regression fixtures without overstating reduction completeness |
@@ -176,14 +228,16 @@ All checks below were run during the latest production repo pass in this checkou
 
 ```mermaid
 flowchart LR
-    T["Normalized event trace"] --> R["Conformance runner"]
+    G["Versioned campaign generator"] --> R["Conformance runner"]
+    T["Normalized event trace"] --> R
     R --> O["Tracebook reference"]
     R --> A["stdio adapter"]
     A <--> E["External engine"]
     O --> D["Semantic diff"]
     A --> D
     D --> P["Versioned report"]
-    P --> M["Minimal failing trace"]
+    D --> M["Deterministic minimizer"]
+    M --> B["Failure bundle"]
 ```
 
 Core paths:
@@ -231,8 +285,8 @@ tracebook-conformance suite \
 ```
 
 See [`docs/conformance.md`](docs/conformance.md) to adapt an external engine and
-to read the versioned protocol, hashing rules, report schemas, and minimizer
-guarantees.
+to read the campaign profiles, versioned protocol, hashing rules, report
+schemas, and minimizer guarantees.
 
 Run a minimal match:
 
@@ -506,6 +560,7 @@ requires `--allow-remote`.
 | Command | Purpose |
 | --- | --- |
 | `tracebook-conformance sample suite/` | Copy the hash-locked synthetic conformance suite |
+| `tracebook-conformance campaign --output-dir run/ --candidate ./adapter` | Generate stateful traces and minimize the first drift |
 | `tracebook-conformance suite suite/ --candidate ./adapter` | Test an external engine across every standard case |
 | `tracebook-conformance run events.jsonl --candidate ./adapter` | Stop at the first semantic divergence in one trace |
 | `tracebook-conformance minimize events.jsonl --events-output minimal.jsonl --candidate ./adapter` | Reduce a failure and report minimality or budget exhaustion |
@@ -568,11 +623,15 @@ Public top-level exports:
 | `load_market_events` | Load CSV, JSON, or JSONL event files |
 | `replay_market_events` | Replay normalized events into per-symbol books |
 | `ConformanceConfig` | Matching and numeric-normalization contract for a comparison |
+| `CampaignProfile` | Versioned generated semantic surface and conformance config |
+| `CampaignResult` | Multi-trace result with stable identity and optional first failure |
 | `EngineAdapter` | Typed interface for pluggable in-process candidate engines |
 | `ReferenceEngineAdapter` | Incremental adapter over Tracebook's reference semantics |
 | `ExternalProcessAdapterFactory` | Fresh stdio candidate process for each run or minimization trial |
 | `run_conformance` | Produce the first-divergence or conformant report for one trace |
+| `run_campaign` | Generate and compare traces through the first minimized divergence |
 | `minimize_failing_trace` | Delta-debug a divergent trace under a run budget |
+| `write_campaign_artifacts` | Atomically persist a campaign report and optional failure bundle |
 
 ## Outputs
 
@@ -584,6 +643,7 @@ Public top-level exports:
 | Corpus manifest and golden JSON | Source rights, sanitization/capture metadata, file hashes, canonical event digest, sequence range, and complete final depth |
 | Corpus benchmark/comparison JSON | Raw timing samples, machine/dependency metadata, corpus identity, phase summaries, and explicit environment differences |
 | Conformance report JSON | Trace/config identity, engine metadata, compared event count, final state hash, and exact first divergence |
+| Campaign JSON + failure bundle | Stable generator/profile identity, per-trace seeds and hashes, original first-divergence evidence, and minimized JSONL reproducer |
 | Minimization JSON + JSONL | Reduction statistics, target failure category, minimized trace hash, and executable reproducer |
 | Conformance suite JSON | Per-case fixture hashes, tags, and complete candidate reports |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
@@ -596,7 +656,7 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 ```text
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
-  conformance/              adapters, protocol, semantic diffing, minimizer, suite
+  conformance/              adapters, campaigns, protocol, semantic diffing, minimizer, suite
   events/                   normalized file loading and historical event replay
   corpus/                   capture, manifests, bundled fixture, verification, benchmarks
   simulation/               synthetic order streams and event simulation
@@ -617,6 +677,7 @@ pyproject.toml              build-system and tool configuration
 Claims:
 
 - Runs external matching engines through a versioned, language-neutral stdio protocol and compares each event's observable semantics.
+- Generates versioned stateful campaigns independently of candidate behavior and records stable identities and trace hashes.
 - Localizes the first difference in outcome, rejection code, trade, resting state, or queue priority and can reduce the failing trace.
 - Ships a synthetic, SHA-256-locked standard conformance suite with independently configurable matching policies.
 - Implements FIFO and pro-rata matching paths for supported order types.
@@ -648,6 +709,7 @@ Non-claims:
 - Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - The normalized replay contract is venue-neutral; exchange sequence checks and feed-specific semantics belong in adapters.
 - Protocol version 1 compares quantities after explicit decimal normalization; engines requiring different fixed-point rules must configure and document that boundary.
+- Secure campaign bundle publication requires descriptor-relative directory operations; campaign generation and comparison remain available without them.
 - Live Coinbase corpora are local artifacts. Pseudonymization removes unnecessary identifiers but does not alter Coinbase's market-data terms.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.

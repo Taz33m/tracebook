@@ -23,6 +23,7 @@ from tracebook.corpus import benchmark_coinbase_corpus, compare_corpus_benchmark
 from tracebook.conformance import (
     ReferenceEngineAdapter,
     load_conformance_suite,
+    run_campaign,
     run_conformance,
     run_conformance_suite,
 )
@@ -560,4 +561,65 @@ def test_conformance_report_and_suite_schemas():
         suite_report["cases"][0],
         ["name", "tags", "events_sha256", "report"],
         "conformance.suite.case",
+    )
+
+
+def test_conformance_campaign_schema():
+    campaign = _json_roundtrip(
+        run_campaign(
+            ReferenceEngineAdapter,
+            profile="fifo-limit-v1",
+            seed=23,
+            traces=2,
+            events_per_trace=12,
+            max_minimize_runs=10,
+        ).to_dict()
+    )
+
+    _require_keys(
+        campaign,
+        [
+            "schema_version",
+            "artifact_type",
+            "generator_version",
+            "campaign_id",
+            "profile",
+            "seed",
+            "requested_traces",
+            "completed_traces",
+            "events_per_trace",
+            "generated_events",
+            "max_minimize_runs",
+            "candidate_runs",
+            "candidate_engine",
+            "stopped_at_first_divergence",
+            "conformant",
+            "traces",
+            "failure",
+        ],
+        "conformance.campaign",
+    )
+    assert campaign["artifact_type"] == "tracebook.conformance.campaign"
+    assert campaign["generator_version"] == 1
+    assert campaign["completed_traces"] == 2
+    assert campaign["generated_events"] == 24
+    assert campaign["conformant"] is True
+    assert campaign["failure"] is None
+    _require_keys(
+        campaign["profile"],
+        ["name", "description", "config", "order_types", "symbols"],
+        "conformance.campaign.profile",
+    )
+    _require_keys(
+        campaign["traces"][0],
+        [
+            "index",
+            "seed",
+            "event_count",
+            "trace_sha256",
+            "compared_events",
+            "conformant",
+            "divergence",
+        ],
+        "conformance.campaign.trace",
     )

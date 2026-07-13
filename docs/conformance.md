@@ -58,7 +58,63 @@ delta debugging. It retains a candidate subsequence only when the same failure
 category still occurs. The report sets `one_minimal` only after every individual
 deletion in the final round no longer reproduces that category. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
-made.
+made. Every fresh candidate process must report the same engine metadata as the
+initial failing run; a binary or adapter identity change aborts minimization.
+
+## Differential Campaigns
+
+Campaigns generate stateful traces, compare them one at a time, and stop at the
+first divergence. The next generated event depends only on the reference
+engine's active orders. Candidate output never feeds back into generation.
+
+```bash
+tracebook-conformance campaign \
+  --output-dir /tmp/tracebook-campaign \
+  --profile fifo-limit-v1 \
+  --seed 20260713 \
+  --traces 25 \
+  --events-per-trace 100 \
+  --max-minimize-runs 100 \
+  --candidate ./my-engine-adapter
+```
+
+Profiles are named and versioned because their generated semantic surface is a
+public reproducibility boundary:
+
+| Profile | Generated surface |
+| --- | --- |
+| `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicate active IDs, inactive lifecycle requests, and two symbols |
+| `fifo-full-v1` | Everything in `fifo-limit-v1`, plus market, IOC, and FOK instructions |
+
+Generator version 1 specifies SplitMix64 independently of Python's `random`
+module. The same profile, generator version, unsigned 64-bit seed, trace count,
+and events-per-trace value produce the same campaign ID and trace hashes across
+supported Python versions. Changing candidate metadata or behavior does not
+change that identity.
+
+The output path must not already exist. Tracebook reserves that exact directory
+before starting candidate work and keeps its inode open. It installs every
+artifact with descriptor-relative, exclusive creates, writes `campaign.json`,
+then removes `.tracebook-campaign-reservation` as the final commit signal. It
+never replaces or mutates a re-resolved destination path. A directory that
+still contains the reservation marker is incomplete and must be explicitly
+removed before retrying; this conservative rule also applies after handled
+candidate or write failures. Bundle publication fails closed before creating
+the output on platforms where Python lacks descriptor-relative directory
+operations; `run_campaign` generation and comparison remain available. A
+divergent completed run also writes:
+
+| Path | Contents |
+| --- | --- |
+| `failure/original.jsonl` | Complete generated trace containing the first drift |
+| `failure/original-report.json` | Exact first-divergence semantic report |
+| `failure/minimized.jsonl` | Reduced trace that preserves the failure category |
+| `failure/minimization.json` | Reduction budget, run count, hashes, and minimality claim |
+
+The command exits `0` when all requested traces conform, `1` on semantic drift,
+and `2` for invalid configuration, adapter, protocol, or filesystem errors.
+Promote the minimized JSONL file into a regression suite after reviewing the
+candidate and reference semantics.
 
 ## What Is Compared
 
@@ -268,6 +324,11 @@ minimized trace hash, target failure category, and the final conformance report.
 Suite reports use `artifact_type = "tracebook.conformance.suite_report"` and
 retain the suite hash plus each case's tags, fixture hash, and full report. All
 three artifact schemas start at version `1`.
+
+Campaign reports use `artifact_type = "tracebook.conformance.campaign"` and
+include generator/profile versions, campaign identity, requested and completed
+work, candidate metadata, every trace seed and hash, and relative failure-bundle
+paths. Campaign artifacts also start at schema version `1`.
 
 ## Boundaries
 

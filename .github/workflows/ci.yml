@@ -90,10 +90,18 @@ jobs:
             /tmp/tracebook-conformance-suite \
             --output /tmp/conformance-suite.json \
             --candidate python "$GITHUB_WORKSPACE/examples/conformance_adapter.py"
+          tracebook-conformance campaign \
+            --output-dir /tmp/tracebook-conformance-campaign \
+            --profile fifo-limit-v1 \
+            --seed 20260713 \
+            --traces 3 \
+            --events-per-trace 25 \
+            --candidate python "$GITHUB_WORKSPACE/examples/conformance_adapter.py"
           python -c "import json; assert json.load(open('/tmp/replay.json'))['applied_events'] == 5"
           python -c "import json; assert json.load(open('/tmp/coinbase.json'))['normalization']['sequence_complete'] is True"
           python -c "import json; assert json.load(open('/tmp/corpus-verify.json'))['verified'] is True"
           python -c "import json; assert json.load(open('/tmp/conformance-suite.json'))['conformant'] is True"
+          python -c "import json; p=json.load(open('/tmp/tracebook-conformance-campaign/campaign.json')); assert p['conformant'] is True and p['generated_events'] == 75 and p['generator_version'] == 1; assert p['campaign_id'] == 'sha256:a4780d0276954c19354687f4113812a65fabf47924983a110bd93e768a55c7b1'; assert [t['trace_sha256'] for t in p['traces']] == ['sha256:2d1fc32a15af638be554bc67d1f1e8fc0e668262ea68689df97e6f97402b3cb2', 'sha256:391e15186470651f593d436fa7440830465fbdf41e51e5c625c873648734493d', 'sha256:cd36690855aa9ab4d6b372614082cd02aa5c6b52b207e39e910efefa9e36aa23']"
 
       - name: Check installed dependencies
         run: python -m pip check

@@ -117,10 +117,27 @@ tracebook-conformance minimize events.jsonl \
   --candidate ./engine-adapter
 ```
 
+Generate stateful traces and minimize the first drift:
+
+```bash
+tracebook-conformance campaign \
+  --output-dir /tmp/tracebook-campaign \
+  --profile fifo-limit-v1 \
+  --seed 20260713 \
+  --traces 25 \
+  --events-per-trace 100 \
+  --max-minimize-runs 100 \
+  --candidate ./engine-adapter
+```
+
+Campaign output is an atomic directory containing `campaign.json` and, on a
+failure, the original trace/report plus a minimized JSONL reproducer and its
+reduction report. The output path must not exist before the run.
+
 `--candidate` must be the final option; all remaining values are passed to the
 adapter command. The suite carries its own algorithm, tick size, self-trade
 policy, and quantity normalization per case. See `docs/conformance.md` for the
-stdio protocol and artifact contracts.
+stdio protocol, campaign profiles, and artifact contracts.
 
 ## Benchmark CLI
 

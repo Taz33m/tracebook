@@ -10,6 +10,7 @@ on:
       - "integrations/python_matching_engine/**"
       - "src/tracebook/conformance/**"
       - "src/tracebook/events/market_replay.py"
+      - "tests/test_conformance_campaign.py"
       - "tests/test_external_integrations.py"
 
 permissions:
@@ -72,6 +73,19 @@ jobs:
           fi
           python -c "import json; p=json.load(open('/tmp/python-matching-engine-suite.json')); passed={c['name'] for c in p['cases'] if c['report']['conformant']}; assert p['suite_hash'] == 'sha256:0ec99b73c86ce04b9a1fc123a4cbf93e74a69a80c664d0d908c8a22d8528bfe7'; assert passed == {'fifo-lifecycle', 'deep-cancellation'}"
 
+      - name: Run the generated FIFO lifecycle campaign
+        run: |
+          tracebook-conformance campaign \
+            --output-dir /tmp/python-matching-engine-campaign \
+            --profile fifo-limit-v1 \
+            --seed 20260713 \
+            --traces 10 \
+            --events-per-trace 50 \
+            --max-minimize-runs 40 \
+            --timeout 20 \
+            --candidate python integrations/python_matching_engine/adapter.py
+          python -c "import json; p=json.load(open('/tmp/python-matching-engine-campaign/campaign.json')); assert p['campaign_id'] == 'sha256:73cd8df3aefa3678f2d6a6750c39b4779d29f397aa406525e0c73e15fa2a491f'; assert p['conformant'] is True and p['generated_events'] == 500; assert p['candidate_engine']['version'] == 'f94150294a85'"
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -79,4 +93,5 @@ jobs:
           path: |
             /tmp/python-matching-engine-compatible.json
             /tmp/python-matching-engine-suite.json
+            /tmp/python-matching-engine-campaign
           if-no-files-found: error

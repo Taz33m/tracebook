@@ -13,13 +13,17 @@ from .events import (
     replay_market_events,
 )
 from .conformance import (
+    CampaignProfile,
+    CampaignResult,
     ConformanceConfig,
     ConformanceReport,
     EngineAdapter,
     ExternalProcessAdapterFactory,
     ReferenceEngineAdapter,
     minimize_failing_trace,
+    run_campaign,
     run_conformance,
+    write_campaign_artifacts,
 )
 from ._version import __version__
 
@@ -43,12 +47,16 @@ __all__ = [
     "load_market_events",
     "replay_market_event_file",
     "replay_market_events",
+    "CampaignProfile",
+    "CampaignResult",
     "ConformanceConfig",
     "ConformanceReport",
     "EngineAdapter",
     "ExternalProcessAdapterFactory",
     "ReferenceEngineAdapter",
     "minimize_failing_trace",
+    "run_campaign",
     "run_conformance",
+    "write_campaign_artifacts",
     "__version__",
 ]

@@ -6,6 +6,19 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Began 0.4.0 development with deterministic, versioned differential campaigns.
+  Stateful generated traces are driven only by the reference engine, stop at
+  the first candidate divergence, and atomically emit the original failure,
+  exact semantic report, and automatically minimized reproducer.
+- Added `fifo-limit-v1` and `fifo-full-v1` campaign profiles, a specified
+  cross-Python SplitMix64 generator, a stable campaign identity, and the
+  `tracebook-conformance campaign` command for local and CI use.
+- Locked candidate identity across campaign and minimization subprocesses,
+  reserved the exact output path before candidate work, rejected changed output
+  reservations without overwriting them, failed closed where descriptor-safe
+  commits are unavailable, and fixed campaign IDs and trace hashes across the
+  Python CI matrix.
+
 ## 0.3.0 - 2026-07-13
 
 - Added the first maintained third-party engine integration: a commit-pinned
