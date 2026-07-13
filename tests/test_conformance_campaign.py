@@ -1,4 +1,5 @@
 import json
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -169,14 +170,14 @@ def test_conformant_campaign_has_stable_identity_and_atomic_artifact(tmp_path):
     assert payload["candidate_runs"] == 3
     assert payload["failure"] is None
     assert [trace["seed"] for trace in payload["traces"]] == [trace.seed for trace in result.traces]
-    assert not (tmp_path / ".campaign.lock").exists()
+    assert not (destination / ".tracebook-campaign-reservation").exists()
 
     with pytest.raises(ConformanceError, match="already exists"):
         write_campaign_artifacts(result, destination)
-    assert not (tmp_path / ".campaign.lock").exists()
+    assert not (destination / ".tracebook-campaign-reservation").exists()
 
 
-def test_campaign_artifact_writer_rejects_an_active_output_lock(tmp_path):
+def test_campaign_artifact_writer_rejects_an_active_output_reservation(tmp_path):
     result = run_campaign(
         ReferenceEngineAdapter,
         traces=1,
@@ -184,11 +185,12 @@ def test_campaign_artifact_writer_rejects_an_active_output_lock(tmp_path):
         max_minimize_runs=1,
     )
     destination = tmp_path / "campaign"
-    lock = tmp_path / ".campaign.lock"
-    lock.mkdir()
+    marker = destination / ".tracebook-campaign-reservation"
 
-    with pytest.raises(ConformanceError, match="output is locked"):
-        write_campaign_artifacts(result, destination)
+    with campaign_module._CampaignOutputReservation(destination):
+        assert marker.is_file()
+        with pytest.raises(ConformanceError, match="already exists"):
+            write_campaign_artifacts(result, destination)
 
     assert not destination.exists()
 
@@ -223,7 +225,7 @@ def test_campaign_artifact_writer_serializes_concurrent_writers(tmp_path, monkey
     writer.start()
     try:
         assert entered_write.wait(timeout=5)
-        with pytest.raises(ConformanceError, match="output is locked"):
+        with pytest.raises(ConformanceError, match="already exists"):
             write_campaign_artifacts(result, destination)
     finally:
         release_write.set()
@@ -232,7 +234,26 @@ def test_campaign_artifact_writer_serializes_concurrent_writers(tmp_path, monkey
     assert not writer.is_alive()
     assert writer_errors == []
     assert (destination / "campaign.json").is_file()
-    assert not (tmp_path / ".campaign.lock").exists()
+    assert not (destination / ".tracebook-campaign-reservation").exists()
+
+
+def test_campaign_writer_never_replaces_a_changed_reservation(tmp_path):
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    destination = tmp_path / "campaign"
+
+    with campaign_module._CampaignOutputReservation(destination) as reservation:
+        shutil.rmtree(destination)
+        destination.mkdir()
+        with pytest.raises(ConformanceError, match="reservation changed"):
+            reservation.write(result)
+
+    assert destination.is_dir()
+    assert tuple(destination.iterdir()) == ()
 
 
 def test_campaign_automatically_minimizes_and_persists_first_failure(tmp_path):
@@ -354,6 +375,64 @@ def test_campaign_cli_rejects_existing_output_before_running(tmp_path, monkeypat
 
     assert exit_code == 2
     assert "already exists" in capsys.readouterr().err
+
+
+def test_campaign_cli_reserves_output_before_candidate_work(tmp_path, monkeypatch):
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    output = tmp_path / "campaign"
+    run_started = threading.Event()
+    release_run = threading.Event()
+    run_calls = []
+    first_exit_codes = []
+
+    def blocking_run(*args, **kwargs):
+        run_calls.append(True)
+        run_started.set()
+        release_run.wait(timeout=5)
+        return result
+
+    def first_cli():
+        first_exit_codes.append(
+            main(
+                [
+                    "campaign",
+                    "--output-dir",
+                    str(output),
+                    "--candidate",
+                    "unused-adapter",
+                ]
+            )
+        )
+
+    monkeypatch.setattr("tracebook.conformance.cli.run_campaign", blocking_run)
+    first = threading.Thread(target=first_cli)
+    first.start()
+    try:
+        assert run_started.wait(timeout=5)
+        assert (output / ".tracebook-campaign-reservation").is_file()
+        second_exit_code = main(
+            [
+                "campaign",
+                "--output-dir",
+                str(output),
+                "--candidate",
+                "unused-adapter",
+            ]
+        )
+    finally:
+        release_run.set()
+        first.join(timeout=5)
+
+    assert not first.is_alive()
+    assert first_exit_codes == [0]
+    assert second_exit_code == 2
+    assert run_calls == [True]
+    assert (output / "campaign.json").is_file()
 
 
 def test_campaign_is_wired_into_docs_and_ci():

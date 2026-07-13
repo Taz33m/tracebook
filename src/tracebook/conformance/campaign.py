@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import tempfile
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from numbers import Integral
@@ -539,55 +541,143 @@ def _write_events(path: Path, events: Sequence[MarketEvent]) -> None:
             )
 
 
-def _path_occupied(path: Path) -> bool:
-    return path.exists() or path.is_symlink()
+_RESERVATION_MARKER = ".tracebook-campaign-reservation"
+
+
+class _CampaignOutputReservation:
+    """Own one exact output path until its complete bundle is committed."""
+
+    def __init__(self, destination: str | Path) -> None:
+        self.target = Path(destination).expanduser()
+        self._marker = self.target / _RESERVATION_MARKER
+        self._token = uuid.uuid4().hex
+        self._identity: Optional[Tuple[int, int]] = None
+        self._active = False
+        self._committed = False
+
+    def __enter__(self) -> "_CampaignOutputReservation":
+        try:
+            self.target.parent.mkdir(parents=True, exist_ok=True)
+            self.target.mkdir()
+        except FileExistsError as exc:
+            raise ConformanceError(f"campaign output already exists: {self.target}") from exc
+        except OSError as exc:
+            raise ConformanceError(
+                f"could not reserve campaign output {self.target}: {exc}"
+            ) from exc
+
+        try:
+            self._marker.write_text(self._token, encoding="ascii")
+            stat = self.target.stat()
+            self._identity = (stat.st_dev, stat.st_ino)
+            self._active = True
+        except OSError as exc:
+            self._marker.unlink(missing_ok=True)
+            try:
+                self.target.rmdir()
+            except OSError:
+                pass
+            raise ConformanceError(
+                f"could not reserve campaign output {self.target}: {exc}"
+            ) from exc
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    def _same_directory(self) -> bool:
+        try:
+            stat = self.target.stat()
+        except OSError:
+            return False
+        return not self.target.is_symlink() and (stat.st_dev, stat.st_ino) == self._identity
+
+    def _owns_clean_reservation(self) -> bool:
+        if not self._active or not self._same_directory():
+            return False
+        try:
+            return self._marker.read_text(encoding="ascii") == self._token and tuple(
+                self.target.iterdir()
+            ) == (self._marker,)
+        except OSError:
+            return False
+
+    def _restore_marker(self) -> None:
+        if not self._same_directory():
+            return
+        try:
+            if not any(self.target.iterdir()):
+                self._marker.write_text(self._token, encoding="ascii")
+        except OSError:
+            pass
+
+    def close(self) -> None:
+        if self._committed or not self._active:
+            return
+        if self._owns_clean_reservation():
+            self._marker.unlink(missing_ok=True)
+            try:
+                self.target.rmdir()
+            except OSError:
+                pass
+        self._active = False
+
+    def write(self, result: CampaignResult) -> Path:
+        """Commit a complete campaign bundle over this exact reservation."""
+        if not isinstance(result, CampaignResult):
+            raise ConformanceError("result must be a CampaignResult")
+        if not self._active or self._committed:
+            raise ConformanceError("campaign output reservation is not active")
+
+        temporary = Path(
+            tempfile.mkdtemp(prefix=f".{self.target.name}.", dir=str(self.target.parent))
+        )
+        cleanup: Optional[Path] = temporary
+        try:
+            if result.failure is not None:
+                failure_dir = temporary / "failure"
+                failure_dir.mkdir()
+                _write_events(failure_dir / "original.jsonl", result.failure.trace.events)
+                _write_json(
+                    failure_dir / "original-report.json",
+                    result.failure.trace.report.to_dict(),
+                )
+                _write_events(
+                    failure_dir / "minimized.jsonl",
+                    result.failure.minimization.events,
+                )
+                _write_json(
+                    failure_dir / "minimization.json",
+                    result.failure.minimization.to_dict(),
+                )
+            _write_json(temporary / "campaign.json", result.to_dict())
+            if not self._owns_clean_reservation():
+                raise ConformanceError(
+                    f"campaign output reservation changed before commit: {self.target}"
+                )
+
+            try:
+                self._marker.unlink()
+                if os.name == "nt":
+                    self.target.rmdir()
+                    temporary.rename(self.target)
+                else:
+                    os.replace(temporary, self.target)
+            except OSError as exc:
+                self._restore_marker()
+                raise ConformanceError(
+                    f"could not commit campaign output {self.target}: {exc}"
+                ) from exc
+            cleanup = None
+            self._committed = True
+            self._active = False
+            return self.target / "campaign.json"
+        finally:
+            if cleanup is not None:
+                shutil.rmtree(cleanup, ignore_errors=True)
 
 
 def write_campaign_artifacts(result: CampaignResult, destination: str | Path) -> Path:
-    """Atomically persist a campaign summary and its optional failure bundle."""
-    if not isinstance(result, CampaignResult):
-        raise ConformanceError("result must be a CampaignResult")
-    target = Path(destination).expanduser()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    lock = target.with_name(f".{target.name}.lock")
-    try:
-        lock.mkdir()
-    except FileExistsError as exc:
-        raise ConformanceError(f"campaign output is locked: {target}") from exc
-    except OSError as exc:
-        raise ConformanceError(f"could not reserve campaign output {target}: {exc}") from exc
-
-    temporary: Optional[Path] = None
-    try:
-        if _path_occupied(target):
-            raise ConformanceError(f"campaign output already exists: {target}")
-        temporary = Path(tempfile.mkdtemp(prefix=f".{target.name}.", dir=str(target.parent)))
-        if result.failure is not None:
-            failure_dir = temporary / "failure"
-            failure_dir.mkdir()
-            _write_events(failure_dir / "original.jsonl", result.failure.trace.events)
-            _write_json(
-                failure_dir / "original-report.json",
-                result.failure.trace.report.to_dict(),
-            )
-            _write_events(
-                failure_dir / "minimized.jsonl",
-                result.failure.minimization.events,
-            )
-            _write_json(
-                failure_dir / "minimization.json",
-                result.failure.minimization.to_dict(),
-            )
-        _write_json(temporary / "campaign.json", result.to_dict())
-        if _path_occupied(target):
-            raise ConformanceError(f"campaign output already exists: {target}")
-        try:
-            temporary.rename(target)
-        except OSError as exc:
-            raise ConformanceError(f"could not commit campaign output {target}: {exc}") from exc
-        temporary = None
-    finally:
-        if temporary is not None:
-            shutil.rmtree(temporary, ignore_errors=True)
-        shutil.rmtree(lock, ignore_errors=True)
-    return target / "campaign.json"
+    """Reserve a new path and atomically persist a complete campaign bundle."""
+    with _CampaignOutputReservation(destination) as reservation:
+        return reservation.write(result)

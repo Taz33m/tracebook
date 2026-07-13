@@ -14,8 +14,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   cross-Python SplitMix64 generator, a stable campaign identity, and the
   `tracebook-conformance campaign` command for local and CI use.
 - Locked candidate identity across campaign and minimization subprocesses,
-  preflighted occupied output paths, serialized concurrent artifact writers,
-  and fixed campaign IDs and trace hashes across the Python CI matrix.
+  reserved the exact output path before candidate work, rejected changed output
+  reservations without overwriting them, and fixed campaign IDs and trace
+  hashes across the Python CI matrix.
 
 ## 0.3.0 - 2026-07-13
 

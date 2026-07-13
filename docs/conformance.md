@@ -92,7 +92,12 @@ and events-per-trace value produce the same campaign ID and trace hashes across
 supported Python versions. Changing candidate metadata or behavior does not
 change that identity.
 
-The output directory is created atomically and must not already exist. Every
+The output path must not already exist. Tracebook reserves that exact path
+before starting candidate work with a `.tracebook-campaign-reservation` marker,
+then atomically replaces only its verified reservation with the completed
+temporary bundle. A competing, removed, or modified reservation is never
+overwritten. Handled failures remove a clean reservation; a hard process crash
+can leave the marker directory for explicit operator cleanup. Every completed
 run writes `campaign.json`. A divergent run also writes:
 
 | Path | Contents |

@@ -12,9 +12,9 @@ from .._version import __version__
 from ..core.order import SelfTradePolicy
 from ..events import load_market_events
 from .campaign import (
+    _CampaignOutputReservation,
     campaign_profile_names,
     run_campaign,
-    write_campaign_artifacts,
 )
 from .compare import run_conformance
 from .external import AdapterProtocolError, ExternalProcessAdapterFactory
@@ -149,12 +149,6 @@ def _require_distinct_paths(*paths: Optional[str]) -> None:
         raise ConformanceError("input and output paths must be distinct")
 
 
-def _require_new_directory(path: str) -> None:
-    target = Path(path).expanduser()
-    if target.exists() or target.is_symlink():
-        raise ConformanceError(f"campaign output already exists: {target}")
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -201,16 +195,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Minimized events written: {Path(args.events_output)}")
             return 0
         if args.command == "campaign":
-            _require_new_directory(args.output_dir)
-            campaign_result = run_campaign(
-                _candidate_factory(args),
-                profile=args.profile,
-                seed=args.seed,
-                traces=args.traces,
-                events_per_trace=args.events_per_trace,
-                max_minimize_runs=args.max_minimize_runs,
-            )
-            report_path = write_campaign_artifacts(campaign_result, args.output_dir)
+            with _CampaignOutputReservation(args.output_dir) as reservation:
+                campaign_result = run_campaign(
+                    _candidate_factory(args),
+                    profile=args.profile,
+                    seed=args.seed,
+                    traces=args.traces,
+                    events_per_trace=args.events_per_trace,
+                    max_minimize_runs=args.max_minimize_runs,
+                )
+                report_path = reservation.write(campaign_result)
             print(f"Campaign report written: {report_path}")
             print(
                 f"Traces completed: {len(campaign_result.traces)}/"
