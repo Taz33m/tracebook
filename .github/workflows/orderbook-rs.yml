@@ -35,6 +35,7 @@ jobs:
       - name: Configure integration paths
         run: |
           echo "ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/tracebook-orderbook-rs" >> "$GITHUB_ENV"
+          echo "FAULTY_ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/faulty-orderbook-adapter" >> "$GITHUB_ENV"
           echo "REPORT_ROOT=$RUNNER_TEMP/orderbook-rs" >> "$GITHUB_ENV"
 
       - name: Install Tracebook
@@ -126,7 +127,64 @@ jobs:
           report = json.loads((Path(os.environ["REPORT_ROOT"]) / "campaign" / "campaign.json").read_text())
           assert report["conformant"] is True
           assert report["generated_events"] == 1000
-          assert report["campaign_id"] == "sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d"
+          assert report["campaign_id"] == "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9"
+          assert report["semantic_coverage"]["coverage_ratio"] == 1.0
+          PY
+
+      - name: Prove event-173 queue drift reduces to five events
+        run: |
+          set +e
+          tracebook-conformance campaign \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 1000 \
+            --events-per-trace 200 \
+            --candidate-cmd "$FAULTY_ADAPTER" \
+            --corpus-dir "$REPORT_ROOT/queue-priority-corpus" \
+            --stop-after-first \
+            --junit-output "$REPORT_ROOT/queue-priority-campaign.xml"
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected the intentional queue-priority drift to produce exit 1, got $status" >&2
+            exit 1
+          fi
+
+          FAILURE_DIR="$REPORT_ROOT/queue-priority-corpus/failure-bc8b19d3e0e3441a98db"
+          tracebook-conformance reproduce \
+            "$FAILURE_DIR/reduced.jsonl" \
+            --candidate-cmd "$FAULTY_ADAPTER" \
+            --output "$REPORT_ROOT/queue-priority-reproduction.json" \
+            --junit-output "$REPORT_ROOT/queue-priority-reproduction.xml"
+          tracebook-conformance run \
+            "$FAILURE_DIR/reduced.jsonl" \
+            --candidate-cmd "$ADAPTER" \
+            --output "$REPORT_ROOT/queue-priority-regression.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          root = Path(os.environ["REPORT_ROOT"])
+          failure_dir = root / "queue-priority-corpus" / "failure-bc8b19d3e0e3441a98db"
+          campaign = json.loads((failure_dir / "campaign.json").read_text())
+          failure = json.loads((failure_dir / "failure.json").read_text())
+          reproduction = json.loads((root / "queue-priority-reproduction.json").read_text())
+          regression = json.loads((root / "queue-priority-regression.json").read_text())
+          assert campaign["campaign_id"] == "sha256:3630ea1789e27b6e416e1e241ca4ef8d5a28f0f2bf660fae3c0a1c8ff39ba7c6"
+          assert campaign["semantic_coverage"]["covered_count"] == 10
+          assert failure["failure_class"] == "queue-priority drift"
+          assert failure["original_divergence_event"] == 173
+          assert failure["original_event_count"] == 173
+          assert failure["reduced_event_count"] == 5
+          assert failure["one_minimal"] is True
+          assert reproduction["reproduced"] is True
+          assert reproduction["conformance_report"]["divergence"]["path"] == "$.observation.trades[0].sell_order_id"
+          assert regression["conformant"] is True
+          assert ElementTree.parse(root / "queue-priority-campaign.xml").getroot().attrib["failures"] == "1"
+          assert ElementTree.parse(root / "queue-priority-reproduction.xml").getroot().attrib["failures"] == "0"
           PY
 
       - name: Prove Rust-side trade drift is detected

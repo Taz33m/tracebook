@@ -30,9 +30,11 @@ tracebook-conformance suite \
   --candidate python examples/conformance_adapter.py
 ```
 
-`--candidate` and its arguments must be last because every remaining argument
-belongs to the candidate process. A conformant suite exits `0`; a semantic
-divergence exits `1`; an invalid trace, manifest, command, or protocol exits `2`.
+Use `--candidate-cmd './adapter --flag value'` when Tracebook options follow the
+candidate command. The legacy `--candidate ./adapter --flag value` form remains
+available, but it must be last because every remaining argument belongs to the
+candidate process. A conformant suite exits `0`; a semantic divergence exits
+`1`; an invalid trace, manifest, command, or protocol exits `2`.
 
 Run one normalized CSV, JSON, JSONL, or NDJSON trace:
 
@@ -63,6 +65,22 @@ stops the search first, `budget_exhausted` is true and no minimality claim is
 made. Every fresh candidate process must report the same engine metadata as the
 initial failing run; a binary or adapter identity change aborts minimization.
 
+Replay a corpus reproducer and verify its exact stored divergence:
+
+```bash
+tracebook-conformance reproduce \
+  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
+  --output reproduction.json \
+  --junit-output reproduction.xml \
+  --candidate-cmd './my-engine-adapter --tracebook-stdio'
+```
+
+When `failure.json` is beside the trace, `reproduce` loads its config and
+requires the same failure class, event, structural path, reference value, and
+candidate value. It exits `0` only for that exact reproduction and exits `1`
+when the trace conforms or fails differently. Without metadata it accepts any
+semantic divergence, which is useful for older minimized traces.
+
 ## Differential Campaigns
 
 Campaigns generate stateful traces, compare them one at a time, and stop at the
@@ -71,13 +89,15 @@ engine's active orders. Candidate output never feeds back into generation.
 
 ```bash
 tracebook-conformance campaign \
-  --output-dir /tmp/tracebook-campaign \
   --profile fifo-limit-v1 \
-  --seed 20260713 \
-  --traces 25 \
-  --events-per-trace 100 \
+  --seed 42 \
+  --traces 1000 \
+  --events-per-trace 200 \
   --max-minimize-runs 100 \
-  --candidate ./my-engine-adapter
+  --candidate-cmd ./my-engine-adapter \
+  --corpus-dir .tracebook/corpus \
+  --stop-after-first \
+  --junit-output .tracebook/campaign.xml
 ```
 
 Profiles are named and versioned because their generated semantic surface is a
@@ -85,14 +105,43 @@ public reproducibility boundary:
 
 | Profile | Generated surface |
 | --- | --- |
-| `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicate active IDs, inactive lifecycle requests, and two symbols |
+| `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicate active IDs, inactive lifecycle requests, multiple symbols, and a structured queue-priority probe |
 | `fifo-full-v1` | Everything in `fifo-limit-v1`, plus market, IOC, and FOK instructions |
 
-Generator version 1 specifies SplitMix64 independently of Python's `random`
-module. The same profile, generator version, unsigned 64-bit seed, trace count,
-and events-per-trace value produce the same campaign ID and trace hashes across
-supported Python versions. Changing candidate metadata or behavior does not
-change that identity.
+### `fifo-limit-v1` Capability Profile
+
+`fifo-limit-v1` is the smallest portable external-engine contract maintained by
+Tracebook. A candidate claiming this profile is expected to agree on:
+
+| Capability | Observable contract |
+| --- | --- |
+| Limit orders | BUY and SELL limit submission, crossing, resting, and partial fills |
+| FIFO priority | Price priority followed by insertion order at one price level |
+| Cancel | Active cancellation applies; inactive cancellation rejects with `ORDER_NOT_ACTIVE` |
+| Reduce | Quantity decreases in place and retains queue priority; a full reduction removes the order |
+| Replace | Validated cancel-and-new under the same source ID; replacement loses queue priority |
+| Clear | Removes one symbol's resting state without mutating other symbols |
+| Active IDs | A duplicate source ID rejects with `DUPLICATE_ORDER_ID` while active |
+| Multiple symbols | Source-ID domains and queue state remain independent per symbol |
+| Numeric normalization | Tick size `0.01`, half-even price snapping, and 12 quantity decimal places by default |
+| Output | Applied/rejected outcome, ordered source-ID trades, resting count, and complete priority-state hash after every event |
+
+The profile deliberately excludes market, IOC, FOK, pro-rata, and self-trade
+prevention semantics. Use `fifo-full-v1` for the three additional order
+instructions. STP and pro-rata remain covered by the fixed standard suite, not
+by either generated profile.
+
+Generator version 2 specifies SplitMix64 independently of Python's `random`
+module and adds a five-event FIFO priority probe in an isolated symbol. Its end
+position is `min(events_per_trace, 133 + trace_seed % 43)`, so campaign seed 42
+puts the first trace's probe at events 169-173. The probe rests two makers at one
+price, reduces and replaces the first maker, then crosses the level. Correct
+cancel-and-new replacement semantics fill the second maker first.
+
+The same profile, generator version, unsigned 64-bit seed, requested trace
+count, and events-per-trace value produce the same campaign ID and trace hashes
+across supported Python versions. Changing candidate metadata or behavior does
+not change that identity.
 
 The output path must not already exist. Tracebook reserves that exact directory
 before starting candidate work and keeps its inode open. It installs every
@@ -104,18 +153,34 @@ removed before retrying; this conservative rule also applies after handled
 candidate or write failures. Bundle publication fails closed before creating
 the output on platforms where Python lacks descriptor-relative directory
 operations; `run_campaign` generation and comparison remain available. A
-divergent completed run also writes:
+divergent `--output-dir` run also writes its compatibility layout:
 
 | Path | Contents |
 | --- | --- |
-| `failure/original.jsonl` | Complete generated trace containing the first drift |
+| `failure/original.jsonl` | Trace prefix ending at the first drift |
 | `failure/original-report.json` | Exact first-divergence semantic report |
 | `failure/minimized.jsonl` | Reduced trace that preserves the failure category |
 | `failure/minimization.json` | Reduction budget, run count, hashes, and minimality claim |
 
+`--corpus-dir` stores the run under a deterministic failure ID. The bundle adds
+top-level `original.jsonl`, `reduced.jsonl`, and `failure.json`; the latter pins
+the campaign seed and hash, profile config, candidate identity, original event,
+failure class, reduced trace hash, and exact expected reduced divergence. A
+failure ID binds the campaign, original and reduced trace hashes, failure class,
+and exact reduced divergence. A conformant campaign is stored under a
+deterministic `campaign-*` ID instead.
+
+Campaign JSON includes `semantic_coverage`. Coverage is calculated by replaying
+only candidate-compared events through the reference engine. It reports
+declared, covered, and uncovered capabilities; operation counts; attempted and
+applied instruction counts; applied and rejected outcomes; rejection reasons; symbols; trades;
+partial-fill evidence; and structured queue-priority probes. It is workload
+semantic coverage, not source-code coverage and not evidence that a candidate
+supports semantics it declares out of scope.
+
 The command exits `0` when all requested traces conform, `1` on semantic drift,
 and `2` for invalid configuration, adapter, protocol, or filesystem errors.
-Promote the minimized JSONL file into a regression suite after reviewing the
+Promote `reduced.jsonl` into a regression suite after reviewing the
 candidate and reference semantics.
 
 ## What Is Compared
@@ -324,13 +389,24 @@ minimized counts, run count, reduction percentage, minimality/budget status,
 minimized trace hash, target failure category, and the final conformance report.
 
 Suite reports use `artifact_type = "tracebook.conformance.suite_report"` and
-retain the suite hash plus each case's tags, fixture hash, and full report. All
-three artifact schemas start at version `1`.
+retain the suite hash plus each case's tags, fixture hash, and full report.
 
 Campaign reports use `artifact_type = "tracebook.conformance.campaign"` and
 include generator/profile versions, campaign identity, requested and completed
 work, candidate metadata, every trace seed and hash, and relative failure-bundle
 paths. Campaign artifacts also start at schema version `1`.
+
+Corpus metadata uses `artifact_type = "tracebook.conformance.failure"`.
+Reproduction reports use `artifact_type =
+"tracebook.conformance.reproduction"` and preserve expected and observed
+failure details plus the full conformance report. All JSON artifact schemas
+start at version `1`.
+
+`run`, `suite`, `minimize`, `campaign`, and `reproduce` accept
+`--junit-output`. JUnit is a projection of the canonical JSON: divergences are
+test failures, a successful minimization is a passing case, and an exact known
+failure reproduction is a passing case. Campaign JUnit properties include the
+semantic coverage ratio and counts. JSON remains the lossless contract.
 
 ## Boundaries
 

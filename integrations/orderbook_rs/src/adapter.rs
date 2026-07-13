@@ -11,6 +11,14 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 const NO_OWNER: i64 = -1;
+const QUEUE_PRIORITY_PROBE_SYMBOL: &str = "FIFO-PRIORITY-PROBE";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FaultMode {
+    None,
+    DropFirstTrade,
+    QueuePriority,
+}
 
 #[derive(Clone)]
 struct AdapterConfig {
@@ -171,26 +179,127 @@ impl BookHarness {
             .collect::<BTreeSet<_>>();
         self.owners.retain(|order_id, _| active.contains(order_id));
     }
+
+    fn inject_queue_priority_fault(
+        &mut self,
+        config: &AdapterConfig,
+        event: &MarketEvent,
+        marked_order_id: u64,
+    ) -> Result<bool, String> {
+        if event.op != "new" || event.symbol != QUEUE_PRIORITY_PROBE_SYMBOL {
+            return Ok(false);
+        }
+        let incoming_side = parse_side(event)?;
+        let incoming_price = match event.order_type.as_str() {
+            "MARKET" => None,
+            _ => Some(
+                event
+                    .price
+                    .as_ref()
+                    .ok_or_else(|| "price is required".to_string())
+                    .and_then(|value| config.price_ticks(value))?,
+            ),
+        };
+        let snapshot = self.book.create_snapshot(usize::MAX);
+        let levels = match incoming_side {
+            Side::Buy => &snapshot.asks,
+            Side::Sell => &snapshot.bids,
+        };
+
+        for level in levels {
+            let crosses = match (incoming_side, incoming_price) {
+                (_, None) => true,
+                (Side::Buy, Some(price)) => price >= level.price().as_u128(),
+                (Side::Sell, Some(price)) => price <= level.price().as_u128(),
+            };
+            if !crosses {
+                continue;
+            }
+            let Some(position) = level
+                .orders()
+                .iter()
+                .position(|order| order.id().as_u64() == Some(marked_order_id))
+            else {
+                continue;
+            };
+            if position == 0 {
+                return Ok(false);
+            }
+            let predecessors = level.orders()[..position]
+                .iter()
+                .map(|order| {
+                    let order_id = order.id().as_u64().ok_or_else(|| {
+                        "orderbook-rs returned a non-sequential resting id".to_string()
+                    })?;
+                    let owner = self.owners.get(&order_id).copied().ok_or_else(|| {
+                        format!("adapter has no source owner for resting order {order_id}")
+                    })?;
+                    Ok((
+                        order_id,
+                        order.price().as_u128(),
+                        order.visible_quantity().as_u64(),
+                        order.side(),
+                        owner,
+                    ))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+
+            for (order_id, price, quantity, side, owner) in predecessors {
+                let id = Id::sequential(order_id);
+                match self.book.cancel_order(id) {
+                    Ok(Some(_)) => {}
+                    Ok(None) => return Err("fault injection lost a resting order".to_string()),
+                    Err(error) => return Err(error.to_string()),
+                }
+                self.book
+                    .add_limit_order_with_user(
+                        id,
+                        price,
+                        quantity,
+                        side,
+                        TimeInForce::Gtc,
+                        owner_hash(owner, order_id),
+                        None,
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
 }
 
 pub struct Adapter {
     config: AdapterConfig,
     books: BTreeMap<String, BookHarness>,
-    drop_first_trade: bool,
+    fault_mode: FaultMode,
     fault_fired: bool,
+    reduced_orders: BTreeSet<(String, u64)>,
+    pending_priority_faults: BTreeSet<(String, u64)>,
 }
 
 impl Adapter {
     pub fn new(config: ConfigWire) -> Result<Self, String> {
-        Self::new_with_test_fault(config, false)
+        Self::new_with_fault(config, FaultMode::None)
     }
 
     pub fn new_with_test_fault(config: ConfigWire, drop_first_trade: bool) -> Result<Self, String> {
+        let mode = if drop_first_trade {
+            FaultMode::DropFirstTrade
+        } else {
+            FaultMode::None
+        };
+        Self::new_with_fault(config, mode)
+    }
+
+    pub fn new_with_fault(config: ConfigWire, fault_mode: FaultMode) -> Result<Self, String> {
         Ok(Self {
             config: AdapterConfig::from_wire(config)?,
             books: BTreeMap::new(),
-            drop_first_trade,
+            fault_mode,
             fault_fired: false,
+            reduced_orders: BTreeSet::new(),
+            pending_priority_faults: BTreeSet::new(),
         })
     }
 
@@ -205,6 +314,10 @@ impl Adapter {
             );
             outcome = Outcome::applied();
             native_trades = Vec::new();
+            self.reduced_orders
+                .retain(|(symbol, _)| symbol != &event.symbol);
+            self.pending_priority_faults
+                .retain(|(symbol, _)| symbol != &event.symbol);
         } else if !self.books.contains_key(&event.symbol)
             && matches!(event.op.as_str(), "cancel" | "reduce" | "replace")
         {
@@ -222,13 +335,43 @@ impl Adapter {
                 .get_mut(&event.symbol)
                 .ok_or_else(|| "book creation failed".to_string())?;
             book.clear_trades()?;
+            if self.fault_mode == FaultMode::QueuePriority && !self.fault_fired {
+                let candidate = self
+                    .pending_priority_faults
+                    .iter()
+                    .find(|(symbol, _)| symbol == &event.symbol)
+                    .map(|(_, order_id)| *order_id);
+                if let Some(order_id) = candidate {
+                    self.fault_fired =
+                        book.inject_queue_priority_fault(&self.config, event, order_id)?;
+                }
+            }
             outcome = Self::apply_to_book(&self.config, book, event);
             native_trades = book.take_trades()?;
             book.reconcile_owners();
         }
 
+        if self.fault_mode == FaultMode::QueuePriority && outcome.status == "applied" {
+            if let Some(order_id) = event.order_id.as_ref().and_then(serde_json::Number::as_u64) {
+                let key = (event.symbol.clone(), order_id);
+                match event.op.as_str() {
+                    "reduce" => {
+                        self.reduced_orders.insert(key);
+                    }
+                    "replace" if self.reduced_orders.contains(&key) => {
+                        self.pending_priority_faults.insert(key);
+                    }
+                    "cancel" => {
+                        self.reduced_orders.remove(&key);
+                        self.pending_priority_faults.remove(&key);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         let mut trades = self.convert_trades(native_trades)?;
-        if self.drop_first_trade && !self.fault_fired && !trades.is_empty() {
+        if self.fault_mode == FaultMode::DropFirstTrade && !self.fault_fired && !trades.is_empty() {
             trades.remove(0);
             self.fault_fired = true;
         }
@@ -605,5 +748,59 @@ mod tests {
         let config = config();
         let number = serde_json::Number::from_str("100.005").unwrap();
         assert_eq!(config.price_ticks(&number).unwrap(), 10_000);
+    }
+
+    #[test]
+    fn queue_priority_fault_changes_only_the_probe_trade() {
+        let wire_config = ConfigWire {
+            matching_algorithm: "fifo".to_string(),
+            tick_size: "0.01".to_string(),
+            self_trade_policy: "NONE".to_string(),
+            quantity_decimal_places: 12,
+        };
+        let mut correct = Adapter::new(wire_config.clone()).unwrap();
+        let mut faulty = Adapter::new_with_fault(wire_config, FaultMode::QueuePriority).unwrap();
+        let events = [
+            serde_json::json!({
+                "op": "new", "symbol": QUEUE_PRIORITY_PROBE_SYMBOL,
+                "order_id": 9000000001_u64, "side": "SELL", "order_type": "LIMIT",
+                "price": 100.0, "quantity": 5.0, "owner": 101
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": QUEUE_PRIORITY_PROBE_SYMBOL,
+                "order_id": 9000000002_u64, "side": "SELL", "order_type": "LIMIT",
+                "price": 100.0, "quantity": 5.0, "owner": 102
+            }),
+            serde_json::json!({
+                "op": "reduce", "symbol": QUEUE_PRIORITY_PROBE_SYMBOL,
+                "order_id": 9000000001_u64, "quantity": 1.0
+            }),
+            serde_json::json!({
+                "op": "replace", "symbol": QUEUE_PRIORITY_PROBE_SYMBOL,
+                "order_id": 9000000001_u64, "price": 100.0, "quantity": 4.0
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": QUEUE_PRIORITY_PROBE_SYMBOL,
+                "order_id": 9000000003_u64, "side": "BUY", "order_type": "LIMIT",
+                "price": 100.0, "quantity": 1.0, "owner": 103
+            }),
+        ]
+        .map(|value| serde_json::from_value::<MarketEvent>(value).unwrap());
+
+        for (position, event) in events.iter().enumerate() {
+            let index = (position + 1) as u64;
+            let correct_observation = correct.apply(event, index).unwrap();
+            let faulty_observation = faulty.apply(event, index).unwrap();
+            if index < 5 {
+                assert_eq!(
+                    faulty_observation.state_hash,
+                    correct_observation.state_hash
+                );
+                assert!(faulty_observation.trades.is_empty());
+            } else {
+                assert_eq!(correct_observation.trades[0].sell_order_id, 9_000_000_002);
+                assert_eq!(faulty_observation.trades[0].sell_order_id, 9_000_000_001);
+            }
+        }
     }
 }

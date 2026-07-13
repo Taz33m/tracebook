@@ -60,6 +60,7 @@ def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
 
     assert 'orderbook-rs = "=0.10.4"' in cargo
     assert 'pricelevel = "=0.8.4"' in cargo
+    assert 'name = "faulty-orderbook-adapter"' in cargo
     assert 'name = "orderbook-rs"\nversion = "0.10.4"' in lock
     assert 'channel = "1.88.0"' in toolchain
     assert "92db5927ac59bf5f68ebdea011e6d7fe9a8ecb64" in readme
@@ -87,9 +88,12 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert 'failed == {"pro-rata-allocation"}' in workflow
     assert "--profile fifo-full-v1" in workflow
     assert "--events-per-trace 100" in workflow
-    assert "sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d" in workflow
+    assert "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9" in workflow
     assert "--test-fault=drop-first-trade" in workflow
     assert 'assert report["divergence"]["event_index"] == 3' in workflow
+    assert "failure-bc8b19d3e0e3441a98db" in workflow
+    assert 'assert failure["original_divergence_event"] == 173' in workflow
+    assert 'assert failure["reduced_event_count"] == 5' in workflow
     assert 'T["Tracebook runner"]' in readme
     assert "7/8" in root_readme
 
@@ -100,6 +104,7 @@ def test_source_manifest_includes_native_integration_files():
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
+    assert (RUST_INTEGRATION / "src" / "bin" / "faulty_orderbook_adapter.rs").is_file()
 
 
 def test_030_integration_documentation_and_ci_template_are_complete():
@@ -109,9 +114,21 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     release_notes = (ROOT / "docs" / "releases" / "0.3.0.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'python -m pip install "tracebook-sim==0.3.0"' in workflow
-    assert "tracebook-conformance suite" in workflow
+    assert 'python -m pip install "tracebook-sim==0.4.0"' in workflow
+    assert "tracebook-conformance campaign" in workflow
+    assert "--junit-output artifacts/conformance.xml" in workflow
     assert "if: always()" in workflow
     assert "Version 0.3.0 changes the category of the project." in release_notes
     assert "## Real-Engine Demo" in readme
     assert 'A <--> E["External engine"]' in readme
+
+
+def test_040_release_notes_pin_the_public_failure_story():
+    notes = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(encoding="utf-8")
+
+    assert "original event 173" in notes
+    assert "five causal events" in notes
+    assert "one-minimal" in notes
+    assert "tracebook-conformance reproduce" in notes
+    assert "semantic capability coverage" in notes
+    assert "external validation, not another feature expansion" in notes

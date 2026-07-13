@@ -2,6 +2,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -428,6 +429,7 @@ def test_bundled_suite_is_hash_locked_copyable_and_fully_conformant(tmp_path):
 def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
     suite_path = tmp_path / "suite"
     suite_report = tmp_path / "suite-report.json"
+    suite_junit = tmp_path / "suite-report.xml"
     assert main(["sample", str(suite_path)]) == 0
     assert (
         main(
@@ -436,6 +438,8 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
                 str(suite_path),
                 "--output",
                 str(suite_report),
+                "--junit-output",
+                str(suite_junit),
                 "--candidate",
                 sys.executable,
                 str(EXAMPLE_ADAPTER),
@@ -444,7 +448,28 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
         == 0
     )
     assert json.loads(suite_report.read_text(encoding="utf-8"))["conformant"] is True
+    assert ElementTree.parse(suite_junit).getroot().attrib == {
+        "name": "tracebook.conformance.suite_report",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+    }
     case_path = suite_path / "fifo-lifecycle.jsonl"
+    run_junit = tmp_path / "run.xml"
+    assert (
+        main(
+            [
+                "run",
+                str(case_path),
+                "--junit-output",
+                str(run_junit),
+                "--candidate-cmd",
+                f"{sys.executable} {EXAMPLE_ADAPTER}",
+            ]
+        )
+        == 0
+    )
+    assert ElementTree.parse(run_junit).getroot().attrib["failures"] == "0"
     case_before = case_path.read_bytes()
     assert (
         main(
@@ -477,6 +502,7 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
     )
     minimized = tmp_path / "minimized.jsonl"
     minimization_report = tmp_path / "minimization.json"
+    minimization_junit = tmp_path / "minimization.xml"
     assert (
         main(
             [
@@ -486,6 +512,8 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
                 str(minimized),
                 "--output",
                 str(minimization_report),
+                "--junit-output",
+                str(minimization_junit),
                 "--max-runs",
                 "30",
                 "--candidate",
@@ -497,6 +525,7 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
     )
     assert [event.order_id for event in load_market_events(minimized)] == [77]
     assert json.loads(minimization_report.read_text(encoding="utf-8"))["minimized_event_count"] == 1
+    assert ElementTree.parse(minimization_junit).getroot().attrib["failures"] == "0"
     assert (
         main(
             [

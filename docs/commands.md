@@ -123,21 +123,35 @@ Generate stateful traces and minimize the first drift:
 
 ```bash
 tracebook-conformance campaign \
-  --output-dir /tmp/tracebook-campaign \
   --profile fifo-limit-v1 \
-  --seed 20260713 \
-  --traces 25 \
-  --events-per-trace 100 \
+  --seed 42 \
+  --traces 1000 \
+  --events-per-trace 200 \
   --max-minimize-runs 100 \
-  --candidate ./engine-adapter
+  --candidate-cmd ./engine-adapter \
+  --corpus-dir .tracebook/corpus \
+  --stop-after-first \
+  --junit-output .tracebook/campaign.xml
 ```
 
-Campaign output is an atomic directory containing `campaign.json` and, on a
-failure, the original trace/report plus a minimized JSONL reproducer and its
-reduction report. The output path must not exist before the run.
+Replay the exact saved failure:
+
+```bash
+tracebook-conformance reproduce \
+  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
+  --output reproduction.json \
+  --junit-output reproduction.xml \
+  --candidate-cmd ./engine-adapter
+```
+
+Campaign output contains canonical JSON, semantic coverage, and, on failure,
+the original prefix plus a minimized JSONL reproducer. `--corpus-dir` stores a
+deterministically named bundle; `--output-dir` retains the single-run directory
+layout. A selected bundle path must not already exist.
 
 `--candidate` must be the final option; all remaining values are passed to the
-adapter command. The suite carries its own algorithm, tick size, self-trade
+adapter command. Prefer `--candidate-cmd` when Tracebook options follow the
+candidate. The suite carries its own algorithm, tick size, self-trade
 policy, and quantity normalization per case. See `docs/conformance.md` for the
 stdio protocol, campaign profiles, and artifact contracts.
 

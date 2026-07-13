@@ -84,7 +84,7 @@ jobs:
             --max-minimize-runs 40 \
             --timeout 20 \
             --candidate python integrations/python_matching_engine/adapter.py
-          python -c "import json; p=json.load(open('/tmp/python-matching-engine-campaign/campaign.json')); assert p['campaign_id'] == 'sha256:73cd8df3aefa3678f2d6a6750c39b4779d29f397aa406525e0c73e15fa2a491f'; assert p['conformant'] is True and p['generated_events'] == 500; assert p['candidate_engine']['version'] == 'f94150294a85'"
+          python -c "import json; p=json.load(open('/tmp/python-matching-engine-campaign/campaign.json')); assert p['campaign_id'] == 'sha256:53e31761dbcc5b5858506c7f11b81b1ad9cae281d46fb8212c1d62a89d058a2d'; assert p['conformant'] is True and p['generated_events'] == 500; assert p['candidate_engine']['version'] == 'f94150294a85'; assert p['semantic_coverage']['coverage_ratio'] == 1.0"
 
       - uses: actions/upload-artifact@v7
         if: always()

@@ -14,45 +14,87 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-289%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-292%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
 > **TL;DR:** Give Tracebook a normalized event trace and an adapter for your Rust, C++, Java, Python, or other matching engine. It runs the trace against an inspectable reference engine, identifies the first difference in outcomes, trades, resting orders, or queue priority, and reduces failures to a small reproducible trace. It also retains deterministic replay, verified L3 data workflows, and explicitly bounded local benchmarks.
 
-## Differential Campaigns
+## The Five-Event Rust Failure
 
-Run a deterministic stateful campaign against any stdio adapter:
+The release demo starts with the correct `orderbook-rs` adapter, then runs the
+same engine with one intentionally injected queue-priority defect. Build both
+native binaries:
+
+```bash
+python3 -m pip install -e .
+cargo build --release --locked --manifest-path integrations/orderbook_rs/Cargo.toml
+```
+
+Generate 200 lifecycle events per trace. Seed 42 places a structured FIFO probe
+at events 169-173; candidate behavior never influences generation:
 
 ```bash
 tracebook-conformance campaign \
-  --output-dir /tmp/tracebook-campaign \
   --profile fifo-limit-v1 \
-  --seed 20260713 \
-  --traces 25 \
-  --events-per-trace 100 \
-  --candidate python examples/conformance_adapter.py
+  --seed 42 \
+  --traces 1000 \
+  --events-per-trace 200 \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/faulty-orderbook-adapter \
+  --corpus-dir .tracebook/corpus \
+  --stop-after-first \
+  --junit-output .tracebook/campaign.xml
 ```
 
-The generator consults only the reference book while creating each next event,
-so candidate behavior cannot steer the workload. Profile name, generator
-version, seed, and workload size produce a stable campaign ID. A passing run
-records every trace hash. A failing run stops at the first semantic drift and
-writes the complete evidence without overwriting an existing directory:
+The command exits `1`, as a CI conformance gate should, and reports:
 
 ```text
-/tmp/tracebook-campaign/
-  campaign.json
-  failure/
-    original.jsonl
-    original-report.json
-    minimized.jsonl
-    minimization.json
+Divergence detected at original event 173
+Failure class: queue-priority drift
+Original trace: 173 events
+Reduced reproducer: 5 events
+Campaign seed: 42
+Campaign hash: sha256:3630ea1789e27b6e416e1e241ca4ef8d5a28f0f2bf660fae3c0a1c8ff39ba7c6
+Failure id: failure-bc8b19d3e0e3441a98db
 ```
 
-`failure/minimized.jsonl` is ready to promote into the candidate engine's
-regression suite. Use `fifo-limit-v1` for portable FIFO/LIMIT lifecycle
-semantics or `fifo-full-v1` to add market, IOC, and FOK instructions.
+Replay the five-event result and require the exact stored maker-ID mismatch:
+
+```bash
+tracebook-conformance reproduce \
+  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/faulty-orderbook-adapter
+```
+
+Then use that same trace as a regression gate for the correct engine:
+
+```bash
+tracebook-conformance run \
+  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/tracebook-orderbook-rs
+```
+
+The first command verifies that a known failure remains exactly reproducible;
+the second exits `0` only when the candidate follows FIFO replacement priority.
+The corpus bundle contains `campaign.json`, `failure.json`, `original.jsonl`,
+`reduced.jsonl`, detailed minimization evidence, and semantic coverage. JSON and
+JUnit are first-class outputs, so the same evidence is readable by people, CI
+test reporters, and downstream tooling.
+
+## Differential Campaigns
+
+`fifo-limit-v1` is the portable public profile: FIFO limit orders, partial
+fills, cancellation, reduction, replacement, clear, duplicate active IDs,
+inactive lifecycle requests, multiple symbols, and the structured FIFO
+priority probe. `fifo-full-v1` adds market, IOC, and FOK instructions. Generator
+version 2 uses specified SplitMix64 trace seeds and deterministic probe
+placement. Profile name, generator version, campaign seed, requested trace
+count, and events per trace form the campaign hash.
+
+Every report states which declared capabilities had reference-observed evidence
+in candidate-compared events. This is semantic workload coverage, not Python
+line coverage and not a claim about unsupported candidate features. See the
+[capability profile and artifact contract](docs/conformance.md).
 
 ## Real-Engine Demos
 
@@ -95,11 +137,12 @@ lifecycle, all order instructions, both STP modes, multiple symbols, tick-grid
 behavior, and deep cancellation. The one expected difference is
 `pro-rata-allocation`, because upstream implements FIFO. It also passes a
 deterministic 1,000-event `fifo-full-v1` campaign with ID
-`sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d`.
+`sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9`.
 
-The integration CI then deliberately drops one Rust-reported trade and requires
-Tracebook to localize the drift to event 3. That negative control proves the
-gate detects disagreement instead of merely proving two happy paths can run.
+The integration also ships the separate, clearly named
+`faulty-orderbook-adapter` binary used by the event-173 demonstration. Its
+source is included in the public sdist beside the correct adapter, and CI proves
+both the five-event failure and the corrected regression case.
 
 See the [native adapter, architecture, boundaries, and copyable CI
 gate](integrations/orderbook_rs/README.md).
@@ -152,7 +195,7 @@ tracebook-conformance campaign \
 ```
 
 That run checks 500 generated events and records campaign ID
-`sha256:73cd8df3aefa3678f2d6a6750c39b4779d29f397aa406525e0c73e15fa2a491f`.
+`sha256:53e31761dbcc5b5858506c7f11b81b1ad9cae281d46fb8212c1d62a89d058a2d`.
 
 Those 13 events cover FIFO fills, decimal partial fills, reduction, cancellation,
 replacement priority, rejection, clear, and multiple symbols. Against the full
@@ -163,8 +206,9 @@ calling a narrower feature set a failure or silently emulating it.
 
 See the [Python integration guide](integrations/python_matching_engine/README.md)
 and the [generic copy-paste CI workflow](docs/ci.md). The
-[0.3.0 release notes](docs/releases/0.3.0.md) explain why this changes the
-project category.
+[0.4.0 release notes](docs/releases/0.4.0.md) explain the failure-corpus release;
+the [0.3.0 notes](docs/releases/0.3.0.md) explain the original project-category
+change.
 
 ## Video Walkthrough
 
@@ -237,7 +281,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `289` pytest tests passing with `80.18%` statement coverage and a `75%` gate |
+| Unit tests | `292` pytest tests passing with `80.86%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -256,6 +300,8 @@ All checks below were run during the latest production repo pass in this checkou
 | External-engine conformance | Drives any stdio NDJSON adapter event by event against the reference engine | Tests Rust, C++, Java, Python, or other engines without embedding them in Tracebook |
 | Semantic diffing | Compares outcomes, rejection codes, ordered trades, resting orders, and queue priority | Reports the exact first event and state path where behavior diverges |
 | Failing-trace minimization | Uses deterministic delta debugging to remove irrelevant events and reports whether the result is one-minimal or budget-limited | Turns long failures into reviewable regression fixtures without overstating reduction completeness |
+| Failure reproduction | Requires a saved reduced trace to produce the exact stored failure class and semantic diff | Makes known defects deterministic CI assets instead of informal bug reports |
+| Semantic coverage | Reports reference-observed evidence for every capability declared by a campaign profile | Shows what a generated workload actually exercised without conflating it with source coverage |
 | Standard conformance suite | Ships eight SHA-256-locked synthetic cases across FIFO, pro-rata, IOC/FOK, STP, tick, lifecycle, depth, and multi-symbol semantics | Gives engine authors a stable shared correctness corpus |
 | FIFO matching | Matches resting orders by price-time priority | Provides the standard exchange-style baseline |
 | Pro-rata matching | Allocates fills by resting size at a price level | Supports futures-style allocation experiments |
@@ -289,6 +335,8 @@ flowchart LR
     D --> P["Versioned report"]
     D --> M["Deterministic minimizer"]
     M --> B["Failure bundle"]
+    B --> X["Exact reproduction"]
+    P --> J["JSON and JUnit"]
 ```
 
 Core paths:
@@ -611,10 +659,11 @@ requires `--allow-remote`.
 | Command | Purpose |
 | --- | --- |
 | `tracebook-conformance sample suite/` | Copy the hash-locked synthetic conformance suite |
-| `tracebook-conformance campaign --output-dir run/ --candidate ./adapter` | Generate stateful traces and minimize the first drift |
+| `tracebook-conformance campaign --corpus-dir corpus/ --candidate-cmd ./adapter` | Generate stateful traces, report semantic coverage, and minimize the first drift |
 | `tracebook-conformance suite suite/ --candidate ./adapter` | Test an external engine across every standard case |
 | `tracebook-conformance run events.jsonl --candidate ./adapter` | Stop at the first semantic divergence in one trace |
 | `tracebook-conformance minimize events.jsonl --events-output minimal.jsonl --candidate ./adapter` | Reduce a failure and report minimality or budget exhaustion |
+| `tracebook-conformance reproduce corpus/failure-id/reduced.jsonl --candidate-cmd ./adapter` | Require the exact saved failure to replay deterministically |
 | `tracebook-sim --duration 5 --throughput 500 --algorithm FIFO` | Run a FIFO simulation |
 | `tracebook-sim --algorithm PRO_RATA --seed 1337` | Run the pro-rata path deterministically |
 | `tracebook-sim --cancel-ratio 0.05 --replace-ratio 0.02` | Interleave lifecycle events |
@@ -676,13 +725,17 @@ Public top-level exports:
 | `ConformanceConfig` | Matching and numeric-normalization contract for a comparison |
 | `CampaignProfile` | Versioned generated semantic surface and conformance config |
 | `CampaignResult` | Multi-trace result with stable identity and optional first failure |
+| `SemanticCoverage` | Reference-observed evidence for a campaign profile's declared capabilities |
+| `ReproductionResult` | Expected-versus-observed result for a saved failure replay |
 | `EngineAdapter` | Typed interface for pluggable in-process candidate engines |
 | `ReferenceEngineAdapter` | Incremental adapter over Tracebook's reference semantics |
 | `ExternalProcessAdapterFactory` | Fresh stdio candidate process for each run or minimization trial |
 | `run_conformance` | Produce the first-divergence or conformant report for one trace |
 | `run_campaign` | Generate and compare traces through the first minimized divergence |
 | `minimize_failing_trace` | Delta-debug a divergent trace under a run budget |
+| `run_reproduction` | Require a reduced trace to reproduce its stored semantic divergence |
 | `write_campaign_artifacts` | Atomically persist a campaign report and optional failure bundle |
+| `write_campaign_corpus` | Store a campaign under its deterministic campaign or failure ID |
 
 ## Outputs
 
@@ -694,8 +747,10 @@ Public top-level exports:
 | Corpus manifest and golden JSON | Source rights, sanitization/capture metadata, file hashes, canonical event digest, sequence range, and complete final depth |
 | Corpus benchmark/comparison JSON | Raw timing samples, machine/dependency metadata, corpus identity, phase summaries, and explicit environment differences |
 | Conformance report JSON | Trace/config identity, engine metadata, compared event count, final state hash, and exact first divergence |
-| Campaign JSON + failure bundle | Stable generator/profile identity, per-trace seeds and hashes, original first-divergence evidence, and minimized JSONL reproducer |
+| Campaign JSON + failure corpus | Stable generator/profile identity, semantic coverage, per-trace hashes, original first-divergence evidence, and reduced JSONL reproducer |
 | Minimization JSON + JSONL | Reduction statistics, target failure category, minimized trace hash, and executable reproducer |
+| Reproduction JSON | Exact expected and observed failure classes, divergence paths, values, and full conformance report |
+| Conformance JUnit | CI test-case projection for run, suite, minimization, campaign, and reproduction commands |
 | Conformance suite JSON | Per-case fixture hashes, tags, and complete candidate reports |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
 | Performance docs | Local baseline samples and reporting rules |

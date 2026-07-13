@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from numbers import Integral
 from pathlib import Path
@@ -16,6 +16,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from ..core.order import OrderSide, OrderType
 from ..events import MarketEvent
+from .classification import classify_failure
 from .compare import ConformanceReport, run_conformance
 from .minimize import MinimizationResult, minimize_failing_trace
 from .model import (
@@ -29,8 +30,9 @@ from .model import (
 )
 from .protocol import AdapterFactory
 from .reference import ReferenceEngineAdapter
+from .semantic_coverage import SemanticCoverage, measure_semantic_coverage
 
-CAMPAIGN_GENERATOR_VERSION = 1
+CAMPAIGN_GENERATOR_VERSION = 2
 _MASK_64 = (1 << 64) - 1
 _GOLDEN_GAMMA = 0x9E3779B97F4A7C15
 _CHOICES = TypeVar("_CHOICES")
@@ -44,6 +46,7 @@ class CampaignProfile:
     description: str
     config: ConformanceConfig
     order_types: Tuple[OrderType, ...]
+    capabilities: Tuple[str, ...] = ("limit-orders",)
     symbols: Tuple[str, ...] = ("ALPHA", "BETA")
 
     def __post_init__(self) -> None:
@@ -61,6 +64,12 @@ class CampaignProfile:
             raise ConformanceError("campaign profile order_types must be unique OrderType values")
         if len(set(self.order_types)) != len(self.order_types):
             raise ConformanceError("campaign profile order_types must be unique OrderType values")
+        if not isinstance(self.capabilities, tuple) or not self.capabilities:
+            raise ConformanceError("campaign profile capabilities must be a non-empty tuple")
+        if any(not isinstance(name, str) or not name for name in self.capabilities):
+            raise ConformanceError("campaign profile capabilities must be non-empty strings")
+        if len(set(self.capabilities)) != len(self.capabilities):
+            raise ConformanceError("campaign profile capabilities must be unique")
         if not isinstance(self.symbols, tuple) or not self.symbols:
             raise ConformanceError("campaign profile symbols must be a non-empty tuple")
         if any(not isinstance(symbol, str) or not symbol.strip() for symbol in self.symbols):
@@ -74,6 +83,7 @@ class CampaignProfile:
             "description": self.description,
             "config": self.config.to_dict(),
             "order_types": [order_type.name for order_type in self.order_types],
+            "capabilities": list(self.capabilities),
             "symbols": list(self.symbols),
         }
 
@@ -87,12 +97,39 @@ _PROFILES: Mapping[str, CampaignProfile] = {
         ),
         config=ConformanceConfig(matching_algorithm="fifo"),
         order_types=(OrderType.LIMIT,),
+        capabilities=(
+            "limit-orders",
+            "fifo-price-time-priority",
+            "partial-fills",
+            "cancellation",
+            "reduction",
+            "replacement",
+            "book-clear",
+            "duplicate-active-order-id",
+            "inactive-lifecycle-request",
+            "multiple-symbols",
+        ),
     ),
     "fifo-full-v1": CampaignProfile(
         name="fifo-full-v1",
         description=("The FIFO lifecycle profile plus MARKET, IOC, and FOK instructions."),
         config=ConformanceConfig(matching_algorithm="fifo"),
         order_types=(OrderType.LIMIT, OrderType.MARKET, OrderType.IOC, OrderType.FOK),
+        capabilities=(
+            "limit-orders",
+            "fifo-price-time-priority",
+            "partial-fills",
+            "cancellation",
+            "reduction",
+            "replacement",
+            "book-clear",
+            "duplicate-active-order-id",
+            "inactive-lifecycle-request",
+            "multiple-symbols",
+            "market-orders",
+            "immediate-or-cancel",
+            "fill-or-kill",
+        ),
     ),
 }
 
@@ -315,6 +352,76 @@ def _generated_event(
     )
 
 
+_QUEUE_PROBE_SYMBOL = "FIFO-PRIORITY-PROBE"
+_QUEUE_PROBE_FIRST_MAKER = 9_000_000_001
+_QUEUE_PROBE_SECOND_MAKER = 9_000_000_002
+_QUEUE_PROBE_TAKER = 9_000_000_003
+
+
+def _queue_priority_probe_end(seed: int, event_count: int) -> Optional[int]:
+    if event_count < 5:
+        return None
+    return min(event_count, 133 + seed % 43)
+
+
+def _queue_priority_probe(seed: int, event_count: int) -> Mapping[int, MarketEvent]:
+    """Place a deterministic five-event FIFO probe inside one isolated book."""
+    end = _queue_priority_probe_end(seed, event_count)
+    if end is None:
+        return {}
+    start = end - 4
+    return {
+        start: MarketEvent(
+            op="new",
+            symbol=_QUEUE_PROBE_SYMBOL,
+            order_id=_QUEUE_PROBE_FIRST_MAKER,
+            side=OrderSide.SELL,
+            price=100.0,
+            quantity=5.0,
+            owner=101,
+            timestamp_ns=start,
+        ),
+        start
+        + 1: MarketEvent(
+            op="new",
+            symbol=_QUEUE_PROBE_SYMBOL,
+            order_id=_QUEUE_PROBE_SECOND_MAKER,
+            side=OrderSide.SELL,
+            price=100.0,
+            quantity=5.0,
+            owner=102,
+            timestamp_ns=start + 1,
+        ),
+        start
+        + 2: MarketEvent(
+            op="reduce",
+            symbol=_QUEUE_PROBE_SYMBOL,
+            order_id=_QUEUE_PROBE_FIRST_MAKER,
+            quantity=1.0,
+            timestamp_ns=start + 2,
+        ),
+        start
+        + 3: MarketEvent(
+            op="replace",
+            symbol=_QUEUE_PROBE_SYMBOL,
+            order_id=_QUEUE_PROBE_FIRST_MAKER,
+            price=100.0,
+            quantity=4.0,
+            timestamp_ns=start + 3,
+        ),
+        end: MarketEvent(
+            op="new",
+            symbol=_QUEUE_PROBE_SYMBOL,
+            order_id=_QUEUE_PROBE_TAKER,
+            side=OrderSide.BUY,
+            price=100.0,
+            quantity=1.0,
+            owner=103,
+            timestamp_ns=end,
+        ),
+    }
+
+
 def generate_campaign_trace(
     profile: str | CampaignProfile,
     seed: int,
@@ -328,18 +435,25 @@ def generate_campaign_trace(
     event_count = _positive_int(event_count, "event_count")
     rng = _SplitMix64(seed)
     next_ids = {symbol: 1 for symbol in selected_profile.symbols}
+    priority_probe = (
+        _queue_priority_probe(seed, event_count)
+        if "fifo-price-time-priority" in selected_profile.capabilities
+        else {}
+    )
     reference = ReferenceEngineAdapter(selected_profile.config)
     events: List[MarketEvent] = []
     active: Tuple[_ActiveOrder, ...] = ()
     try:
         for index in range(1, event_count + 1):
-            event = _generated_event(
-                rng,
-                selected_profile,
-                next_ids,
-                active,
-                index,
-            )
+            event = priority_probe.get(index)
+            if event is None:
+                event = _generated_event(
+                    rng,
+                    selected_profile,
+                    next_ids,
+                    active,
+                    index,
+                )
             events.append(event)
             reference.apply(event, index)
             active = _active_orders(reference.snapshot())
@@ -376,20 +490,27 @@ class CampaignFailure:
     """The first divergent campaign trace and its automatic reduction."""
 
     trace: CampaignTraceResult
+    original_events: Tuple[MarketEvent, ...]
+    original_report: ConformanceReport
     minimization: MinimizationResult
+    failure_class: str
 
     def to_dict(self) -> dict:
         minimized = self.minimization
+        divergence = self.original_report.divergence
         return {
             "trace_index": self.trace.index,
+            "failure_class": self.failure_class,
+            "original_divergence_event": divergence.event_index if divergence else None,
             "target_category": minimized.target_category,
-            "original_event_count": len(self.trace.events),
-            "original_trace_sha256": trace_sha256(self.trace.events),
+            "original_event_count": len(self.original_events),
+            "original_trace_sha256": trace_sha256(self.original_events),
             "original_events": "failure/original.jsonl",
             "original_report": "failure/original-report.json",
             "minimized_event_count": len(minimized.events),
             "minimized_trace_sha256": trace_sha256(minimized.events),
             "minimized_events": "failure/minimized.jsonl",
+            "reduced_events": "reduced.jsonl",
             "minimization_report": "failure/minimization.json",
             "one_minimal": minimized.one_minimal,
             "budget_exhausted": minimized.budget_exhausted,
@@ -408,6 +529,7 @@ class CampaignResult:
     candidate_engine: EngineMetadata
     traces: Tuple[CampaignTraceResult, ...]
     failure: Optional[CampaignFailure]
+    semantic_coverage: SemanticCoverage
 
     @property
     def conformant(self) -> bool:
@@ -431,8 +553,78 @@ class CampaignResult:
         ).encode("utf-8")
         return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
+    @property
+    def failure_id(self) -> Optional[str]:
+        if self.failure is None:
+            return None
+        divergence = self.failure.minimization.report.divergence
+        if divergence is None:
+            raise ConformanceError("campaign failure has no reduced divergence")
+        payload = {
+            "campaign_id": self.campaign_id,
+            "trace_index": self.failure.trace.index,
+            "failure_class": self.failure.failure_class,
+            "original_trace_sha256": trace_sha256(self.failure.original_events),
+            "reduced_trace_sha256": trace_sha256(self.failure.minimization.events),
+            "reduced_divergence": divergence.to_dict(),
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        return "failure-" + hashlib.sha256(encoded).hexdigest()[:20]
+
+    @property
+    def bundle_id(self) -> str:
+        return self.failure_id or "campaign-" + self.campaign_id.removeprefix("sha256:")[:20]
+
+    def failure_bundle_dict(self) -> dict:
+        if self.failure is None:
+            raise ConformanceError("a conformant campaign has no failure bundle")
+        original_divergence = self.failure.original_report.divergence
+        if original_divergence is None:
+            raise ConformanceError("campaign failure has no original divergence")
+        divergence = self.failure.minimization.report.divergence
+        if divergence is None:
+            raise ConformanceError("campaign failure has no reduced divergence")
+        return {
+            "schema_version": ARTIFACT_SCHEMA_VERSION,
+            "artifact_type": "tracebook.conformance.failure",
+            "failure_id": self.failure_id,
+            "failure_class": self.failure.failure_class,
+            "profile": self.profile.name,
+            "config": self.profile.config.to_dict(),
+            "generator_version": CAMPAIGN_GENERATOR_VERSION,
+            "campaign_seed": self.seed,
+            "campaign_id": self.campaign_id,
+            "trace_index": self.failure.trace.index,
+            "trace_seed": self.failure.trace.seed,
+            "original_divergence_event": original_divergence.event_index,
+            "original_event_count": len(self.failure.original_events),
+            "original_trace_sha256": trace_sha256(self.failure.original_events),
+            "reduced_event_count": len(self.failure.minimization.events),
+            "reduced_trace_sha256": trace_sha256(self.failure.minimization.events),
+            "target_category": self.failure.minimization.target_category,
+            "one_minimal": self.failure.minimization.one_minimal,
+            "budget_exhausted": self.failure.minimization.budget_exhausted,
+            "candidate_engine": self.candidate_engine.to_dict(),
+            "expected_reduced_divergence": divergence.to_dict(),
+            "paths": {
+                "original": "original.jsonl",
+                "reduced": "reduced.jsonl",
+                "campaign": "campaign.json",
+                "minimization": "failure/minimization.json",
+            },
+        }
+
     def to_dict(self) -> dict:
         minimization_runs = self.failure.minimization.runs if self.failure else 0
+        failure = self.failure.to_dict() if self.failure else None
+        if failure is not None:
+            failure["failure_id"] = self.failure_id
         return {
             "schema_version": ARTIFACT_SCHEMA_VERSION,
             "artifact_type": "tracebook.conformance.campaign",
@@ -449,8 +641,9 @@ class CampaignResult:
             "candidate_engine": self.candidate_engine.to_dict(),
             "stopped_at_first_divergence": True,
             "conformant": self.conformant,
+            "semantic_coverage": self.semantic_coverage.to_dict(),
             "traces": [trace.to_dict() for trace in self.traces],
-            "failure": self.failure.to_dict() if self.failure else None,
+            "failure": failure,
         }
 
 
@@ -491,8 +684,16 @@ def run_campaign(
         trace_result = CampaignTraceResult(trace_index, generated_seed, events, report)
         results.append(trace_result)
         if not report.conformant:
+            if report.divergence is None:
+                raise ConformanceError("non-conformant campaign report has no divergence")
+            original_events = events[: report.divergence.event_index]
+            original_report = replace(
+                report,
+                trace_hash=trace_sha256(original_events),
+                event_count=len(original_events),
+            )
             minimization = minimize_failing_trace(
-                events,
+                original_events,
                 candidate_factory,
                 config=selected_profile.config,
                 max_runs=max_minimize_runs,
@@ -503,11 +704,18 @@ def run_campaign(
                 raise ConformanceError(
                     "candidate engine metadata changed during campaign minimization"
                 )
-            failure = CampaignFailure(trace_result, minimization)
+            failure = CampaignFailure(
+                trace=trace_result,
+                original_events=original_events,
+                original_report=original_report,
+                minimization=minimization,
+                failure_class=classify_failure(original_events, original_report),
+            )
             break
 
     if candidate_engine is None:
         raise ConformanceError("campaign completed without candidate metadata")
+    compared_traces = tuple(trace.events[: trace.report.compared_events] for trace in results)
     return CampaignResult(
         profile=selected_profile,
         seed=seed,
@@ -517,6 +725,11 @@ def run_campaign(
         candidate_engine=candidate_engine,
         traces=tuple(results),
         failure=failure,
+        semantic_coverage=measure_semantic_coverage(
+            compared_traces,
+            selected_profile.config,
+            selected_profile.capabilities,
+        ),
     )
 
 
@@ -700,10 +913,10 @@ class _CampaignOutputReservation:
             if result.failure is not None:
                 failure_dir = temporary / "failure"
                 failure_dir.mkdir()
-                _write_events(failure_dir / "original.jsonl", result.failure.trace.events)
+                _write_events(failure_dir / "original.jsonl", result.failure.original_events)
                 _write_json(
                     failure_dir / "original-report.json",
-                    result.failure.trace.report.to_dict(),
+                    result.failure.original_report.to_dict(),
                 )
                 _write_events(
                     failure_dir / "minimized.jsonl",
@@ -713,6 +926,9 @@ class _CampaignOutputReservation:
                     failure_dir / "minimization.json",
                     result.failure.minimization.to_dict(),
                 )
+                _write_events(temporary / "original.jsonl", result.failure.original_events)
+                _write_events(temporary / "reduced.jsonl", result.failure.minimization.events)
+                _write_json(temporary / "failure.json", result.failure_bundle_dict())
             _write_json(temporary / "campaign.json", result.to_dict())
             if not self._owns_clean_reservation():
                 raise ConformanceError(
@@ -723,6 +939,7 @@ class _CampaignOutputReservation:
                 expected_top_level = {_RESERVATION_MARKER, "campaign.json"}
                 expected_failure_files: Optional[set[str]] = None
                 if result.failure is not None:
+                    expected_top_level.update({"failure.json", "original.jsonl", "reduced.jsonl"})
                     failure_fd = _make_relative_directory("failure", directory_fd)
                     expected_top_level.add("failure")
                     expected_failure_files = {
@@ -736,6 +953,13 @@ class _CampaignOutputReservation:
                             temporary / "failure" / name,
                             name,
                             failure_fd,
+                        )
+
+                    for name in ("failure.json", "original.jsonl", "reduced.jsonl"):
+                        _copy_exclusive_file(
+                            temporary / name,
+                            name,
+                            directory_fd,
                         )
 
                 _copy_exclusive_file(
@@ -798,3 +1022,11 @@ def write_campaign_artifacts(result: CampaignResult, destination: str | Path) ->
         raise ConformanceError("result must be a CampaignResult")
     with _CampaignOutputReservation(destination) as reservation:
         return reservation.write(result)
+
+
+def write_campaign_corpus(result: CampaignResult, corpus_dir: str | Path) -> Path:
+    """Commit a campaign under its deterministic corpus bundle identifier."""
+    if not isinstance(result, CampaignResult):
+        raise ConformanceError("result must be a CampaignResult")
+    destination = Path(corpus_dir).expanduser() / result.bundle_id
+    return write_campaign_artifacts(result, destination)
