@@ -2,10 +2,11 @@
 
 ## Product Position
 
-`tracebook` is an inspectable Python market-microstructure workbench for matching
-semantics, normalized order-event replay, verified local data corpora,
-synthetic workload experiments, and honest local profiling. It is distributed
-as `tracebook-sim` and imported as `tracebook`.
+`tracebook` is the conformance-testing and reproducible failure-analysis toolkit
+for matching engines. It runs canonical order-event traces against its
+inspectable Python reference engine and external engines, localizes semantic
+drift, reduces failures, and keeps correctness and performance artifacts
+reproducible. It is distributed as `tracebook-sim` and imported as `tracebook`.
 
 The project optimizes for deterministic behavior and auditability before raw
 speed. Its optional public capture is research tooling, not a production feed
@@ -16,6 +17,7 @@ handler or trading infrastructure.
 ```text
 src/tracebook/
   core/             matching, lifecycle, snapshots, deterministic replay
+  conformance/      adapters, semantic diffing, trace minimization, standard suite
   events/           normalized event replay and offline venue adapters
   corpus/           safe local capture, manifests, golden state, import benchmarks
   simulation/       synthetic order flow and paced workload execution
@@ -26,17 +28,20 @@ src/tracebook/
 
 ## Next Milestones
 
-1. Complete the 0.3.0 corpus contract with stable manifest, golden-state, and
-   benchmark/comparison schemas.
-2. Follow the Coinbase Exchange L3 adapter with one documented equities order
-   event format, both normalizing into `MarketEvent`.
-3. Separate paced workload reports from an explicit unpaced engine-capacity
-   benchmark so the two measurements cannot be confused.
-4. Stabilize the public API and event/report schemas, then publish a 1.0 policy.
+1. Validate the protocol with one independently implemented Rust, C++, or Java
+   adapter and publish it as an integration example.
+2. Add grammar-aware, property-based trace generation for lifecycle and
+   self-trade-prevention state machines.
+3. Add a benchmark mode for candidate adapters that separates protocol overhead
+   from engine execution and never presents it as production latency.
+4. Stabilize the protocol, event, and report schemas after external-adapter
+   feedback, then publish a 1.0 policy.
 
 ## Decision Rules
 
 - Matching behavior changes require executable semantic and invariant tests.
+- Conformance protocol changes require cross-process tests, artifact schema
+  tests, a version decision, and migration notes.
 - Exported schema changes require artifact tests and a changelog entry.
 - Performance claims require a command, seed, environment, and JSON artifact.
 - New dependencies need a measurable benefit and must remain optional unless

@@ -76,6 +76,7 @@ jobs:
           tracebook-dashboard --version
           tracebook-web --version
           tracebook-corpus --version
+          tracebook-conformance --version
           tracebook-replay "$GITHUB_WORKSPACE/examples/data/sample_events.jsonl" --output /tmp/replay.json
           tracebook-coinbase \
             "$GITHUB_WORKSPACE/examples/data/coinbase_btcusd_l3_snapshot.json" \
@@ -84,9 +85,15 @@ jobs:
             --output /tmp/coinbase.json
           tracebook-corpus sample /tmp/tracebook-sample-corpus
           tracebook-corpus verify /tmp/tracebook-sample-corpus --output /tmp/corpus-verify.json
+          tracebook-conformance sample /tmp/tracebook-conformance-suite
+          tracebook-conformance suite \
+            /tmp/tracebook-conformance-suite \
+            --output /tmp/conformance-suite.json \
+            --candidate python "$GITHUB_WORKSPACE/examples/conformance_adapter.py"
           python -c "import json; assert json.load(open('/tmp/replay.json'))['applied_events'] == 5"
           python -c "import json; assert json.load(open('/tmp/coinbase.json'))['normalization']['sequence_complete'] is True"
           python -c "import json; assert json.load(open('/tmp/corpus-verify.json'))['verified'] is True"
+          python -c "import json; assert json.load(open('/tmp/conformance-suite.json'))['conformant'] is True"
 
       - name: Check installed dependencies
         run: python -m pip check

@@ -5,7 +5,7 @@
 <h1 align="center">tracebook</h1>
 
 <p align="center">
-  <strong>Inspectable order-book semantics, normalized event replay, paced benchmarks, and trace-level profiling.</strong>
+  <strong>Conformance testing and reproducible failure analysis for matching engines.</strong>
 </p>
 
 <p align="center">
@@ -13,11 +13,11 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-238%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-256%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
-> **TL;DR:** `tracebook` is an alpha Python market microstructure workbench for testing matching semantics, replaying normalized historical order events, generating synthetic flow, and measuring local latency with explicit boundaries. It is built for systems engineers and quant-minded developers who want inspectable behavior before making performance claims.
+> **TL;DR:** Give Tracebook a normalized event trace and an adapter for your Rust, C++, Java, Python, or other matching engine. It runs the trace against an inspectable reference engine, identifies the first difference in outcomes, trades, resting orders, or queue priority, and reduces failures to a small reproducible trace. It also retains deterministic replay, verified L3 data workflows, and explicitly bounded local benchmarks.
 
 ## Video Walkthrough
 
@@ -31,17 +31,19 @@ Watch **Trace The Match** on YouTube: https://youtu.be/RXOcB2k7qTQ
 
 ## Best Way To Review
 
-1. Run the unit tests and system smoke.
-2. Execute a deterministic simulation with cancel and replace events.
-3. Generate a benchmark JSON report with warmup excluded.
+1. Run the bundled conformance suite through the example external adapter.
+2. Inspect a first-divergence artifact and a minimized failing trace.
+3. Run the unit tests and system smoke.
 4. Verify the checked Coinbase corpus and its deterministic golden state.
-5. Launch the dashboard demo if you want live depth and performance telemetry.
-6. Read the claims, non-claims, and limitations before treating any number as a production latency claim.
+5. Generate a benchmark JSON report with warmup excluded.
+6. Read the claims and limitations before treating any number as production latency.
 
 ```bash
 python -m pip install -e ".[dev,dashboard]"
 python -m pytest
 python test_system.py
+tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance suite /tmp/tracebook-conformance-v1 --candidate python examples/conformance_adapter.py
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-corpus sample /tmp/tracebook-sample-corpus
@@ -52,11 +54,11 @@ tracebook-benchmark --scenario smoke --seed 1337 --warmup-seconds 0.01 --output 
 
 ## Why This Matters
 
-Order book projects are easy to overstate. A simulator can advertise high throughput while silently mixing order generation time into matching latency, ignoring cancellations, using only integer quantities, or skipping basic exchange-style order semantics.
+Matching-engine bugs often hide behind a long event prefix: a reduction that should retain priority, a replacement that should lose it, a partial fill followed by self-trade prevention, or a cancellation addressed through an old internal ID. A final depth snapshot can look plausible while the wrong order sits at the front of a queue.
 
-`tracebook` takes the opposite path. It keeps the matching behavior explicit, separates generation and matching metrics, supports lifecycle events, validates incoming orders, and publishes benchmark output as reproducible local artifacts rather than universal performance claims.
+`tracebook` makes those semantics executable. It compares a candidate after every event, uses source IDs across implementations, hashes the complete queue state, requests a full snapshot only when needed, and preserves the exact disagreement as a versioned artifact. Its minimizer removes irrelevant prefixes and events, then states whether the result is one-minimal or stopped at its run budget.
 
-The goal is a credible open-source alpha: small enough to audit, complete enough to demonstrate real mechanics, and honest enough that future optimization work has a stable baseline.
+The reference engine is intentionally small and readable. It is an oracle and learning surface, not a production exchange. See [`docs/positioning.md`](docs/positioning.md) for the product boundary.
 
 ## Current Local Benchmark Snapshot
 
@@ -87,8 +89,8 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `238` pytest tests passing with `78.52%` statement coverage and a `75%` gate |
-| System smoke | `python test_system.py` passes all 5 checks |
+| Unit tests | `256` pytest tests passing with `79.37%` statement coverage and a `75%` gate |
+| System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
 | Compile and dependency checks | `python -m compileall -q src tests examples install_deps.py` and `python -m pip check` pass |
@@ -102,6 +104,10 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Component | What it does | Why it matters |
 | --- | --- | --- |
+| External-engine conformance | Drives any stdio NDJSON adapter event by event against the reference engine | Tests Rust, C++, Java, Python, or other engines without embedding them in Tracebook |
+| Semantic diffing | Compares outcomes, rejection codes, ordered trades, resting orders, and queue priority | Reports the exact first event and state path where behavior diverges |
+| Failing-trace minimization | Uses deterministic delta debugging to remove irrelevant events and reports whether the result is one-minimal or budget-limited | Turns long failures into reviewable regression fixtures without overstating reduction completeness |
+| Standard conformance suite | Ships eight SHA-256-locked synthetic cases across FIFO, pro-rata, IOC/FOK, STP, tick, lifecycle, depth, and multi-symbol semantics | Gives engine authors a stable shared correctness corpus |
 | FIFO matching | Matches resting orders by price-time priority | Provides the standard exchange-style baseline |
 | Pro-rata matching | Allocates fills by resting size at a price level | Supports futures-style allocation experiments |
 | Decimal quantities | Handles float quantities for crypto-style sizing | Avoids legacy integer-only simulator behavior |
@@ -124,6 +130,13 @@ All checks below were run during the latest production repo pass in this checkou
 
 ```mermaid
 flowchart LR
+    P["Canonical MarketEvent trace"] --> Q["Conformance runner"]
+    Q --> B
+    Q --> R["External engine adapter"]
+    B --> S["Reference observation"]
+    R --> T["Candidate observation"]
+    S --> U["Semantic diff + minimizer"]
+    T --> U
     A["OrderFactory / user API"] --> B["OrderBook"]
     B --> C["Validation"]
     C --> D["MatchingEngine"]
@@ -148,6 +161,7 @@ Core paths:
 - `src/tracebook/core/orderbook.py`: public book API, validation, lifecycle operations, callbacks, snapshots.
 - `src/tracebook/core/matching_engine.py`: FIFO and pro-rata matching coordination.
 - `src/tracebook/core/price_level.py`: price-level storage and depth snapshots.
+- `src/tracebook/conformance/`: adapters, protocol, semantic diffing, minimization, and standard suite.
 - `src/tracebook/events/`: normalized event replay and Coinbase Exchange L3 adaptation.
 - `src/tracebook/corpus/`: safe local capture, corpus manifests, golden verification, and corpus benchmarks.
 - `src/tracebook/simulation/`: synthetic order streams and event-based simulation engine.
@@ -174,6 +188,20 @@ python -m venv venv
 source venv/bin/activate
 python -m pip install -e ".[dev,dashboard]"
 ```
+
+Run the bundled conformance suite through the example process adapter:
+
+```bash
+tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance suite \
+  /tmp/tracebook-conformance-v1 \
+  --output /tmp/conformance-suite.json \
+  --candidate python examples/conformance_adapter.py
+```
+
+See [`docs/conformance.md`](docs/conformance.md) to adapt an external engine and
+to read the versioned protocol, hashing rules, report schemas, and minimizer
+guarantees.
 
 Run a minimal match:
 
@@ -446,6 +474,10 @@ requires `--allow-remote`.
 
 | Command | Purpose |
 | --- | --- |
+| `tracebook-conformance sample suite/` | Copy the hash-locked synthetic conformance suite |
+| `tracebook-conformance suite suite/ --candidate ./adapter` | Test an external engine across every standard case |
+| `tracebook-conformance run events.jsonl --candidate ./adapter` | Stop at the first semantic divergence in one trace |
+| `tracebook-conformance minimize events.jsonl --events-output minimal.jsonl --candidate ./adapter` | Reduce a failure and report minimality or budget exhaustion |
 | `tracebook-sim --duration 5 --throughput 500 --algorithm FIFO` | Run a FIFO simulation |
 | `tracebook-sim --algorithm PRO_RATA --seed 1337` | Run the pro-rata path deterministically |
 | `tracebook-sim --cancel-ratio 0.05 --replace-ratio 0.02` | Interleave lifecycle events |
@@ -504,6 +536,12 @@ Public top-level exports:
 | `ReplayTrade` | Trade record annotated with source and engine order ids |
 | `load_market_events` | Load CSV, JSON, or JSONL event files |
 | `replay_market_events` | Replay normalized events into per-symbol books |
+| `ConformanceConfig` | Matching and numeric-normalization contract for a comparison |
+| `EngineAdapter` | Typed interface for pluggable in-process candidate engines |
+| `ReferenceEngineAdapter` | Incremental adapter over Tracebook's reference semantics |
+| `ExternalProcessAdapterFactory` | Fresh stdio candidate process for each run or minimization trial |
+| `run_conformance` | Produce the first-divergence or conformant report for one trace |
+| `minimize_failing_trace` | Delta-debug a divergent trace under a run budget |
 
 ## Outputs
 
@@ -514,6 +552,9 @@ Public top-level exports:
 | Event replay JSON | Config, applied/rejected counts, active source-id mapping, final depth, per-book statistics, and optional trades |
 | Corpus manifest and golden JSON | Source rights, sanitization/capture metadata, file hashes, canonical event digest, sequence range, and complete final depth |
 | Corpus benchmark/comparison JSON | Raw timing samples, machine/dependency metadata, corpus identity, phase summaries, and explicit environment differences |
+| Conformance report JSON | Trace/config identity, engine metadata, compared event count, final state hash, and exact first divergence |
+| Minimization JSON + JSONL | Reduction statistics, target failure category, minimized trace hash, and executable reproducer |
+| Conformance suite JSON | Per-case fixture hashes, tags, and complete candidate reports |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
 | Performance docs | Local baseline samples and reporting rules |
 
@@ -524,6 +565,7 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 ```text
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
+  conformance/              adapters, protocol, semantic diffing, minimizer, suite
   events/                   normalized file loading and historical event replay
   corpus/                   capture, manifests, bundled fixture, verification, benchmarks
   simulation/               synthetic order streams and event simulation
@@ -542,6 +584,9 @@ pyproject.toml              build-system and tool configuration
 
 Claims:
 
+- Runs external matching engines through a versioned, language-neutral stdio protocol and compares each event's observable semantics.
+- Localizes the first difference in outcome, rejection code, trade, resting state, or queue priority and can reduce the failing trace.
+- Ships a synthetic, SHA-256-locked standard conformance suite with independently configurable matching policies.
 - Implements FIFO and pro-rata matching paths for supported order types.
 - Supports decimal order quantities.
 - Validates symbols, sides, order types, prices, and quantities before matching.
@@ -561,6 +606,7 @@ Non-claims:
 - Not a guarantee of live low-latency performance.
 - Not a full fixed-point implementation yet; prices snap to an integer tick grid but quantities remain float64.
 - Not a complete market microstructure research platform.
+- Not exchange certification or proof of thread safety, durability, risk controls, networking behavior, or adapter honesty.
 - Not proof that a listed benchmark number will reproduce on another machine.
 
 ## Limitations
@@ -569,6 +615,7 @@ Non-claims:
 - Current storage uses plain Python dicts and lists (orders per level are an insertion-ordered dict; price levels are a bisect-indexed list), not a final low-latency memory layout.
 - Prices snap to a configurable integer tick grid (`OrderBook(symbol, tick_size=...)`, default `0.01`); quantities remain float64 and full fixed-point accounting is a later performance phase.
 - The normalized replay contract is venue-neutral; exchange sequence checks and feed-specific semantics belong in adapters.
+- Protocol version 1 compares quantities after explicit decimal normalization; engines requiring different fixed-point rules must configure and document that boundary.
 - Live Coinbase corpora are local artifacts. Pseudonymization removes unnecessary identifiers but does not alter Coinbase's market-data terms.
 - Dashboard is a local demo and monitoring surface, not a secured production service.
 - Magic-trace is optional and platform-dependent; fallback profiling is available when magic-trace is not installed.
@@ -576,10 +623,10 @@ Non-claims:
 
 ## Roadmap
 
-- Add a second venue adapter against the same corpus and golden-state contracts.
-- Add licensed or user-supplied larger corpus profiles without checking restricted market data into the repository.
-- Add an explicit unpaced capacity benchmark beside the existing paced workloads.
-- Stabilize artifact schemas and the top-level API for 1.0.
+- Validate the protocol with an independently implemented Rust, C++, or Java adapter.
+- Add state-machine-aware property generation for lifecycle and self-trade-prevention traces.
+- Separate adapter/protocol overhead from candidate engine timing in a dedicated benchmark mode.
+- Stabilize protocol and artifact schemas after external-engine feedback.
 
 ## Open Source Project Health
 

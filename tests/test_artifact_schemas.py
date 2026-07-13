@@ -20,11 +20,18 @@ from tracebook import (
 )
 from tracebook.benchmarks import runner
 from tracebook.corpus import benchmark_coinbase_corpus, compare_corpus_benchmarks
+from tracebook.conformance import (
+    ReferenceEngineAdapter,
+    load_conformance_suite,
+    run_conformance,
+    run_conformance_suite,
+)
 from tracebook.events import CoinbaseL3Adapter
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
 
 ROOT = Path(__file__).parents[1]
 COINBASE_CORPUS = ROOT / "src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1"
+CONFORMANCE_SUITE = ROOT / "src/tracebook/conformance/fixtures/v1"
 
 
 def _require_keys(obj, keys, ctx):
@@ -495,4 +502,62 @@ def test_coinbase_corpus_and_benchmark_schemas():
             "phases",
         ],
         "coinbase_corpus.comparison",
+    )
+
+
+def test_conformance_report_and_suite_schemas():
+    suite = load_conformance_suite(CONFORMANCE_SUITE)
+    events = suite.cases[0].load_events()
+    report = _json_roundtrip(
+        run_conformance(events, ReferenceEngineAdapter, trace_name="schema").to_dict()
+    )
+    suite_report = _json_roundtrip(run_conformance_suite(suite, ReferenceEngineAdapter))
+
+    _require_keys(
+        report,
+        [
+            "schema_version",
+            "artifact_type",
+            "protocol_version",
+            "trace",
+            "config",
+            "reference_engine",
+            "candidate_engine",
+            "compared_events",
+            "conformant",
+            "final_state_hash",
+            "divergence",
+        ],
+        "conformance.report",
+    )
+    _require_keys(report["trace"], ["name", "sha256", "event_count"], "conformance.trace")
+    _require_keys(
+        report["config"],
+        [
+            "matching_algorithm",
+            "tick_size",
+            "self_trade_policy",
+            "quantity_decimal_places",
+        ],
+        "conformance.config",
+    )
+    _require_keys(
+        suite_report,
+        [
+            "schema_version",
+            "artifact_type",
+            "suite_id",
+            "suite_hash",
+            "candidate_engine",
+            "case_count",
+            "conformant_cases",
+            "conformant",
+            "cases",
+        ],
+        "conformance.suite",
+    )
+    _require_keys(
+        suite_report["cases"][0],
+        ["name", "tags", "events_sha256", "report"],
+        "conformance.suite.case",
     )

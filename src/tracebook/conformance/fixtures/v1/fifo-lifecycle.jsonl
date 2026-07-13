@@ -1,0 +1,10 @@
+{"op":"new","symbol":"TEST","order_id":1,"side":"BUY","order_type":"LIMIT","price":100,"quantity":5,"owner":10,"timestamp_ns":1}
+{"op":"new","symbol":"TEST","order_id":2,"side":"BUY","order_type":"LIMIT","price":100,"quantity":3,"owner":20,"timestamp_ns":2}
+{"op":"reduce","symbol":"TEST","order_id":1,"quantity":2,"timestamp_ns":3}
+{"op":"replace","symbol":"TEST","order_id":1,"quantity":2,"timestamp_ns":4}
+{"op":"new","symbol":"TEST","order_id":3,"side":"SELL","order_type":"LIMIT","price":100,"quantity":4,"owner":30,"timestamp_ns":5}
+{"op":"cancel","symbol":"TEST","order_id":1,"timestamp_ns":6}
+{"op":"cancel","symbol":"TEST","order_id":999,"timestamp_ns":7}
+{"op":"new","symbol":"TEST","order_id":4,"side":"SELL","order_type":"LIMIT","price":101,"quantity":2,"owner":40,"timestamp_ns":8}
+{"op":"new","symbol":"TEST","order_id":5,"side":"BUY","order_type":"LIMIT","price":102,"quantity":1,"owner":50,"timestamp_ns":9}
+{"op":"clear","symbol":"TEST","timestamp_ns":10}

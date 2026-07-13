@@ -1,12 +1,22 @@
 # Architecture
 
-`tracebook` is organized around a small number of auditable components: order construction, book validation, matching, lifecycle events, performance collection, benchmark reporting, and dashboard visualization.
+`tracebook` is organized around a small number of auditable components:
+canonical event traces, reference matching semantics, external-engine adapters,
+semantic comparison and reduction, data replay, performance collection, and
+local visualization.
 
 ## Component Map
 
 ```mermaid
 flowchart TD
     A["User code / CLI"] --> B["OrderFactory"]
+    X["Canonical trace"] --> Y["Conformance runner"]
+    Y --> R
+    Y --> Z["External stdio adapter"]
+    R --> AA["Reference observation"]
+    Z --> AB["Candidate observation"]
+    AA --> AC["First divergence + minimizer"]
+    AB --> AC
     A --> C["OrderBook"]
     B --> C
     C --> D["Order validation"]
@@ -40,6 +50,12 @@ flowchart TD
 | `src/tracebook/core/orderbook.py` | Public book API, validation, cancellation, priority-preserving reduction, replacement, snapshots, callbacks |
 | `src/tracebook/core/matching_engine.py` | Coordinates FIFO/pro-rata matching and trade creation |
 | `src/tracebook/core/price_level.py` | Price-level storage, depth aggregation, and market data snapshots |
+| `src/tracebook/conformance/model.py` | Versioned config, outcome, trade, queue-state, observation, and hashing contracts |
+| `src/tracebook/conformance/reference.py` | Incremental adapter over normalized replay and reference matching semantics |
+| `src/tracebook/conformance/external.py` | Timeout-bounded external process and NDJSON transport |
+| `src/tracebook/conformance/compare.py` | Per-event semantic comparison and exact first-difference reports |
+| `src/tracebook/conformance/minimize.py` | Deterministic delta debugging for failing traces |
+| `src/tracebook/conformance/suite.py` | Hash verification, materialization, and execution of standard adversarial cases |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
 | `src/tracebook/events/market_replay.py` | Normalized historical order-event loading and multi-symbol replay |
@@ -127,10 +143,26 @@ already normalized events. Corpus reports do not flow through
 
 This prevents a benchmark report from presenting synthetic data generation as matching-engine latency.
 
+## Conformance Boundary
+
+The conformance runner is incremental. It sends one normalized event to the
+candidate and compares applied/rejected status, stable rejection code, ordered
+source-ID trades, resting-order count, and canonical state hash before sending
+the next event. A full queue snapshot is transferred only at divergence and at
+the end of a successful run.
+
+This keeps protocol traffic linear in event count while retaining exact state
+localization. Candidate process execution time is not reported as matching
+latency: it includes serialization, pipes, adapter translation, and scheduling.
+See `docs/conformance.md` for the protocol and canonical state rules.
+
 ## Extension Points
 
 Good first extension areas:
 
+- Add a candidate adapter without changing the reference semantics or protocol.
+- Add an adversarial case to the versioned suite with a new fixture hash.
+- Add a property generator whose shrunk output remains valid `MarketEvent` data.
 - Add benchmark scenarios in `src/tracebook/benchmarks/runner.py`.
 - Add order-flow patterns in `src/tracebook/simulation/order_generator.py`.
 - Add result-schema tests in `tests/test_benchmark_runner_json_output.py`.

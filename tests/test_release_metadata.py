@@ -62,7 +62,9 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
     assert "tracebook-replay=tracebook.events.cli:main" in setup_text
     assert "tracebook-coinbase=tracebook.events.coinbase_cli:main" in setup_text
     assert "tracebook-corpus=tracebook.corpus.cli:main" in setup_text
+    assert "tracebook-conformance=tracebook.conformance.cli:main" in setup_text
     assert '"tracebook.corpus.fixtures": ["coinbase-btcusd-synthetic-v1/*"]' in setup_text
+    assert '"tracebook.conformance.fixtures.v1": ["*.json", "*.jsonl"]' in setup_text
     assert (ROOT / "src" / "tracebook" / "py.typed").is_file()
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 

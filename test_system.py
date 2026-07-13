@@ -50,6 +50,40 @@ def check_coinbase_corpus() -> None:
         assert result["final_sequence"] == 109
 
 
+def check_conformance() -> None:
+    from tracebook import ReferenceEngineAdapter, run_conformance
+    from tracebook.events import MarketEvent
+
+    events = [
+        MarketEvent.from_mapping(
+            {
+                "op": "new",
+                "symbol": "BTCUSD",
+                "order_id": 1,
+                "side": "BUY",
+                "price": 50_000,
+                "quantity": 1,
+            }
+        ),
+        MarketEvent.from_mapping(
+            {
+                "op": "new",
+                "symbol": "BTCUSD",
+                "order_id": 2,
+                "side": "SELL",
+                "price": 49_999,
+                "quantity": 0.5,
+            }
+        ),
+    ]
+
+    report = run_conformance(events, ReferenceEngineAdapter, trace_name="system-smoke")
+
+    assert report.conformant is True
+    assert report.compared_events == 2
+    assert report.final_state_hash is not None
+
+
 def check_performance_monitor() -> None:
     from tracebook.profiling.performance_monitor import PerformanceMonitor
 
@@ -91,6 +125,7 @@ def main() -> int:
         ("matching and lifecycle", check_matching),
         ("normalized event replay", check_event_replay),
         ("verified Coinbase corpus", check_coinbase_corpus),
+        ("matching-engine conformance", check_conformance),
         ("performance monitoring", check_performance_monitor),
         ("paced simulation", check_simulation),
     ]
