@@ -9,7 +9,13 @@ from typing import Iterable, Optional, Tuple
 
 from ..events import MarketEvent
 from .compare import ConformanceReport, run_conformance
-from .model import ARTIFACT_SCHEMA_VERSION, ConformanceConfig, ConformanceError, trace_sha256
+from .model import (
+    ARTIFACT_SCHEMA_VERSION,
+    ConformanceConfig,
+    ConformanceError,
+    EngineMetadata,
+    trace_sha256,
+)
 from .protocol import AdapterFactory
 
 
@@ -53,6 +59,7 @@ def minimize_failing_trace(
     config: Optional[ConformanceConfig] = None,
     max_runs: int = 100,
     trace_name: Optional[str] = None,
+    expected_candidate_engine: Optional[EngineMetadata] = None,
 ) -> MinimizationResult:
     """Use delta debugging to reduce a failure and report minimality honestly."""
     if isinstance(max_runs, bool) or not isinstance(max_runs, Integral) or max_runs <= 0:
@@ -64,6 +71,9 @@ def minimize_failing_trace(
     runs = 1
     if initial.conformant or initial.divergence is None:
         raise ConformanceError("trace is conformant and cannot be minimized")
+    candidate_engine = expected_candidate_engine or initial.candidate_engine
+    if initial.candidate_engine != candidate_engine:
+        raise ConformanceError("candidate engine metadata changed during minimization")
 
     target = initial.divergence.category
     prefix_length = initial.divergence.event_index
@@ -94,6 +104,8 @@ def minimize_failing_trace(
                 continue
             report = run_conformance(trial, candidate_factory, config)
             runs += 1
+            if report.candidate_engine != candidate_engine:
+                raise ConformanceError("candidate engine metadata changed during minimization")
             if (
                 not report.conformant
                 and report.divergence is not None
@@ -117,6 +129,8 @@ def minimize_failing_trace(
     if len(current) == 1 and not one_minimal and runs < max_runs:
         empty_report = run_conformance((), candidate_factory, config)
         runs += 1
+        if empty_report.candidate_engine != candidate_engine:
+            raise ConformanceError("candidate engine metadata changed during minimization")
         if (
             not empty_report.conformant
             and empty_report.divergence is not None

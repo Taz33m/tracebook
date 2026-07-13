@@ -13,6 +13,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 - Added `fifo-limit-v1` and `fifo-full-v1` campaign profiles, a specified
   cross-Python SplitMix64 generator, a stable campaign identity, and the
   `tracebook-conformance campaign` command for local and CI use.
+- Locked candidate identity across campaign and minimization subprocesses,
+  preflighted occupied output paths, serialized concurrent artifact writers,
+  and fixed campaign IDs and trace hashes across the Python CI matrix.
 
 ## 0.3.0 - 2026-07-13
 

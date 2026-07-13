@@ -149,6 +149,12 @@ def _require_distinct_paths(*paths: Optional[str]) -> None:
         raise ConformanceError("input and output paths must be distinct")
 
 
+def _require_new_directory(path: str) -> None:
+    target = Path(path).expanduser()
+    if target.exists() or target.is_symlink():
+        raise ConformanceError(f"campaign output already exists: {target}")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -195,6 +201,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Minimized events written: {Path(args.events_output)}")
             return 0
         if args.command == "campaign":
+            _require_new_directory(args.output_dir)
             campaign_result = run_campaign(
                 _candidate_factory(args),
                 profile=args.profile,

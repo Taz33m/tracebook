@@ -275,6 +275,23 @@ def test_delta_debugging_reduces_to_a_one_event_reproducer():
     assert budget_limited.report.trace_hash == budget_limited.to_dict()["minimized_trace_sha256"]
 
 
+def test_minimizer_rejects_candidate_metadata_changes_between_runs():
+    class ChangingFactory:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, config):
+            self.calls += 1
+            adapter = _DroppingAdapter(config)
+            adapter.metadata = EngineMetadata("changing-adapter", str(self.calls), "Python")
+            return adapter
+
+    events = [_event(order_id=1), _event(order_id=77, symbol="FAULT")]
+
+    with pytest.raises(ConformanceError, match="metadata changed during minimization"):
+        minimize_failing_trace(events, ChangingFactory(), max_runs=10)
+
+
 def test_external_stdio_adapter_runs_incrementally_and_verifies_final_snapshot():
     events = load_market_events(SUITE / "order-instructions.jsonl")
 

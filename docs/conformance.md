@@ -58,7 +58,8 @@ delta debugging. It retains a candidate subsequence only when the same failure
 category still occurs. The report sets `one_minimal` only after every individual
 deletion in the final round no longer reproduces that category. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
-made.
+made. Every fresh candidate process must report the same engine metadata as the
+initial failing run; a binary or adapter identity change aborts minimization.
 
 ## Differential Campaigns
 

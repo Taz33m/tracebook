@@ -495,7 +495,12 @@ def run_campaign(
                 config=selected_profile.config,
                 max_runs=max_minimize_runs,
                 trace_name=trace_name,
+                expected_candidate_engine=candidate_engine,
             )
+            if minimization.report.candidate_engine != candidate_engine:
+                raise ConformanceError(
+                    "candidate engine metadata changed during campaign minimization"
+                )
             failure = CampaignFailure(trace_result, minimization)
             break
 
@@ -534,16 +539,29 @@ def _write_events(path: Path, events: Sequence[MarketEvent]) -> None:
             )
 
 
+def _path_occupied(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
 def write_campaign_artifacts(result: CampaignResult, destination: str | Path) -> Path:
     """Atomically persist a campaign summary and its optional failure bundle."""
     if not isinstance(result, CampaignResult):
         raise ConformanceError("result must be a CampaignResult")
     target = Path(destination).expanduser()
-    if target.exists():
-        raise ConformanceError(f"campaign output already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix=f".{target.name}.", dir=str(target.parent)))
+    lock = target.with_name(f".{target.name}.lock")
     try:
+        lock.mkdir()
+    except FileExistsError as exc:
+        raise ConformanceError(f"campaign output is locked: {target}") from exc
+    except OSError as exc:
+        raise ConformanceError(f"could not reserve campaign output {target}: {exc}") from exc
+
+    temporary: Optional[Path] = None
+    try:
+        if _path_occupied(target):
+            raise ConformanceError(f"campaign output already exists: {target}")
+        temporary = Path(tempfile.mkdtemp(prefix=f".{target.name}.", dir=str(target.parent)))
         if result.failure is not None:
             failure_dir = temporary / "failure"
             failure_dir.mkdir()
@@ -561,8 +579,15 @@ def write_campaign_artifacts(result: CampaignResult, destination: str | Path) ->
                 result.failure.minimization.to_dict(),
             )
         _write_json(temporary / "campaign.json", result.to_dict())
-        temporary.replace(target)
-    except Exception:
-        shutil.rmtree(temporary, ignore_errors=True)
-        raise
+        if _path_occupied(target):
+            raise ConformanceError(f"campaign output already exists: {target}")
+        try:
+            temporary.rename(target)
+        except OSError as exc:
+            raise ConformanceError(f"could not commit campaign output {target}: {exc}") from exc
+        temporary = None
+    finally:
+        if temporary is not None:
+            shutil.rmtree(temporary, ignore_errors=True)
+        shutil.rmtree(lock, ignore_errors=True)
     return target / "campaign.json"

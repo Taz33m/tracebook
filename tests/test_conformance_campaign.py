@@ -1,8 +1,10 @@
 import json
 import sys
+import threading
 from pathlib import Path
 
 import pytest
+import tracebook.conformance.campaign as campaign_module
 
 from tracebook.conformance import (
     CAMPAIGN_GENERATOR_VERSION,
@@ -167,9 +169,70 @@ def test_conformant_campaign_has_stable_identity_and_atomic_artifact(tmp_path):
     assert payload["candidate_runs"] == 3
     assert payload["failure"] is None
     assert [trace["seed"] for trace in payload["traces"]] == [trace.seed for trace in result.traces]
+    assert not (tmp_path / ".campaign.lock").exists()
 
     with pytest.raises(ConformanceError, match="already exists"):
         write_campaign_artifacts(result, destination)
+    assert not (tmp_path / ".campaign.lock").exists()
+
+
+def test_campaign_artifact_writer_rejects_an_active_output_lock(tmp_path):
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    destination = tmp_path / "campaign"
+    lock = tmp_path / ".campaign.lock"
+    lock.mkdir()
+
+    with pytest.raises(ConformanceError, match="output is locked"):
+        write_campaign_artifacts(result, destination)
+
+    assert not destination.exists()
+
+
+def test_campaign_artifact_writer_serializes_concurrent_writers(tmp_path, monkeypatch):
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    destination = tmp_path / "campaign"
+    entered_write = threading.Event()
+    release_write = threading.Event()
+    writer_errors = []
+    original_write_json = campaign_module._write_json
+
+    def blocking_write(path, payload):
+        if path.name == "campaign.json":
+            entered_write.set()
+            release_write.wait(timeout=5)
+        original_write_json(path, payload)
+
+    def first_writer():
+        try:
+            write_campaign_artifacts(result, destination)
+        except Exception as exc:  # pragma: no cover - asserted in the parent thread
+            writer_errors.append(exc)
+
+    monkeypatch.setattr(campaign_module, "_write_json", blocking_write)
+    writer = threading.Thread(target=first_writer)
+    writer.start()
+    try:
+        assert entered_write.wait(timeout=5)
+        with pytest.raises(ConformanceError, match="output is locked"):
+            write_campaign_artifacts(result, destination)
+    finally:
+        release_write.set()
+        writer.join(timeout=5)
+
+    assert not writer.is_alive()
+    assert writer_errors == []
+    assert (destination / "campaign.json").is_file()
+    assert not (tmp_path / ".campaign.lock").exists()
 
 
 def test_campaign_automatically_minimizes_and_persists_first_failure(tmp_path):
@@ -195,6 +258,27 @@ def test_campaign_automatically_minimizes_and_persists_first_failure(tmp_path):
     assert len(load_market_events(destination / "failure" / "minimized.jsonl")) == 1
     assert (destination / "failure" / "original-report.json").is_file()
     assert (destination / "failure" / "minimization.json").is_file()
+
+
+def test_campaign_rejects_engine_identity_changes_before_minimized_artifacts():
+    class ChangesAfterCampaignTrace:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, config):
+            self.calls += 1
+            adapter = _DroppingFirstAdapter(config)
+            version = "campaign" if self.calls == 1 else "minimization"
+            adapter.metadata = EngineMetadata("changing-adapter", version, "Python")
+            return adapter
+
+    with pytest.raises(ConformanceError, match="metadata changed during minimization"):
+        run_campaign(
+            ChangesAfterCampaignTrace(),
+            traces=1,
+            events_per_trace=10,
+            max_minimize_runs=10,
+        )
 
 
 def test_campaign_cli_returns_one_and_writes_reproducer_for_divergence(tmp_path, capsys):
@@ -247,6 +331,29 @@ def test_campaign_cli_runs_external_conformant_adapter(tmp_path):
 
     assert exit_code == 0
     assert json.loads((output / "campaign.json").read_text())["conformant"] is True
+
+
+def test_campaign_cli_rejects_existing_output_before_running(tmp_path, monkeypatch, capsys):
+    output = tmp_path / "existing"
+    output.mkdir()
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail("campaign ran before output preflight")
+
+    monkeypatch.setattr("tracebook.conformance.cli.run_campaign", unexpected_run)
+
+    exit_code = main(
+        [
+            "campaign",
+            "--output-dir",
+            str(output),
+            "--candidate",
+            "unused-adapter",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "already exists" in capsys.readouterr().err
 
 
 def test_campaign_is_wired_into_docs_and_ci():

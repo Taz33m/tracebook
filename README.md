@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-275%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-280%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -186,7 +186,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `275` pytest tests passing with `80.09%` statement coverage and a `75%` gate |
+| Unit tests | `280` pytest tests passing with `80.09%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -560,6 +560,7 @@ requires `--allow-remote`.
 | Command | Purpose |
 | --- | --- |
 | `tracebook-conformance sample suite/` | Copy the hash-locked synthetic conformance suite |
+| `tracebook-conformance campaign --output-dir run/ --candidate ./adapter` | Generate stateful traces and minimize the first drift |
 | `tracebook-conformance suite suite/ --candidate ./adapter` | Test an external engine across every standard case |
 | `tracebook-conformance run events.jsonl --candidate ./adapter` | Stop at the first semantic divergence in one trace |
 | `tracebook-conformance minimize events.jsonl --events-output minimal.jsonl --candidate ./adapter` | Reduce a failure and report minimality or budget exhaustion |
@@ -622,11 +623,15 @@ Public top-level exports:
 | `load_market_events` | Load CSV, JSON, or JSONL event files |
 | `replay_market_events` | Replay normalized events into per-symbol books |
 | `ConformanceConfig` | Matching and numeric-normalization contract for a comparison |
+| `CampaignProfile` | Versioned generated semantic surface and conformance config |
+| `CampaignResult` | Multi-trace result with stable identity and optional first failure |
 | `EngineAdapter` | Typed interface for pluggable in-process candidate engines |
 | `ReferenceEngineAdapter` | Incremental adapter over Tracebook's reference semantics |
 | `ExternalProcessAdapterFactory` | Fresh stdio candidate process for each run or minimization trial |
 | `run_conformance` | Produce the first-divergence or conformant report for one trace |
+| `run_campaign` | Generate and compare traces through the first minimized divergence |
 | `minimize_failing_trace` | Delta-debug a divergent trace under a run budget |
+| `write_campaign_artifacts` | Atomically persist a campaign report and optional failure bundle |
 
 ## Outputs
 
@@ -638,6 +643,7 @@ Public top-level exports:
 | Corpus manifest and golden JSON | Source rights, sanitization/capture metadata, file hashes, canonical event digest, sequence range, and complete final depth |
 | Corpus benchmark/comparison JSON | Raw timing samples, machine/dependency metadata, corpus identity, phase summaries, and explicit environment differences |
 | Conformance report JSON | Trace/config identity, engine metadata, compared event count, final state hash, and exact first divergence |
+| Campaign JSON + failure bundle | Stable generator/profile identity, per-trace seeds and hashes, original first-divergence evidence, and minimized JSONL reproducer |
 | Minimization JSON + JSONL | Reduction statistics, target failure category, minimized trace hash, and executable reproducer |
 | Conformance suite JSON | Per-case fixture hashes, tags, and complete candidate reports |
 | Dashboard charts | Throughput, latency, resources, trade volume, and depth |
@@ -650,7 +656,7 @@ Generated benchmark outputs and trace artifacts are ignored by git.
 ```text
 src/tracebook/              package source
   core/                     orders, price levels, matching engine, order book API
-  conformance/              adapters, protocol, semantic diffing, minimizer, suite
+  conformance/              adapters, campaigns, protocol, semantic diffing, minimizer, suite
   events/                   normalized file loading and historical event replay
   corpus/                   capture, manifests, bundled fixture, verification, benchmarks
   simulation/               synthetic order streams and event simulation
@@ -671,6 +677,7 @@ pyproject.toml              build-system and tool configuration
 Claims:
 
 - Runs external matching engines through a versioned, language-neutral stdio protocol and compares each event's observable semantics.
+- Generates versioned stateful campaigns independently of candidate behavior and records stable identities and trace hashes.
 - Localizes the first difference in outcome, rejection code, trade, resting state, or queue priority and can reduce the failing trace.
 - Ships a synthetic, SHA-256-locked standard conformance suite with independently configurable matching policies.
 - Implements FIFO and pro-rata matching paths for supported order types.
