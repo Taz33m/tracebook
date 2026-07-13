@@ -52,6 +52,7 @@ Thumbs.db
 *.sql
 *.sqlite
 node_modules/
+target/
 
 # Local development
 .env

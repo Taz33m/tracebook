@@ -11,6 +11,11 @@ include SUPPORT.md
 recursive-include docs *.md *.png
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include integrations *.py *.md *.jsonl
+recursive-include integrations/orderbook_rs/src *.rs
+include integrations/orderbook_rs/Cargo.toml
+include integrations/orderbook_rs/Cargo.lock
+include integrations/orderbook_rs/rust-toolchain.toml
+prune integrations/orderbook_rs/target
 recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl

@@ -76,6 +76,7 @@ flowchart TD
 | `src/tracebook/conformance/compare.py` | Per-event semantic comparison and exact first-difference reports |
 | `src/tracebook/conformance/minimize.py` | Deterministic delta debugging for failing traces |
 | `src/tracebook/conformance/suite.py` | Hash verification, materialization, and execution of standard adversarial cases |
+| `integrations/orderbook_rs/` | Native Rust protocol server and semantic adapter over pinned `orderbook-rs` |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
 | `src/tracebook/events/market_replay.py` | Normalized historical order-event loading and multi-symbol replay |

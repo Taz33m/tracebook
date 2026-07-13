@@ -1,6 +1,8 @@
 # Matching-Engine Conformance
 
-For a complete maintained adapter, see the
+For complete maintained adapters, start with the native Rust
+[`orderbook-rs` integration](../integrations/orderbook_rs/README.md), then see
+the narrower
 [PythonMatchingEngine integration](../integrations/python_matching_engine/README.md).
 To make conformance a pull-request gate, use the
 [copy-paste GitHub Actions workflow](ci.md).

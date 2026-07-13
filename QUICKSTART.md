@@ -1,6 +1,8 @@
 # Quick Start
 
-For the real PythonMatchingEngine comparison, see
+For the native Rust `orderbook-rs` comparison, see
+[`integrations/orderbook_rs/README.md`](integrations/orderbook_rs/README.md).
+The narrower PythonMatchingEngine comparison remains in
 [`integrations/python_matching_engine/README.md`](integrations/python_matching_engine/README.md).
 For a pull-request gate, copy
 [`examples/github-actions/conformance.yml`](examples/github-actions/conformance.yml).
