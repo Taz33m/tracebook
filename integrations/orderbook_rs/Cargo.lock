@@ -432,9 +432,9 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "orderbook-rs"
-version = "0.10.4"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36c13dbdc10b0a120e1f9189f5f4600c43623590725ed23297d50eecf5386021"
+checksum = "80d1e8509e36ab7c81af79f45333c17a18b89c9d7d167c734ce9f14555922793"
 dependencies = [
  "bitflags",
  "crossbeam",
