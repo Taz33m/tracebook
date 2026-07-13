@@ -6,7 +6,7 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
-Development version: `0.3.0.dev0`.
+## 0.3.0 - 2026-07-13
 
 - Added the first maintained third-party engine integration: a commit-pinned
   PythonMatchingEngine adapter, a 13-event native FIFO/LIMIT compatibility

@@ -57,7 +57,7 @@ tag before requesting a PyPI token.
 After publishing, verify from a clean environment:
 
 ```bash
-python -m pip install tracebook-sim==0.2.0
+python -m pip install tracebook-sim==0.3.0
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-replay --help
 tracebook-coinbase --help
