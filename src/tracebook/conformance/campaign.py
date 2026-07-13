@@ -552,19 +552,16 @@ _DIRECTORY_FD_SUPPORTED = (
 )
 
 
-def _open_exclusive_file(name: str, directory_fd: Optional[int], directory: Path) -> int:
-    if directory_fd is not None:
-        return os.open(name, _EXCLUSIVE_FILE_FLAGS, 0o600, dir_fd=directory_fd)
-    return os.open(directory / name, _EXCLUSIVE_FILE_FLAGS, 0o600)
+def _open_exclusive_file(name: str, directory_fd: int) -> int:
+    return os.open(name, _EXCLUSIVE_FILE_FLAGS, 0o600, dir_fd=directory_fd)
 
 
 def _write_exclusive_bytes(
     name: str,
     payload: bytes,
-    directory_fd: Optional[int],
-    directory: Path,
+    directory_fd: int,
 ) -> None:
-    file_descriptor = _open_exclusive_file(name, directory_fd, directory)
+    file_descriptor = _open_exclusive_file(name, directory_fd)
     with os.fdopen(file_descriptor, "wb") as handle:
         handle.write(payload)
 
@@ -572,46 +569,31 @@ def _write_exclusive_bytes(
 def _copy_exclusive_file(
     source: Path,
     name: str,
-    directory_fd: Optional[int],
-    directory: Path,
+    directory_fd: int,
 ) -> None:
-    file_descriptor = _open_exclusive_file(name, directory_fd, directory)
+    file_descriptor = _open_exclusive_file(name, directory_fd)
     with source.open("rb") as source_handle, os.fdopen(file_descriptor, "wb") as target_handle:
         shutil.copyfileobj(source_handle, target_handle)
 
 
-def _read_relative_bytes(name: str, directory_fd: Optional[int], directory: Path) -> bytes:
+def _read_relative_bytes(name: str, directory_fd: int) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    if directory_fd is not None:
-        file_descriptor = os.open(name, flags, dir_fd=directory_fd)
-    else:
-        file_descriptor = os.open(directory / name, flags)
+    file_descriptor = os.open(name, flags, dir_fd=directory_fd)
     with os.fdopen(file_descriptor, "rb") as handle:
         return handle.read()
 
 
-def _relative_names(directory_fd: Optional[int], directory: Path) -> set[str]:
-    return set(os.listdir(directory_fd if directory_fd is not None else directory))
+def _relative_names(directory_fd: int) -> set[str]:
+    return set(os.listdir(directory_fd))
 
 
-def _make_relative_directory(
-    name: str,
-    directory_fd: Optional[int],
-    directory: Path,
-) -> Tuple[Optional[int], Path]:
-    child = directory / name
-    if directory_fd is not None:
-        os.mkdir(name, mode=0o700, dir_fd=directory_fd)
-        return os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=directory_fd), child
-    child.mkdir(mode=0o700)
-    return None, child
+def _make_relative_directory(name: str, directory_fd: int) -> int:
+    os.mkdir(name, mode=0o700, dir_fd=directory_fd)
+    return os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=directory_fd)
 
 
-def _unlink_relative(name: str, directory_fd: Optional[int], directory: Path) -> None:
-    if directory_fd is not None:
-        os.unlink(name, dir_fd=directory_fd)
-    else:
-        (directory / name).unlink()
+def _unlink_relative(name: str, directory_fd: int) -> None:
+    os.unlink(name, dir_fd=directory_fd)
 
 
 class _CampaignOutputReservation:
@@ -626,6 +608,11 @@ class _CampaignOutputReservation:
         self._committed = False
 
     def __enter__(self) -> "_CampaignOutputReservation":
+        if not _DIRECTORY_FD_SUPPORTED:
+            raise ConformanceError(
+                "campaign artifact commits require descriptor-relative "
+                "directory operations on this platform"
+            )
         try:
             self.target.parent.mkdir(parents=True, exist_ok=True)
             self.target.mkdir()
@@ -637,19 +624,14 @@ class _CampaignOutputReservation:
             ) from exc
 
         try:
-            if _DIRECTORY_FD_SUPPORTED:
-                self._directory_fd = os.open(self.target, _DIRECTORY_OPEN_FLAGS)
-            stat = (
-                os.fstat(self._directory_fd)
-                if self._directory_fd is not None
-                else self.target.stat()
-            )
+            directory_fd = os.open(self.target, _DIRECTORY_OPEN_FLAGS)
+            self._directory_fd = directory_fd
+            stat = os.fstat(directory_fd)
             self._identity = (stat.st_dev, stat.st_ino)
             _write_exclusive_bytes(
                 _RESERVATION_MARKER,
                 self._token.encode("ascii"),
-                self._directory_fd,
-                self.target,
+                directory_fd,
             )
             self._active = True
         except OSError as exc:
@@ -670,28 +652,28 @@ class _CampaignOutputReservation:
         return not self.target.is_symlink() and (stat.st_dev, stat.st_ino) == self._identity
 
     def _owns_clean_reservation(self) -> bool:
-        if not self._active or not self._same_directory():
+        directory_fd = self._directory_fd
+        if directory_fd is None or not self._active or not self._same_directory():
             return False
         try:
             return _read_relative_bytes(
                 _RESERVATION_MARKER,
-                self._directory_fd,
-                self.target,
-            ) == self._token.encode("ascii") and _relative_names(
-                self._directory_fd, self.target
-            ) == {
-                _RESERVATION_MARKER
-            }
+                directory_fd,
+            ) == self._token.encode(
+                "ascii"
+            ) and _relative_names(directory_fd) == {_RESERVATION_MARKER}
         except OSError:
             return False
 
     def _restore_marker(self) -> None:
+        directory_fd = self._directory_fd
+        if directory_fd is None:
+            return
         try:
             _write_exclusive_bytes(
                 _RESERVATION_MARKER,
                 self._token.encode("ascii"),
-                self._directory_fd,
-                self.target,
+                directory_fd,
             )
         except OSError:
             pass
@@ -706,7 +688,8 @@ class _CampaignOutputReservation:
         """Commit a complete campaign bundle over this exact reservation."""
         if not isinstance(result, CampaignResult):
             raise ConformanceError("result must be a CampaignResult")
-        if not self._active or self._committed:
+        directory_fd = self._directory_fd
+        if directory_fd is None or not self._active or self._committed:
             raise ConformanceError("campaign output reservation is not active")
 
         temporary = Path(
@@ -739,13 +722,8 @@ class _CampaignOutputReservation:
             try:
                 expected_top_level = {_RESERVATION_MARKER, "campaign.json"}
                 expected_failure_files: Optional[set[str]] = None
-                failure_path = self.target / "failure"
                 if result.failure is not None:
-                    failure_fd, failure_path = _make_relative_directory(
-                        "failure",
-                        self._directory_fd,
-                        self.target,
-                    )
+                    failure_fd = _make_relative_directory("failure", directory_fd)
                     expected_top_level.add("failure")
                     expected_failure_files = {
                         "original.jsonl",
@@ -758,21 +736,22 @@ class _CampaignOutputReservation:
                             temporary / "failure" / name,
                             name,
                             failure_fd,
-                            failure_path,
                         )
 
                 _copy_exclusive_file(
                     temporary / "campaign.json",
                     "campaign.json",
-                    self._directory_fd,
-                    self.target,
+                    directory_fd,
                 )
                 reservation_unchanged = (
                     self._same_directory()
-                    and _relative_names(self._directory_fd, self.target) == expected_top_level
+                    and _relative_names(directory_fd) == expected_top_level
                     and (
                         expected_failure_files is None
-                        or _relative_names(failure_fd, failure_path) == expected_failure_files
+                        or (
+                            failure_fd is not None
+                            and _relative_names(failure_fd) == expected_failure_files
+                        )
                     )
                 )
                 if not reservation_unchanged:
@@ -780,18 +759,17 @@ class _CampaignOutputReservation:
                         f"campaign output reservation changed before commit: {self.target}"
                     )
 
-                _unlink_relative(
-                    _RESERVATION_MARKER,
-                    self._directory_fd,
-                    self.target,
-                )
+                _unlink_relative(_RESERVATION_MARKER, directory_fd)
                 committed_names = expected_top_level - {_RESERVATION_MARKER}
                 commit_visible = (
                     self._same_directory()
-                    and _relative_names(self._directory_fd, self.target) == committed_names
+                    and _relative_names(directory_fd) == committed_names
                     and (
                         expected_failure_files is None
-                        or _relative_names(failure_fd, failure_path) == expected_failure_files
+                        or (
+                            failure_fd is not None
+                            and _relative_names(failure_fd) == expected_failure_files
+                        )
                     )
                 )
                 if not commit_visible:

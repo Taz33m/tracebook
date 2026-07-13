@@ -99,7 +99,10 @@ then removes `.tracebook-campaign-reservation` as the final commit signal. It
 never replaces or mutates a re-resolved destination path. A directory that
 still contains the reservation marker is incomplete and must be explicitly
 removed before retrying; this conservative rule also applies after handled
-candidate or write failures. A divergent completed run also writes:
+candidate or write failures. Bundle publication fails closed before creating
+the output on platforms where Python lacks descriptor-relative directory
+operations; `run_campaign` generation and comparison remain available. A
+divergent completed run also writes:
 
 | Path | Contents |
 | --- | --- |

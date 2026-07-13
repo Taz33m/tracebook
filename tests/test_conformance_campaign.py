@@ -204,6 +204,22 @@ def test_campaign_artifact_writer_validates_before_reserving_output(tmp_path):
     assert not destination.exists()
 
 
+def test_campaign_artifact_writer_fails_closed_without_directory_fds(tmp_path, monkeypatch):
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    destination = tmp_path / "new-parent" / "campaign"
+    monkeypatch.setattr(campaign_module, "_DIRECTORY_FD_SUPPORTED", False)
+
+    with pytest.raises(ConformanceError, match="descriptor-relative"):
+        write_campaign_artifacts(result, destination)
+
+    assert not destination.parent.exists()
+
+
 def test_campaign_artifact_writer_serializes_concurrent_writers(tmp_path, monkeypatch):
     result = run_campaign(
         ReferenceEngineAdapter,
@@ -283,10 +299,10 @@ def test_campaign_commit_stays_bound_to_reserved_inode_during_symlink_swap(tmp_p
     sentinel.write_text("keep", encoding="utf-8")
     original_unlink = campaign_module._unlink_relative
 
-    def swap_then_unlink(name, directory_fd, directory):
+    def swap_then_unlink(name, directory_fd):
         destination.rename(displaced)
         destination.symlink_to(unrelated, target_is_directory=True)
-        original_unlink(name, directory_fd, directory)
+        original_unlink(name, directory_fd)
 
     monkeypatch.setattr(campaign_module, "_unlink_relative", swap_then_unlink)
 

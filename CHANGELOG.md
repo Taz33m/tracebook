@@ -15,8 +15,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   `tracebook-conformance campaign` command for local and CI use.
 - Locked candidate identity across campaign and minimization subprocesses,
   reserved the exact output path before candidate work, rejected changed output
-  reservations without overwriting them, and fixed campaign IDs and trace
-  hashes across the Python CI matrix.
+  reservations without overwriting them, failed closed where descriptor-safe
+  commits are unavailable, and fixed campaign IDs and trace hashes across the
+  Python CI matrix.
 
 ## 0.3.0 - 2026-07-13
 
