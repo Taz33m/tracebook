@@ -19,9 +19,6 @@ jobs:
   native-rust-adapter:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      ADAPTER: ${{ github.workspace }}/integrations/orderbook_rs/target/release/tracebook-orderbook-rs
-      REPORT_ROOT: ${{ runner.temp }}/orderbook-rs
 
     steps:
       - uses: actions/checkout@v7
@@ -34,6 +31,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: rustfmt, clippy
+
+      - name: Configure integration paths
+        run: |
+          echo "ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/tracebook-orderbook-rs" >> "$GITHUB_ENV"
+          echo "REPORT_ROOT=$RUNNER_TEMP/orderbook-rs" >> "$GITHUB_ENV"
 
       - name: Install Tracebook
         run: python -m pip install -e .
