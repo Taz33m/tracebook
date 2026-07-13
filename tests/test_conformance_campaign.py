@@ -1,7 +1,9 @@
 import json
+import shlex
 import shutil
 import sys
 import threading
+from xml.etree import ElementTree
 from pathlib import Path
 
 import pytest
@@ -19,7 +21,9 @@ from tracebook.conformance import (
     ReferenceEngineAdapter,
     campaign_profile_names,
     generate_campaign_trace,
+    is_queue_priority_probe,
     run_campaign,
+    run_reproduction,
     write_campaign_artifacts,
 )
 from tracebook.conformance.cli import main
@@ -86,13 +90,17 @@ def test_campaign_generator_is_versioned_deterministic_and_stateful():
     first = generate_campaign_trace("fifo-limit-v1", seed=42, event_count=80)
     second = generate_campaign_trace("fifo-limit-v1", seed=42, event_count=80)
 
-    assert CAMPAIGN_GENERATOR_VERSION == 1
+    assert CAMPAIGN_GENERATOR_VERSION == 2
     assert campaign_profile_names() == ("fifo-full-v1", "fifo-limit-v1")
     assert first == second
     assert trace_sha256(first) == (
-        "sha256:c8511fc16949aa79a0c343d2157e2f45348aaa560038df9dd2390f18b39a4dae"
+        "sha256:1ded355da7f1e8b553868d8e52077b2decd9f3fd2107a963dbd5728a82035f22"
     )
-    assert {event.symbol for event in first} == {"ALPHA", "BETA"}
+    assert {event.symbol for event in first} == {
+        "ALPHA",
+        "BETA",
+        "FIFO-PRIORITY-PROBE",
+    }
     assert {event.op for event in first} >= {"new", "cancel", "reduce", "replace", "clear"}
     assert {event.order_type for event in first if event.op == "new"} == {OrderType.LIMIT}
 
@@ -107,6 +115,36 @@ def test_full_fifo_profile_generates_every_instruction_type():
         OrderType.IOC,
         OrderType.FOK,
     }
+
+
+def test_seed_42_campaign_pins_event_173_probe_and_semantic_coverage():
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        profile="fifo-limit-v1",
+        seed=42,
+        traces=1,
+        events_per_trace=200,
+    )
+    events = result.traces[0].events
+
+    assert is_queue_priority_probe(events, 173)
+    assert result.campaign_id == (
+        "sha256:381610e86959a389ff52786c9722f4ee50ef92a97ca2f99af54ceedd8dd63bd6"
+    )
+    assert result.semantic_coverage.covered_capabilities == (
+        "limit-orders",
+        "fifo-price-time-priority",
+        "partial-fills",
+        "cancellation",
+        "reduction",
+        "replacement",
+        "book-clear",
+        "duplicate-active-order-id",
+        "inactive-lifecycle-request",
+        "multiple-symbols",
+    )
+    assert result.semantic_coverage.queue_priority_probes == 1
+    assert result.to_dict()["semantic_coverage"]["coverage_ratio"] == 1.0
 
 
 @pytest.mark.parametrize(
@@ -336,8 +374,11 @@ def test_campaign_automatically_minimizes_and_persists_first_failure(tmp_path):
     assert result.failure.minimization.one_minimal is True
     assert payload["failure"]["target_category"] == "book_state"
     assert payload["failure"]["minimized_event_count"] == 1
-    assert len(load_market_events(destination / "failure" / "original.jsonl")) == 40
+    assert len(load_market_events(destination / "failure" / "original.jsonl")) == 1
     assert len(load_market_events(destination / "failure" / "minimized.jsonl")) == 1
+    assert len(load_market_events(destination / "original.jsonl")) == 1
+    assert len(load_market_events(destination / "reduced.jsonl")) == 1
+    assert (destination / "failure.json").is_file()
     assert (destination / "failure" / "original-report.json").is_file()
     assert (destination / "failure" / "minimization.json").is_file()
 
@@ -386,7 +427,9 @@ def test_campaign_cli_returns_one_and_writes_reproducer_for_divergence(tmp_path,
     )
 
     assert exit_code == 1
-    assert "First divergence reduced" in capsys.readouterr().out
+    output_text = capsys.readouterr().out
+    assert "Divergence detected at original event 1" in output_text
+    assert "Reduced reproducer: 1 events" in output_text
     assert (output / "campaign.json").is_file()
     assert len(load_market_events(output / "failure" / "minimized.jsonl")) == 1
 
@@ -413,6 +456,76 @@ def test_campaign_cli_runs_external_conformant_adapter(tmp_path):
 
     assert exit_code == 0
     assert json.loads((output / "campaign.json").read_text())["conformant"] is True
+
+
+def test_corpus_candidate_cmd_json_junit_and_reproduction_paths(tmp_path, capsys):
+    corpus = tmp_path / "corpus"
+    campaign_junit = tmp_path / "campaign.xml"
+    candidate_cmd = shlex.join([sys.executable, str(FAULTY_ADAPTER)])
+
+    campaign_exit = main(
+        [
+            "campaign",
+            "--profile",
+            "fifo-limit-v1",
+            "--seed",
+            "9",
+            "--traces",
+            "1000",
+            "--events-per-trace",
+            "20",
+            "--candidate-cmd",
+            candidate_cmd,
+            "--corpus-dir",
+            str(corpus),
+            "--stop-after-first",
+            "--junit-output",
+            str(campaign_junit),
+        ]
+    )
+
+    assert campaign_exit == 1
+    failure_dir = next(corpus.iterdir())
+    metadata = json.loads((failure_dir / "failure.json").read_text(encoding="utf-8"))
+    campaign_xml = ElementTree.parse(campaign_junit).getroot()
+    assert metadata["artifact_type"] == "tracebook.conformance.failure"
+    assert metadata["original_event_count"] == 1
+    assert metadata["reduced_event_count"] == 1
+    assert campaign_xml.attrib["tests"] == "1"
+    assert campaign_xml.attrib["failures"] == "1"
+
+    reproduction_json = tmp_path / "reproduction.json"
+    reproduction_junit = tmp_path / "reproduction.xml"
+    reproduce_exit = main(
+        [
+            "reproduce",
+            str(failure_dir / "reduced.jsonl"),
+            "--candidate-cmd",
+            candidate_cmd,
+            "--output",
+            str(reproduction_json),
+            "--junit-output",
+            str(reproduction_junit),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    reproduction = json.loads(reproduction_json.read_text(encoding="utf-8"))
+    reproduction_xml = ElementTree.parse(reproduction_junit).getroot()
+    assert reproduce_exit == 0
+    assert reproduction["artifact_type"] == "tracebook.conformance.reproduction"
+    assert reproduction["reproduced"] is True
+    assert reproduction_xml.attrib["failures"] == "0"
+    assert "Reproduction: exact match" in output
+
+    corrupted_metadata = {**metadata, "reduced_trace_sha256": "sha256:" + "0" * 64}
+    with pytest.raises(ConformanceError, match="trace hash"):
+        run_reproduction(
+            load_market_events(failure_dir / "reduced.jsonl"),
+            ReferenceEngineAdapter,
+            ConformanceConfig(),
+            expected=corrupted_metadata,
+        )
 
 
 def test_campaign_cli_rejects_existing_output_before_running(tmp_path, monkeypatch, capsys):
@@ -506,8 +619,9 @@ def test_campaign_is_wired_into_docs_and_ci():
     )
 
     assert "## Differential Campaigns" in readme
-    assert "failure/minimized.jsonl" in readme
-    assert "Generator version 1 specifies SplitMix64" in conformance_docs
+    assert "Reduced reproducer: 5 events" in readme
+    assert "tracebook-conformance reproduce" in readme
+    assert "Generator version 2 specifies SplitMix64" in conformance_docs
     assert "tracebook-conformance campaign" in ci_workflow
     assert "--profile fifo-limit-v1" in external_workflow
     assert "--events-per-trace 50" in external_workflow

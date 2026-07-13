@@ -108,24 +108,38 @@ tracebook-conformance campaign \
 ```
 
 That deterministic 1,000-event campaign is conformant with campaign ID
-`sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d`.
+`sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9`.
 
-## Detection Control
+## Intentionally Faulty Engine
 
-The binary has one explicit test-only fault mode. It drops the first reported
-trade while leaving the native book mutation intact:
+The same Cargo project builds `faulty-orderbook-adapter`, a separate binary
+whose source is [`src/bin/faulty_orderbook_adapter.rs`](src/bin/faulty_orderbook_adapter.rs).
+It uses the real native engine and wire protocol but injects one documented
+defect: after a maker is reduced and replaced, the next crossing order in the
+structured probe book can match using the maker's stale FIFO priority.
 
 ```bash
-tracebook-conformance run \
-  integrations/orderbook_rs/fifo-compatible.jsonl \
-  --output /tmp/orderbook-rs-drift.json \
-  --candidate integrations/orderbook_rs/target/release/tracebook-orderbook-rs \
-  --test-fault=drop-first-trade
+tracebook-conformance campaign \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 1000 \
+  --events-per-trace 200 \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/faulty-orderbook-adapter \
+  --corpus-dir .tracebook/corpus \
+  --stop-after-first
 ```
 
-This must exit `1` with a `trades` divergence at event 3. The scheduled workflow
-runs this negative control so a green integration proves both agreement and the
-ability to detect Rust-side drift.
+This exits `1` at original event 173, identifies queue-priority drift, and
+reduces the failure to the five causal events. The correct
+`tracebook-orderbook-rs` binary conforms on that reduced trace. The maintained
+workflow pins both results, making the reduced JSONL a real CI regression case.
+
+The correct binary also retains `--test-fault=drop-first-trade` as a smaller
+protocol negative control. It is not the public demonstration.
+
+All Rust source, `Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` are
+included in the public Tracebook sdist. Build artifacts under `target/` are
+excluded.
 
 ## Translation Contract
 

@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Tracebook
-        run: python -m pip install "tracebook-sim==0.3.0"
+        run: python -m pip install "tracebook-sim==0.4.0"
 
       # Replace this command with the candidate engine's build step.
       - name: Build candidate engine
@@ -28,16 +28,20 @@ jobs:
 
       - name: Compare matching semantics
         run: |
-          tracebook-conformance sample "$RUNNER_TEMP/tracebook-suite"
           mkdir -p artifacts
-          tracebook-conformance suite \
-            "$RUNNER_TEMP/tracebook-suite" \
-            --output artifacts/conformance.json \
-            --candidate ./build/matching-engine --tracebook-stdio
+          tracebook-conformance campaign \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --candidate-cmd './build/matching-engine --tracebook-stdio' \
+            --corpus-dir artifacts/corpus \
+            --stop-after-first \
+            --junit-output artifacts/conformance.xml
 
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: matching-engine-conformance
-          path: artifacts/conformance.json
+          path: artifacts
           if-no-files-found: error

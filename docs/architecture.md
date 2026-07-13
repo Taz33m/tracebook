@@ -75,6 +75,9 @@ flowchart TD
 | `src/tracebook/conformance/external.py` | Timeout-bounded external process and NDJSON transport |
 | `src/tracebook/conformance/compare.py` | Per-event semantic comparison and exact first-difference reports |
 | `src/tracebook/conformance/minimize.py` | Deterministic delta debugging for failing traces |
+| `src/tracebook/conformance/reproduce.py` | Exact replay of corpus failures against stored expectations |
+| `src/tracebook/conformance/semantic_coverage.py` | Candidate-independent capability evidence from reference observations |
+| `src/tracebook/conformance/junit.py` | JUnit projection of canonical conformance JSON artifacts |
 | `src/tracebook/conformance/suite.py` | Hash verification, materialization, and execution of standard adversarial cases |
 | `integrations/orderbook_rs/` | Native Rust protocol server and semantic adapter over pinned `orderbook-rs` |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |

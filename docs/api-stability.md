@@ -7,8 +7,9 @@
 - Top-level imports listed in `tracebook.__all__` are public.
 - Installed `tracebook-*` console commands are public.
 - Benchmark, simulation, event-log, replay-summary, corpus, conformance,
-  minimization, suite-report, and campaign JSON structures are public artifacts
-  and require schema tests plus changelog notes when changed.
+  minimization, suite-report, campaign, failure-corpus, and reproduction JSON
+  structures are public artifacts and require schema tests plus changelog notes
+  when changed. JUnit is a documented projection of those JSON artifacts.
 - Objects returned by order submission, lookup, recent-trade, and callback APIs
   are detached from internal mutable state.
 - Normalized replay `order_id` values are source identifiers; replacement keeps
@@ -20,12 +21,12 @@
   hash. A format change must create a new schema version; changing a fixture's
   corpus ID requires explicit review.
 - Conformance protocol version 1 and its observation/state wire structures are
-  public cross-language contracts. The standard suite manifest and all three
-  conformance artifact types use schema version 1. Changing field meaning,
+  public cross-language contracts. The standard suite manifest and conformance
+  artifact types use schema version 1. Changing field meaning,
   state ordering, decimal normalization, or hashing requires an explicit
   protocol/schema version decision. `suite_hash` binds case configuration and
   fixture identity; an intentional suite edit must update it.
-- Campaign artifact schema version 1 is public. Campaign generator version 1,
+- Campaign artifact schema version 1 is public. Campaign generator version 2,
   the built-in versioned profile definitions, seed derivation, and trace hashes
   are reproducibility contracts. An intentional generation change requires a
   new generator or profile version rather than silently changing existing

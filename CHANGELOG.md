@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.4.0 - 2026-07-13
+
 - Began 0.4.0 development with deterministic, versioned differential campaigns.
   Stateful generated traces are driven only by the reference engine, stop at
   the first candidate divergence, and atomically emit the original failure,
@@ -23,6 +25,18 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   instruction campaign, documents the intentional pro-rata boundary, and runs
   an injected Rust-side trade drift as a negative CI control. A scoped weekly
   Dependabot feed proposes reviewed Cargo pin and lockfile updates.
+- Added generator version 2's structured FIFO queue-priority probe. The public
+  seed-42 campaign detects an intentionally injected Rust maker-priority bug at
+  original event 173 and reduces the failing prefix to a one-minimal five-event
+  reproducer.
+- Added deterministic failure-corpus bundles, stable failure classes,
+  `tracebook-conformance reproduce`, the option-friendly `--candidate-cmd`
+  form, and exact expected-versus-observed reproduction reports.
+- Added reference-derived semantic capability coverage plus JSON and JUnit
+  outputs across run, suite, minimization, campaign, and reproduction paths.
+- Included both correct and intentionally faulty native Rust adapter source in
+  the sdist, documented the `fifo-limit-v1` capability boundary, and updated the
+  copy-paste CI workflow to install `tracebook-sim==0.4.0` from public PyPI.
 
 ## 0.3.0 - 2026-07-13
 

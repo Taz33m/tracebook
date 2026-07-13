@@ -1,8 +1,9 @@
 # Conformance In CI
 
-The workflow below turns matching semantics into a pull-request gate. It copies
-Tracebook's versioned suite, runs the candidate as a separate process, and
-uploads the complete report even when a divergence fails the job.
+The workflow below turns matching semantics into a pull-request gate. It
+installs the public PyPI release, generates the `fifo-limit-v1` workload, runs
+the candidate as a separate process, and uploads JSON, JUnit, and any minimized
+failure corpus even when a divergence fails the job.
 
 The candidate command is executable code, and Tracebook does not sandbox it.
 Keep workflow permissions minimal and use an isolated runner for untrusted code.
@@ -36,30 +37,35 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install "tracebook-sim==0.3.0"
+      - run: python -m pip install "tracebook-sim==0.4.0"
       - run: make build
 
       - name: Compare matching semantics
         run: |
-          tracebook-conformance sample "$RUNNER_TEMP/tracebook-suite"
           mkdir -p artifacts
-          tracebook-conformance suite \
-            "$RUNNER_TEMP/tracebook-suite" \
-            --output artifacts/conformance.json \
-            --candidate ./build/matching-engine --tracebook-stdio
+          tracebook-conformance campaign \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --candidate-cmd './build/matching-engine --tracebook-stdio' \
+            --corpus-dir artifacts/corpus \
+            --stop-after-first \
+            --junit-output artifacts/conformance.xml
 
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: matching-engine-conformance
-          path: artifacts/conformance.json
+          path: artifacts
           if-no-files-found: error
 ```
 
-`tracebook-conformance suite` exits `0` only when every case agrees, `1` on a
-semantic divergence, and `2` for an invalid trace, adapter, or protocol error.
-Because the report is written before exit, `if: always()` preserves the exact
-first disagreement for failed builds.
+`tracebook-conformance campaign` exits `0` only when every requested trace
+agrees, `1` on a semantic divergence, and `2` for invalid configuration,
+adapter, protocol, or filesystem errors. Because the corpus and JUnit reports
+are committed before exit, `if: always()` preserves the exact first
+disagreement for failed builds.
 
 Projects with a deliberately narrower contract should maintain a suite that
 matches their declared capabilities and run selected standard traces as a

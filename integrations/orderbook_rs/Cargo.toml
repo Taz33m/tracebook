@@ -12,6 +12,10 @@ repository = "https://github.com/Taz33m/tracebook"
 name = "tracebook-orderbook-rs"
 path = "src/main.rs"
 
+[[bin]]
+name = "faulty-orderbook-adapter"
+path = "src/bin/faulty_orderbook_adapter.rs"
+
 [dependencies]
 orderbook-rs = "=0.10.4"
 pricelevel = "=0.8.4"

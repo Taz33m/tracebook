@@ -26,18 +26,19 @@ src/tracebook/
   visualization/    Dash dashboard and dependency-free live web frontend
 integrations/
   python_matching_engine/  pinned external adapter and compatibility trace
+  orderbook_rs/             native Rust adapter, faulty example, regression proof
 ```
 
 ## Next Milestones
 
-1. Validate the protocol with one independently implemented Rust, C++, or Java
-   adapter and publish it as an integration example.
-2. Extend versioned campaigns with pro-rata, self-trade prevention, tick-grid,
-   and deeper-book profiles plus semantic coverage accounting.
-3. Add a benchmark mode for candidate adapters that separates protocol overhead
-   from engine execution and never presents it as production latency.
-4. Stabilize the protocol, event, and report schemas after external-adapter
-   feedback, then publish a 1.0 policy.
+1. Get the `orderbook-rs` adapter reviewed or acknowledged by an upstream
+   maintainer, and record any protocol or translation feedback publicly.
+2. Help one third-party engine author connect their own Rust, C++, Java, or
+   Python engine and adopt a saved regression trace in CI.
+3. Use those external adapters to find and publish one real semantic discrepancy
+   that is not intentionally injected.
+4. Revisit candidate benchmarking and additional profiles only after adapter
+   authors reveal where protocol v1 is awkward or underspecified.
 
 ## Decision Rules
 

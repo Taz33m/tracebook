@@ -594,21 +594,48 @@ def test_conformance_campaign_schema():
             "candidate_engine",
             "stopped_at_first_divergence",
             "conformant",
+            "semantic_coverage",
             "traces",
             "failure",
         ],
         "conformance.campaign",
     )
     assert campaign["artifact_type"] == "tracebook.conformance.campaign"
-    assert campaign["generator_version"] == 1
+    assert campaign["generator_version"] == 2
     assert campaign["completed_traces"] == 2
     assert campaign["generated_events"] == 24
     assert campaign["conformant"] is True
     assert campaign["failure"] is None
     _require_keys(
         campaign["profile"],
-        ["name", "description", "config", "order_types", "symbols"],
+        ["name", "description", "config", "order_types", "capabilities", "symbols"],
         "conformance.campaign.profile",
+    )
+    _require_keys(
+        campaign["semantic_coverage"],
+        [
+            "schema_version",
+            "basis",
+            "expected_capabilities",
+            "covered_capabilities",
+            "uncovered_capabilities",
+            "covered_count",
+            "expected_count",
+            "coverage_ratio",
+            "evidence",
+            "operations",
+            "order_types",
+            "applied_order_types",
+            "outcomes",
+            "rejection_reasons",
+            "symbols",
+            "compared_events",
+            "trade_events",
+            "trades",
+            "partial_fill_events",
+            "queue_priority_probes",
+        ],
+        "conformance.campaign.semantic_coverage",
     )
     _require_keys(
         campaign["traces"][0],
