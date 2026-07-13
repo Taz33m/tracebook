@@ -1,5 +1,14 @@
 # Matching-Engine Conformance
 
+For a complete maintained adapter, see the
+[PythonMatchingEngine integration](../integrations/python_matching_engine/README.md).
+To make conformance a pull-request gate, use the
+[copy-paste GitHub Actions workflow](ci.md).
+
+Candidate commands execute with the caller's operating-system permissions.
+Protocol timeouts bound waiting and clean up stalled processes; they are not a
+sandbox. Run untrusted engines inside an appropriately isolated container or VM.
+
 Tracebook can run one normalized order-event trace through its inspectable
 reference engine and an external candidate, compare every observable result,
 stop at the first disagreement, and reduce that failure to a smaller trace.

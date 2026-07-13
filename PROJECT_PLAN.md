@@ -24,6 +24,8 @@ src/tracebook/
   benchmarks/       reproducible local scenario reports
   profiling/        metrics, magic-trace, and selected-function fallback tracing
   visualization/    Dash dashboard and dependency-free live web frontend
+integrations/
+  python_matching_engine/  pinned external adapter and compatibility trace
 ```
 
 ## Next Milestones

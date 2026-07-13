@@ -1,0 +1,43 @@
+name: Matching engine conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tracebook
+        run: python -m pip install "tracebook-sim==0.3.0"
+
+      # Replace this command with the candidate engine's build step.
+      - name: Build candidate engine
+        run: make build
+
+      - name: Compare matching semantics
+        run: |
+          tracebook-conformance sample "$RUNNER_TEMP/tracebook-suite"
+          mkdir -p artifacts
+          tracebook-conformance suite \
+            "$RUNNER_TEMP/tracebook-suite" \
+            --output artifacts/conformance.json \
+            --candidate ./build/matching-engine --tracebook-stdio
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: matching-engine-conformance
+          path: artifacts/conformance.json
+          if-no-files-found: error

@@ -15,7 +15,7 @@
   them addressable even when the engine allocates a new internal id.
 - `EventLog` version 2 and normalized replay-summary version 2 add
   priority-preserving `reduce` lifecycle events. Version 1 event logs remain
-readable; summary consumers should branch on `schema_version`.
+  readable; summary consumers should branch on `schema_version`.
 - Corpus schema version 1 binds canonical source, events, and golden state by
   hash. A format change must create a new schema version; changing a fixture's
   corpus ID requires explicit review.
@@ -30,6 +30,10 @@ readable; summary consumers should branch on `schema_version`.
 
 Private methods, internal matching data structures, dashboard layout internals,
 and synthetic generator implementation details may change during the alpha.
+Adapters under `integrations/` are maintained source examples, not installed
+package APIs. Their upstream revision, native compatibility trace, and expected
+profile are pinned, but private APIs used to inspect an external engine can
+change only with an integration test and documentation update.
 
 ## Deprecation Policy
 

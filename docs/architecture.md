@@ -5,6 +5,22 @@ canonical event traces, reference matching semantics, external-engine adapters,
 semantic comparison and reduction, data replay, performance collection, and
 local visualization.
 
+The conformance path has one central contract:
+
+```mermaid
+flowchart LR
+    T["Normalized trace"] --> R["Runner"]
+    R --> O["Reference"]
+    R --> A["Adapter"]
+    A <--> E["External engine"]
+    O --> D["Semantic diff"]
+    A --> D
+    D --> P["Report"] --> M["Minimal trace"]
+```
+
+The adapter boundary is a versioned NDJSON stream, so the candidate engine does
+not share process memory or implementation code with the reference.
+
 ## Component Map
 
 ```mermaid

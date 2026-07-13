@@ -1,0 +1,13 @@
+{"op":"new","symbol":"ALPHA","order_id":1,"side":"SELL","order_type":"LIMIT","price":101,"quantity":3,"owner":10,"timestamp_ns":1}
+{"op":"new","symbol":"ALPHA","order_id":2,"side":"SELL","order_type":"LIMIT","price":101,"quantity":2,"owner":20,"timestamp_ns":2}
+{"op":"new","symbol":"ALPHA","order_id":3,"side":"BUY","order_type":"LIMIT","price":101,"quantity":4,"owner":30,"timestamp_ns":3}
+{"op":"new","symbol":"ALPHA","order_id":4,"side":"BUY","order_type":"LIMIT","price":100,"quantity":5,"owner":40,"timestamp_ns":4}
+{"op":"new","symbol":"ALPHA","order_id":5,"side":"BUY","order_type":"LIMIT","price":100,"quantity":2,"owner":50,"timestamp_ns":5}
+{"op":"reduce","symbol":"ALPHA","order_id":4,"quantity":2,"timestamp_ns":6}
+{"op":"replace","symbol":"ALPHA","order_id":4,"price":100,"quantity":1,"timestamp_ns":7}
+{"op":"new","symbol":"ALPHA","order_id":6,"side":"SELL","order_type":"LIMIT","price":100,"quantity":2.5,"owner":60,"timestamp_ns":8}
+{"op":"cancel","symbol":"ALPHA","order_id":4,"timestamp_ns":9}
+{"op":"cancel","symbol":"ALPHA","order_id":999,"timestamp_ns":10}
+{"op":"new","symbol":"BETA","order_id":1,"side":"BUY","order_type":"LIMIT","price":50,"quantity":1,"owner":70,"timestamp_ns":11}
+{"op":"clear","symbol":"ALPHA","timestamp_ns":12}
+{"op":"cancel","symbol":"ALPHA","order_id":2,"timestamp_ns":13}

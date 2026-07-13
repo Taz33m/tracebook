@@ -15,8 +15,9 @@ pip install -e ".[dev,dashboard]"
 Run these before opening a pull request:
 
 ```bash
-python -m black --check src tests examples install_deps.py test_system.py
-python -m flake8 src tests examples install_deps.py test_system.py
+python -m black --check src tests examples integrations install_deps.py test_system.py
+python -m flake8 src tests examples integrations install_deps.py test_system.py
+python -m bandit -q -r src integrations
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json
@@ -53,6 +54,12 @@ include timeout/error tests. Protocol changes require an artifact schema test,
 cross-process coverage, a changelog entry, and an explicit versioning decision.
 New standard-suite cases must be synthetic, document the semantic edge they
 cover, and update the manifest hash intentionally.
+
+Maintained third-party integrations belong under `integrations/`. Pin the exact
+upstream revision, link its license and primary repository, keep its dependencies
+optional, include one native compatibility trace, and run the real upstream code
+in a dedicated workflow. Document unsupported semantics as divergences; do not
+retrofit them in the adapter merely to produce a green suite.
 
 ## Pull Requests
 
