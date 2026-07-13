@@ -195,9 +195,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Minimized events written: {Path(args.events_output)}")
             return 0
         if args.command == "campaign":
+            candidate_factory = _candidate_factory(args)
             with _CampaignOutputReservation(args.output_dir) as reservation:
                 campaign_result = run_campaign(
-                    _candidate_factory(args),
+                    candidate_factory,
                     profile=args.profile,
                     seed=args.seed,
                     traces=args.traces,

@@ -192,6 +192,15 @@ def test_campaign_artifact_writer_rejects_an_active_output_reservation(tmp_path)
         with pytest.raises(ConformanceError, match="already exists"):
             write_campaign_artifacts(result, destination)
 
+    assert marker.is_file()
+
+
+def test_campaign_artifact_writer_validates_before_reserving_output(tmp_path):
+    destination = tmp_path / "campaign"
+
+    with pytest.raises(ConformanceError, match="result must be"):
+        write_campaign_artifacts(None, destination)
+
     assert not destination.exists()
 
 
@@ -254,6 +263,42 @@ def test_campaign_writer_never_replaces_a_changed_reservation(tmp_path):
 
     assert destination.is_dir()
     assert tuple(destination.iterdir()) == ()
+
+
+def test_campaign_commit_stays_bound_to_reserved_inode_during_symlink_swap(tmp_path, monkeypatch):
+    if not campaign_module._DIRECTORY_FD_SUPPORTED:
+        pytest.skip("descriptor-relative directory operations are unavailable")
+
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        traces=1,
+        events_per_trace=1,
+        max_minimize_runs=1,
+    )
+    destination = tmp_path / "campaign"
+    displaced = tmp_path / "displaced-reservation"
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    sentinel = unrelated / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    original_unlink = campaign_module._unlink_relative
+
+    def swap_then_unlink(name, directory_fd, directory):
+        destination.rename(displaced)
+        destination.symlink_to(unrelated, target_is_directory=True)
+        original_unlink(name, directory_fd, directory)
+
+    monkeypatch.setattr(campaign_module, "_unlink_relative", swap_then_unlink)
+
+    with campaign_module._CampaignOutputReservation(destination) as reservation:
+        with pytest.raises(ConformanceError, match="changed during commit"):
+            reservation.write(result)
+
+    assert destination.is_symlink()
+    assert tuple(path.name for path in unrelated.iterdir()) == ("keep.txt",)
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert (displaced / "campaign.json").is_file()
+    assert (displaced / ".tracebook-campaign-reservation").is_file()
 
 
 def test_campaign_automatically_minimizes_and_persists_first_failure(tmp_path):
@@ -433,6 +478,7 @@ def test_campaign_cli_reserves_output_before_candidate_work(tmp_path, monkeypatc
     assert second_exit_code == 2
     assert run_calls == [True]
     assert (output / "campaign.json").is_file()
+    assert not (output / ".tracebook-campaign-reservation").exists()
 
 
 def test_campaign_is_wired_into_docs_and_ci():

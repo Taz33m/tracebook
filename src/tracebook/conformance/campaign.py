@@ -542,6 +542,76 @@ def _write_events(path: Path, events: Sequence[MarketEvent]) -> None:
 
 
 _RESERVATION_MARKER = ".tracebook-campaign-reservation"
+_DIRECTORY_OPEN_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+_EXCLUSIVE_FILE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+_DIRECTORY_FD_SUPPORTED = (
+    os.open in os.supports_dir_fd
+    and os.mkdir in os.supports_dir_fd
+    and os.unlink in os.supports_dir_fd
+    and os.listdir in os.supports_fd
+)
+
+
+def _open_exclusive_file(name: str, directory_fd: Optional[int], directory: Path) -> int:
+    if directory_fd is not None:
+        return os.open(name, _EXCLUSIVE_FILE_FLAGS, 0o600, dir_fd=directory_fd)
+    return os.open(directory / name, _EXCLUSIVE_FILE_FLAGS, 0o600)
+
+
+def _write_exclusive_bytes(
+    name: str,
+    payload: bytes,
+    directory_fd: Optional[int],
+    directory: Path,
+) -> None:
+    file_descriptor = _open_exclusive_file(name, directory_fd, directory)
+    with os.fdopen(file_descriptor, "wb") as handle:
+        handle.write(payload)
+
+
+def _copy_exclusive_file(
+    source: Path,
+    name: str,
+    directory_fd: Optional[int],
+    directory: Path,
+) -> None:
+    file_descriptor = _open_exclusive_file(name, directory_fd, directory)
+    with source.open("rb") as source_handle, os.fdopen(file_descriptor, "wb") as target_handle:
+        shutil.copyfileobj(source_handle, target_handle)
+
+
+def _read_relative_bytes(name: str, directory_fd: Optional[int], directory: Path) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    if directory_fd is not None:
+        file_descriptor = os.open(name, flags, dir_fd=directory_fd)
+    else:
+        file_descriptor = os.open(directory / name, flags)
+    with os.fdopen(file_descriptor, "rb") as handle:
+        return handle.read()
+
+
+def _relative_names(directory_fd: Optional[int], directory: Path) -> set[str]:
+    return set(os.listdir(directory_fd if directory_fd is not None else directory))
+
+
+def _make_relative_directory(
+    name: str,
+    directory_fd: Optional[int],
+    directory: Path,
+) -> Tuple[Optional[int], Path]:
+    child = directory / name
+    if directory_fd is not None:
+        os.mkdir(name, mode=0o700, dir_fd=directory_fd)
+        return os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=directory_fd), child
+    child.mkdir(mode=0o700)
+    return None, child
+
+
+def _unlink_relative(name: str, directory_fd: Optional[int], directory: Path) -> None:
+    if directory_fd is not None:
+        os.unlink(name, dir_fd=directory_fd)
+    else:
+        (directory / name).unlink()
 
 
 class _CampaignOutputReservation:
@@ -549,9 +619,9 @@ class _CampaignOutputReservation:
 
     def __init__(self, destination: str | Path) -> None:
         self.target = Path(destination).expanduser()
-        self._marker = self.target / _RESERVATION_MARKER
         self._token = uuid.uuid4().hex
         self._identity: Optional[Tuple[int, int]] = None
+        self._directory_fd: Optional[int] = None
         self._active = False
         self._committed = False
 
@@ -567,16 +637,23 @@ class _CampaignOutputReservation:
             ) from exc
 
         try:
-            self._marker.write_text(self._token, encoding="ascii")
-            stat = self.target.stat()
+            if _DIRECTORY_FD_SUPPORTED:
+                self._directory_fd = os.open(self.target, _DIRECTORY_OPEN_FLAGS)
+            stat = (
+                os.fstat(self._directory_fd)
+                if self._directory_fd is not None
+                else self.target.stat()
+            )
             self._identity = (stat.st_dev, stat.st_ino)
+            _write_exclusive_bytes(
+                _RESERVATION_MARKER,
+                self._token.encode("ascii"),
+                self._directory_fd,
+                self.target,
+            )
             self._active = True
         except OSError as exc:
-            self._marker.unlink(missing_ok=True)
-            try:
-                self.target.rmdir()
-            except OSError:
-                pass
+            self.close()
             raise ConformanceError(
                 f"could not reserve campaign output {self.target}: {exc}"
             ) from exc
@@ -596,30 +673,33 @@ class _CampaignOutputReservation:
         if not self._active or not self._same_directory():
             return False
         try:
-            return self._marker.read_text(encoding="ascii") == self._token and tuple(
-                self.target.iterdir()
-            ) == (self._marker,)
+            return _read_relative_bytes(
+                _RESERVATION_MARKER,
+                self._directory_fd,
+                self.target,
+            ) == self._token.encode("ascii") and _relative_names(
+                self._directory_fd, self.target
+            ) == {
+                _RESERVATION_MARKER
+            }
         except OSError:
             return False
 
     def _restore_marker(self) -> None:
-        if not self._same_directory():
-            return
         try:
-            if not any(self.target.iterdir()):
-                self._marker.write_text(self._token, encoding="ascii")
+            _write_exclusive_bytes(
+                _RESERVATION_MARKER,
+                self._token.encode("ascii"),
+                self._directory_fd,
+                self.target,
+            )
         except OSError:
             pass
 
     def close(self) -> None:
-        if self._committed or not self._active:
-            return
-        if self._owns_clean_reservation():
-            self._marker.unlink(missing_ok=True)
-            try:
-                self.target.rmdir()
-            except OSError:
-                pass
+        if self._directory_fd is not None:
+            os.close(self._directory_fd)
+            self._directory_fd = None
         self._active = False
 
     def write(self, result: CampaignResult) -> Path:
@@ -632,7 +712,7 @@ class _CampaignOutputReservation:
         temporary = Path(
             tempfile.mkdtemp(prefix=f".{self.target.name}.", dir=str(self.target.parent))
         )
-        cleanup: Optional[Path] = temporary
+        failure_fd: Optional[int] = None
         try:
             if result.failure is not None:
                 failure_dir = temporary / "failure"
@@ -657,27 +737,86 @@ class _CampaignOutputReservation:
                 )
 
             try:
-                self._marker.unlink()
-                if os.name == "nt":
-                    self.target.rmdir()
-                    temporary.rename(self.target)
-                else:
-                    os.replace(temporary, self.target)
+                expected_top_level = {_RESERVATION_MARKER, "campaign.json"}
+                expected_failure_files: Optional[set[str]] = None
+                failure_path = self.target / "failure"
+                if result.failure is not None:
+                    failure_fd, failure_path = _make_relative_directory(
+                        "failure",
+                        self._directory_fd,
+                        self.target,
+                    )
+                    expected_top_level.add("failure")
+                    expected_failure_files = {
+                        "original.jsonl",
+                        "original-report.json",
+                        "minimized.jsonl",
+                        "minimization.json",
+                    }
+                    for name in sorted(expected_failure_files):
+                        _copy_exclusive_file(
+                            temporary / "failure" / name,
+                            name,
+                            failure_fd,
+                            failure_path,
+                        )
+
+                _copy_exclusive_file(
+                    temporary / "campaign.json",
+                    "campaign.json",
+                    self._directory_fd,
+                    self.target,
+                )
+                reservation_unchanged = (
+                    self._same_directory()
+                    and _relative_names(self._directory_fd, self.target) == expected_top_level
+                    and (
+                        expected_failure_files is None
+                        or _relative_names(failure_fd, failure_path) == expected_failure_files
+                    )
+                )
+                if not reservation_unchanged:
+                    raise ConformanceError(
+                        f"campaign output reservation changed before commit: {self.target}"
+                    )
+
+                _unlink_relative(
+                    _RESERVATION_MARKER,
+                    self._directory_fd,
+                    self.target,
+                )
+                committed_names = expected_top_level - {_RESERVATION_MARKER}
+                commit_visible = (
+                    self._same_directory()
+                    and _relative_names(self._directory_fd, self.target) == committed_names
+                    and (
+                        expected_failure_files is None
+                        or _relative_names(failure_fd, failure_path) == expected_failure_files
+                    )
+                )
+                if not commit_visible:
+                    self._restore_marker()
+                    raise ConformanceError(
+                        f"campaign output reservation changed during commit: {self.target}"
+                    )
+            except ConformanceError:
+                raise
             except OSError as exc:
                 self._restore_marker()
                 raise ConformanceError(
                     f"could not commit campaign output {self.target}: {exc}"
                 ) from exc
-            cleanup = None
             self._committed = True
-            self._active = False
             return self.target / "campaign.json"
         finally:
-            if cleanup is not None:
-                shutil.rmtree(cleanup, ignore_errors=True)
+            if failure_fd is not None:
+                os.close(failure_fd)
+            shutil.rmtree(temporary, ignore_errors=True)
 
 
 def write_campaign_artifacts(result: CampaignResult, destination: str | Path) -> Path:
-    """Reserve a new path and atomically persist a complete campaign bundle."""
+    """Commit a bundle into a reserved directory, removing its marker last."""
+    if not isinstance(result, CampaignResult):
+        raise ConformanceError("result must be a CampaignResult")
     with _CampaignOutputReservation(destination) as reservation:
         return reservation.write(result)
