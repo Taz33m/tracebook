@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 10
     env:
       UPSTREAM_COMMIT: f94150294a85d7b415ca4518590b5a661d6f9958
-      PYTHON_MATCHING_ENGINE_PATH: ${{ runner.temp }}/PythonMatchingEngine
 
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +29,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Configure the upstream checkout path
+        run: echo "PYTHON_MATCHING_ENGINE_PATH=$RUNNER_TEMP/PythonMatchingEngine" >> "$GITHUB_ENV"
 
       - name: Install Tracebook and current upstream runtime dependencies
         run: |
