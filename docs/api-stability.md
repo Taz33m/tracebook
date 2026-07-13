@@ -6,8 +6,8 @@
 
 - Top-level imports listed in `tracebook.__all__` are public.
 - Installed `tracebook-*` console commands are public.
-- Benchmark, simulation, event-log, replay-summary, corpus-manifest,
-  golden-state, and corpus-comparison JSON structures are public artifacts and
+- Benchmark, simulation, event-log, replay-summary, corpus, conformance,
+  minimization, and suite-report JSON structures are public artifacts and
   require schema tests plus changelog notes when changed.
 - Objects returned by order submission, lookup, recent-trade, and callback APIs
   are detached from internal mutable state.
@@ -19,6 +19,14 @@ readable; summary consumers should branch on `schema_version`.
 - Corpus schema version 1 binds canonical source, events, and golden state by
   hash. A format change must create a new schema version; changing a fixture's
   corpus ID requires explicit review.
+- Conformance protocol version 1 and its observation/state wire structures are
+  public cross-language contracts. The standard suite manifest and all three
+  conformance artifact types use schema version 1. Changing field meaning,
+  state ordering, decimal normalization, or hashing requires an explicit
+  protocol/schema version decision. `suite_hash` binds case configuration and
+  fixture identity; an intentional suite edit must update it.
+- `OrderBook.get_resting_orders()` returns detached orders in matching-priority
+  order. Same-price list order is observable public behavior.
 
 Private methods, internal matching data structures, dashboard layout internals,
 and synthetic generator implementation details may change during the alpha.

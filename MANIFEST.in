@@ -13,4 +13,5 @@ recursive-include examples *.py *.json *.jsonl
 recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl
+recursive-include src/tracebook/conformance/fixtures *.json *.jsonl
 include src/tracebook/py.typed

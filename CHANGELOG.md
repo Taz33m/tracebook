@@ -8,6 +8,24 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 Development version: `0.3.0.dev0`.
 
+- Repositioned Tracebook as a matching-engine conformance and reproducible
+  failure-analysis toolkit. Added a typed pluggable `EngineAdapter` API and an
+  incremental, language-neutral NDJSON protocol for testing external Rust,
+  C++, Java, Python, or other engines against the Tracebook reference path.
+- Added `tracebook-conformance run` and `suite` with per-event applied/rejected
+  outcomes, stable rejection codes, source-ID trades, canonical queue-state
+  hashes, on-demand full snapshots, exact first-divergence paths, versioned JSON
+  artifacts, subprocess timeouts, and final-snapshot verification.
+- Added deterministic delta-debugging through `tracebook-conformance minimize`,
+  which truncates after the first failure, emits a smaller JSONL reproducer,
+  and distinguishes a proven one-minimal result from run-budget exhaustion.
+- Added a hash-locked, redistributable eight-case conformance suite covering
+  FIFO lifecycle and queue priority, IOC/FOK/market instructions, both
+  self-trade policies, pro-rata allocation, multiple symbols, tick-grid edge
+  cases, and deep-book cancellation pressure. Added property-based first-fault
+  tests and wheel-installed suite smoke coverage.
+- Added `OrderBook.get_resting_orders()` for a detached, matching-priority view
+  of every resting order, including same-price queue order.
 - Added `tracebook-corpus` for synchronized local Coinbase capture, offline
   corpus preparation, pre-write field allowlisting and order-ID
   pseudonymization, hash-locked manifests, exact golden replay verification,

@@ -65,8 +65,8 @@ setup(
     author="Taz33m",
     author_email="tazeemmahashin@gmail.com",
     description=(
-        "Latency-focused order book simulation with reproducible benchmarks "
-        "and trace-level profiling hooks"
+        "Matching-engine conformance testing, reproducible failure reduction, "
+        "and honest local benchmarks"
     ),
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -76,6 +76,9 @@ setup(
     keywords=[
         "order-book",
         "matching-engine",
+        "conformance-testing",
+        "differential-testing",
+        "delta-debugging",
         "market-microstructure",
         "benchmarking",
         "profiling",
@@ -133,11 +136,13 @@ setup(
             "tracebook-replay=tracebook.events.cli:main",
             "tracebook-coinbase=tracebook.events.coinbase_cli:main",
             "tracebook-corpus=tracebook.corpus.cli:main",
+            "tracebook-conformance=tracebook.conformance.cli:main",
         ],
     },
     package_data={
         "tracebook": ["py.typed"],
         "tracebook.corpus.fixtures": ["coinbase-btcusd-synthetic-v1/*"],
+        "tracebook.conformance.fixtures.v1": ["*.json", "*.jsonl"],
         "tracebook.visualization.web": ["*.html", "*.css", "*.js"],
     },
     include_package_data=True,

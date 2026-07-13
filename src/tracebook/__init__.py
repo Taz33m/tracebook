@@ -12,6 +12,15 @@ from .events import (
     replay_market_event_file,
     replay_market_events,
 )
+from .conformance import (
+    ConformanceConfig,
+    ConformanceReport,
+    EngineAdapter,
+    ExternalProcessAdapterFactory,
+    ReferenceEngineAdapter,
+    minimize_failing_trace,
+    run_conformance,
+)
 from ._version import __version__
 
 __all__ = [
@@ -34,5 +43,12 @@ __all__ = [
     "load_market_events",
     "replay_market_event_file",
     "replay_market_events",
+    "ConformanceConfig",
+    "ConformanceReport",
+    "EngineAdapter",
+    "ExternalProcessAdapterFactory",
+    "ReferenceEngineAdapter",
+    "minimize_failing_trace",
+    "run_conformance",
     "__version__",
 ]

@@ -38,6 +38,23 @@ print(f"Executed {len(trades)} trades")
 print(order_book.get_statistics())
 ```
 
+## Test A Matching Engine
+
+Copy the standard synthetic suite and run the included process adapter:
+
+```bash
+tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance suite \
+  /tmp/tracebook-conformance-v1 \
+  --output /tmp/conformance-suite.json \
+  --candidate python examples/conformance_adapter.py
+```
+
+Replace the final command with an adapter around your engine. The adapter may
+be written in any language and communicates over versioned NDJSON. For one
+failing trace, use `tracebook-conformance minimize` to emit a smaller JSONL
+reproducer. See `docs/conformance.md` for the full contract.
+
 Use `submit_*` APIs when you need a structured result:
 
 ```python

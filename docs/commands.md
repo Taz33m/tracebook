@@ -79,6 +79,45 @@ Options:
 | `--warmup-seconds` | Interpreter/cache warmup excluded from measured run |
 | `--magic-trace` | Enable magic-trace integration or fallback tracing |
 
+## Matching-Engine Conformance
+
+Copy and run the standard suite:
+
+```bash
+tracebook-conformance sample /tmp/tracebook-conformance-v1
+
+tracebook-conformance suite \
+  /tmp/tracebook-conformance-v1 \
+  --output /tmp/conformance-suite.json \
+  --candidate python examples/conformance_adapter.py
+```
+
+Compare one trace:
+
+```bash
+tracebook-conformance run events.jsonl \
+  --algorithm fifo \
+  --tick-size 0.01 \
+  --self-trade-policy NONE \
+  --output conformance-report.json \
+  --candidate ./engine-adapter
+```
+
+Minimize a failure:
+
+```bash
+tracebook-conformance minimize events.jsonl \
+  --events-output minimal.jsonl \
+  --output minimization.json \
+  --max-runs 100 \
+  --candidate ./engine-adapter
+```
+
+`--candidate` must be the final option; all remaining values are passed to the
+adapter command. The suite carries its own algorithm, tick size, self-trade
+policy, and quantity normalization per case. See `docs/conformance.md` for the
+stdio protocol and artifact contracts.
+
 ## Benchmark CLI
 
 Smoke benchmark:

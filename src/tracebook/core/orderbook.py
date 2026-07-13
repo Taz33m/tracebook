@@ -609,6 +609,40 @@ class OrderBook:
 
             raise ValueError(f"Unsupported order side: {side}")
 
+    def get_resting_orders(self, side: Optional[OrderSide] = None) -> List[Order]:
+        """Return detached resting orders in matching-priority order.
+
+        Bids are ordered from highest price to lowest and asks from lowest to
+        highest. Orders at the same price retain their queue order. When
+        ``side`` is omitted, all bids are returned before all asks; callers that
+        need an explicit side boundary should request each side separately.
+        """
+        with self._lock:
+            if side is None:
+                managers = [
+                    self.matching_engine.buy_side,
+                    self.matching_engine.sell_side,
+                ]
+            else:
+                side_value = int(self.order_factory._validate_side(side))
+                managers = [
+                    (
+                        self.matching_engine.buy_side
+                        if side_value == int(OrderSide.BUY)
+                        else self.matching_engine.sell_side
+                    )
+                ]
+
+            resting: List[Order] = []
+            for manager in managers:
+                for tick in manager.sorted_ticks:
+                    level = manager.price_levels[tick]
+                    for order_id in level.orders:
+                        order = manager.orders.get(order_id)
+                        if order is not None:
+                            resting.append(copy_order(order))
+            return resting
+
     def get_best_bid(self) -> Optional[float]:
         """Get best bid price."""
         with self._lock:

@@ -24,6 +24,7 @@ tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
+tracebook-conformance suite src/tracebook/conformance/fixtures/v1 --candidate python examples/conformance_adapter.py
 ```
 
 For packaging changes, also run:
@@ -46,6 +47,13 @@ document an intentional corpus-ID change.
 
 The command reference in `docs/commands.md` is the source of truth for reviewer-facing smoke paths.
 
+Candidate adapters must keep stdout reserved for protocol NDJSON, report source
+order IDs rather than private engine IDs, preserve queue order in snapshots, and
+include timeout/error tests. Protocol changes require an artifact schema test,
+cross-process coverage, a changelog entry, and an explicit versioning decision.
+New standard-suite cases must be synthetic, document the semantic edge they
+cover, and update the manifest hash intentionally.
+
 ## Pull Requests
 
 - Keep changes scoped to one clear theme.
@@ -53,6 +61,8 @@ The command reference in `docs/commands.md` is the source of truth for reviewer-
 - Keep performance claims tied to a reproducible benchmark command and machine context.
 - Prefer public APIs under `tracebook.*`; do not reintroduce old `src/core` style imports.
 - If a change affects matching semantics, include a small example in the PR description.
+- If a change fixes a conformance failure, include the minimized trace or add it
+  as a regression case.
 
 ## Commit Identity
 
