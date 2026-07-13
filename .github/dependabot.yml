@@ -16,3 +16,11 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+  - package-ecosystem: cargo
+    directory: /integrations/orderbook_rs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3

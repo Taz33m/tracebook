@@ -10,10 +10,11 @@
 
 <p align="center">
   <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg"/></a>
+  <a href="https://github.com/Taz33m/tracebook/actions/workflows/orderbook-rs.yml"><img alt="orderbook-rs integration" src="https://github.com/Taz33m/tracebook/actions/workflows/orderbook-rs.yml/badge.svg"/></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-285%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-289%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
@@ -53,7 +54,57 @@ writes the complete evidence without overwriting an existing directory:
 regression suite. Use `fifo-limit-v1` for portable FIFO/LIMIT lifecycle
 semantics or `fifo-full-v1` to add market, IOC, and FOK instructions.
 
-## Real-Engine Demo
+## Real-Engine Demos
+
+### Native Rust: orderbook-rs
+
+The strongest maintained integration wraps the independently implemented,
+MIT-licensed [`orderbook-rs`](https://github.com/joaquinbejar/OrderBook-rs)
+0.10.4. The candidate is a native Rust process: no Tracebook Python matching
+code runs on its side of the protocol.
+
+```bash
+python3 -m pip install -e .
+cd integrations/orderbook_rs
+cargo build --release --locked
+cd ../..
+
+tracebook-conformance run \
+  integrations/orderbook_rs/fifo-compatible.jsonl \
+  --output /tmp/orderbook-rs-report.json \
+  --candidate integrations/orderbook_rs/target/release/tracebook-orderbook-rs
+```
+
+The 13-event trace exits `0` with this proof:
+
+```json
+{
+  "candidate_engine": {
+    "language": "Rust",
+    "name": "orderbook-rs FIFO adapter",
+    "version": "0.10.4"
+  },
+  "compared_events": 13,
+  "conformant": true,
+  "final_state_hash": "21a9606e7c77c3b239259f5032245c6330ddcd1d3f7fa25394612d9818becee3"
+}
+```
+
+Against the hash-locked standard suite it agrees on `7/8` cases: FIFO
+lifecycle, all order instructions, both STP modes, multiple symbols, tick-grid
+behavior, and deep cancellation. The one expected difference is
+`pro-rata-allocation`, because upstream implements FIFO. It also passes a
+deterministic 1,000-event `fifo-full-v1` campaign with ID
+`sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d`.
+
+The integration CI then deliberately drops one Rust-reported trade and requires
+Tracebook to localize the drift to event 3. That negative control proves the
+gate detects disagreement instead of merely proving two happy paths can run.
+
+See the [native adapter, architecture, boundaries, and copyable CI
+gate](integrations/orderbook_rs/README.md).
+
+### Python: PythonMatchingEngine
 
 The repository includes a pinned integration with the MIT-licensed
 [PythonMatchingEngine](https://github.com/Surbeivol/PythonMatchingEngine). This
@@ -110,8 +161,8 @@ reports six expected contract differences for instructions, STP, pro-rata,
 market orders, and tick policy. Tracebook records those differences instead of
 calling a narrower feature set a failure or silently emulating it.
 
-See the [integration guide](integrations/python_matching_engine/README.md) and
-the [copy-paste CI workflow](docs/ci.md). The
+See the [Python integration guide](integrations/python_matching_engine/README.md)
+and the [generic copy-paste CI workflow](docs/ci.md). The
 [0.3.0 release notes](docs/releases/0.3.0.md) explain why this changes the
 project category.
 
@@ -186,7 +237,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `285` pytest tests passing with `80.21%` statement coverage and a `75%` gate |
+| Unit tests | `289` pytest tests passing with `80.18%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |

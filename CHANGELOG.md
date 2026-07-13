@@ -18,6 +18,11 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   reservations without overwriting them, failed closed where descriptor-safe
   commits are unavailable, and fixed campaign IDs and trace hashes across the
   Python CI matrix.
+- Added a native Rust adapter for exactly pinned `orderbook-rs` 0.10.4. It
+  agrees on seven of eight standard cases, passes a 1,000-event generated FIFO
+  instruction campaign, documents the intentional pro-rata boundary, and runs
+  an injected Rust-side trade drift as a negative CI control. A scoped weekly
+  Dependabot feed proposes reviewed Cargo pin and lockfile updates.
 
 ## 0.3.0 - 2026-07-13
 

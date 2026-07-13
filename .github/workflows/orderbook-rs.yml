@@ -1,0 +1,161 @@
+name: orderbook-rs integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "31 6 * * 1"
+  pull_request:
+    paths:
+      - ".github/workflows/orderbook-rs.yml"
+      - "integrations/orderbook_rs/**"
+      - "src/tracebook/conformance/**"
+      - "src/tracebook/events/market_replay.py"
+      - "tests/test_external_integrations.py"
+
+permissions:
+  contents: read
+
+jobs:
+  native-rust-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Configure integration paths
+        run: |
+          echo "ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/tracebook-orderbook-rs" >> "$GITHUB_ENV"
+          echo "REPORT_ROOT=$RUNNER_TEMP/orderbook-rs" >> "$GITHUB_ENV"
+
+      - name: Install Tracebook
+        run: python -m pip install -e .
+
+      - name: Build and lint the pinned native adapter
+        working-directory: integrations/orderbook_rs
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --release --locked
+
+      - name: Verify the fixed native trace
+        run: |
+          mkdir -p "$REPORT_ROOT"
+          tracebook-conformance run \
+            integrations/orderbook_rs/fifo-compatible.jsonl \
+            --output "$REPORT_ROOT/fifo-compatible.json" \
+            --candidate "$ADAPTER"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads((Path(os.environ["REPORT_ROOT"]) / "fifo-compatible.json").read_text())
+          assert report["conformant"] is True
+          assert report["compared_events"] == 13
+          assert report["candidate_engine"] == {
+              "language": "Rust",
+              "name": "orderbook-rs FIFO adapter",
+              "version": "0.10.4",
+          }
+          assert report["final_state_hash"] == "21a9606e7c77c3b239259f5032245c6330ddcd1d3f7fa25394612d9818becee3"
+          PY
+
+      - name: Verify the honest standard-suite profile
+        run: |
+          tracebook-conformance sample "$REPORT_ROOT/standard-suite"
+          set +e
+          tracebook-conformance suite \
+            "$REPORT_ROOT/standard-suite" \
+            --output "$REPORT_ROOT/standard-suite.json" \
+            --candidate "$ADAPTER"
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected the unsupported pro-rata case to produce exit 1, got $status" >&2
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads((Path(os.environ["REPORT_ROOT"]) / "standard-suite.json").read_text())
+          passed = {case["name"] for case in report["cases"] if case["report"]["conformant"]}
+          failed = {case["name"] for case in report["cases"] if not case["report"]["conformant"]}
+          assert report["suite_hash"] == "sha256:0ec99b73c86ce04b9a1fc123a4cbf93e74a69a80c664d0d908c8a22d8528bfe7"
+          assert passed == {
+              "fifo-lifecycle",
+              "order-instructions",
+              "stp-cancel-resting",
+              "stp-cancel-incoming",
+              "multi-symbol",
+              "tick-grid",
+              "deep-cancellation",
+          }
+          assert failed == {"pro-rata-allocation"}
+          divergence = next(case["report"]["divergence"] for case in report["cases"] if case["name"] == "pro-rata-allocation")
+          assert divergence["category"] == "trades"
+          PY
+
+      - name: Run the generated FIFO instruction campaign
+        run: |
+          tracebook-conformance campaign \
+            --output-dir "$REPORT_ROOT/campaign" \
+            --profile fifo-full-v1 \
+            --seed 20260713 \
+            --traces 10 \
+            --events-per-trace 100 \
+            --max-minimize-runs 100 \
+            --candidate "$ADAPTER"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads((Path(os.environ["REPORT_ROOT"]) / "campaign" / "campaign.json").read_text())
+          assert report["conformant"] is True
+          assert report["generated_events"] == 1000
+          assert report["campaign_id"] == "sha256:3042184192ea03c666dd2120d8b8acc728b2805678c5fb5fdd849bf97a00925d"
+          PY
+
+      - name: Prove Rust-side trade drift is detected
+        run: |
+          set +e
+          tracebook-conformance run \
+            integrations/orderbook_rs/fifo-compatible.jsonl \
+            --output "$REPORT_ROOT/intentional-drift.json" \
+            --candidate "$ADAPTER" --test-fault=drop-first-trade
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected intentional semantic drift to produce exit 1, got $status" >&2
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads((Path(os.environ["REPORT_ROOT"]) / "intentional-drift.json").read_text())
+          assert report["conformant"] is False
+          assert report["divergence"]["event_index"] == 3
+          assert report["divergence"]["category"] == "trades"
+          PY
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: orderbook-rs-conformance
+          path: ${{ runner.temp }}/orderbook-rs
+          if-no-files-found: error

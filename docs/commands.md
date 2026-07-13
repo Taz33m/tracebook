@@ -1,6 +1,8 @@
 # Command Guide
 
-The maintained PythonMatchingEngine adapter and its pinned commands live in
+The maintained native Rust adapter and its pinned commands live in
+[`integrations/orderbook_rs/`](../integrations/orderbook_rs/README.md). The
+narrower Python adapter lives in
 [`integrations/python_matching_engine/`](../integrations/python_matching_engine/README.md).
 A generic GitHub Actions gate is documented in [`docs/ci.md`](ci.md).
 

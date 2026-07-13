@@ -27,11 +27,19 @@ tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-
 python -m build --sdist --wheel --outdir dist
 python -m twine check dist/*
 python -m pip check
+(
+  cd integrations/orderbook_rs
+  cargo fmt --check
+  cargo clippy --locked --all-targets -- -D warnings
+  cargo test --locked
+)
 ```
 
 ## Remote Verification
 
 - Push to a branch and wait for GitHub Actions on Python 3.10 through 3.13.
+- Confirm the native `orderbook-rs` integration passes its fixed trace, `7/8`
+  suite profile, generated campaign, and intentional-drift negative control.
 - Confirm the pinned PythonMatchingEngine integration workflow passes.
 - Check generated package metadata in the build artifact.
 - Check that Dependabot has no urgent security update waiting.
