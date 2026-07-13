@@ -9,7 +9,8 @@ include SECURITY.md
 include SUPPORT.md
 
 recursive-include docs *.md *.png
-recursive-include examples *.py *.json *.jsonl
+recursive-include examples *.py *.json *.jsonl *.yml
+recursive-include integrations *.py *.md *.jsonl
 recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl

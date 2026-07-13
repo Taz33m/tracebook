@@ -13,11 +13,57 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-256%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-260%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
 > **TL;DR:** Give Tracebook a normalized event trace and an adapter for your Rust, C++, Java, Python, or other matching engine. It runs the trace against an inspectable reference engine, identifies the first difference in outcomes, trades, resting orders, or queue priority, and reduces failures to a small reproducible trace. It also retains deterministic replay, verified L3 data workflows, and explicitly bounded local benchmarks.
+
+## Real-Engine Demo
+
+The repository includes a pinned integration with the MIT-licensed
+[PythonMatchingEngine](https://github.com/Surbeivol/PythonMatchingEngine). This
+is a real second implementation, not a renamed Tracebook adapter.
+
+```bash
+git clone https://github.com/Surbeivol/PythonMatchingEngine.git /tmp/PythonMatchingEngine
+git -C /tmp/PythonMatchingEngine checkout f94150294a85d7b415ca4518590b5a661d6f9958
+python -m pip install -e . "pandas>=2.3.3" "PyYAML>=6.0.2"
+
+export PYTHON_MATCHING_ENGINE_PATH=/tmp/PythonMatchingEngine
+tracebook-conformance run \
+  integrations/python_matching_engine/fifo-compatible.jsonl \
+  --output /tmp/python-matching-engine-report.json \
+  --timeout 20 \
+  --candidate python integrations/python_matching_engine/adapter.py
+```
+
+Relevant report fields:
+
+```json
+{
+  "candidate_engine": {
+    "language": "Python",
+    "name": "PythonMatchingEngine FIFO/LIMIT",
+    "version": "f94150294a85"
+  },
+  "compared_events": 13,
+  "conformant": true,
+  "divergence": null
+}
+```
+
+Those 13 events cover FIFO fills, decimal partial fills, reduction, cancellation,
+replacement priority, rejection, clear, and multiple symbols. Against the full
+eight-case suite, the same unmodified engine agrees on two native FIFO cases and
+reports six expected contract differences for instructions, STP, pro-rata,
+market orders, and tick policy. Tracebook records those differences instead of
+calling a narrower feature set a failure or silently emulating it.
+
+See the [integration guide](integrations/python_matching_engine/README.md) and
+the [copy-paste CI workflow](docs/ci.md). The
+[0.3.0 release notes](docs/releases/0.3.0.md) explain why this changes the
+project category.
 
 ## Video Walkthrough
 
@@ -89,7 +135,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `256` pytest tests passing with `79.37%` statement coverage and a `75%` gate |
+| Unit tests | `260` pytest tests passing with `79.40%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |
@@ -130,29 +176,14 @@ All checks below were run during the latest production repo pass in this checkou
 
 ```mermaid
 flowchart LR
-    P["Canonical MarketEvent trace"] --> Q["Conformance runner"]
-    Q --> B
-    Q --> R["External engine adapter"]
-    B --> S["Reference observation"]
-    R --> T["Candidate observation"]
-    S --> U["Semantic diff + minimizer"]
-    T --> U
-    A["OrderFactory / user API"] --> B["OrderBook"]
-    B --> C["Validation"]
-    C --> D["MatchingEngine"]
-    D --> E1["FIFO path"]
-    D --> E2["Pro-rata path"]
-    D --> F["Price levels"]
-    F --> G["Trades + resting book"]
-    G --> H["Market data snapshots"]
-    I["SyntheticOrderStream"] --> J["Simulation events"]
-    J --> B
-    N["Normalized + Coinbase L3 events"] --> B
-    O["Verified corpus + golden state"] --> N
-    B --> K["PerformanceMonitor"]
-    K --> L["Benchmark JSON"]
-    K --> M["Dashboard"]
-    H --> M
+    T["Normalized event trace"] --> R["Conformance runner"]
+    R --> O["Tracebook reference"]
+    R --> A["stdio adapter"]
+    A <--> E["External engine"]
+    O --> D["Semantic diff"]
+    A --> D
+    D --> P["Versioned report"]
+    P --> M["Minimal failing trace"]
 ```
 
 Core paths:
@@ -573,8 +604,9 @@ src/tracebook/              package source
   profiling/                performance monitor and tracing tools
   visualization/            Dash dashboard + static web frontend (web/)
 tests/                      pytest correctness and integration coverage
-docs/                       architecture, commands, and performance notes
-examples/                   runnable example scripts and source feed fixtures
+integrations/               pinned optional adapters for independently built engines
+docs/                       architecture, CI, release, command, and performance notes
+examples/                   runnable scripts, CI templates, and source feed fixtures
 .github/workflows/          CI across supported Python versions
 setup.py                    package metadata, extras, console scripts
 pyproject.toml              build-system and tool configuration

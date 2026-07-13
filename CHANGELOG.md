@@ -8,6 +8,13 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 Development version: `0.3.0.dev0`.
 
+- Added the first maintained third-party engine integration: a commit-pinned
+  PythonMatchingEngine adapter, a 13-event native FIFO/LIMIT compatibility
+  trace, and a scheduled workflow that locks both the passing trace and the
+  honest `2/8` standard-suite contract profile.
+- Added a real-engine README demo, a concise conformance architecture diagram,
+  a copy-paste GitHub Actions gate, and dedicated 0.3.0 release notes explaining
+  the move from Python simulator to matching-engine correctness lab.
 - Repositioned Tracebook as a matching-engine conformance and reproducible
   failure-analysis toolkit. Added a typed pluggable `EngineAdapter` API and an
   incremental, language-neutral NDJSON protocol for testing external Rust,

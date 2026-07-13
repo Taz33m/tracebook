@@ -1,5 +1,10 @@
 # Quick Start
 
+For the real PythonMatchingEngine comparison, see
+[`integrations/python_matching_engine/README.md`](integrations/python_matching_engine/README.md).
+For a pull-request gate, copy
+[`examples/github-actions/conformance.yml`](examples/github-actions/conformance.yml).
+
 ## Setup
 
 Use Python 3.10 through 3.13.
