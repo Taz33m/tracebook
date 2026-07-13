@@ -6,7 +6,7 @@
     "rest_url": null,
     "websocket_url": null
   },
-  "corpus_id": "sha256:69bd96734089cbd89502e19e4c3f8805df7200912dab942fcce0b91538d43d5b",
+  "corpus_id": "sha256:20413a70915181c47a20a2807cce8f653f7158580981f87adef56d8b63225e14",
   "created_at": "2026-07-10T12:00:00Z",
   "files": [
     {
@@ -68,6 +68,6 @@
   },
   "tool": {
     "name": "tracebook",
-    "version": "0.3.0"
+    "version": "0.4.0.dev0"
   }
 }

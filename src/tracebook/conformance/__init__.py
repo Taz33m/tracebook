@@ -1,5 +1,17 @@
 """Matching-engine conformance, semantic diffing, and trace reduction."""
 
+from .campaign import (
+    CAMPAIGN_GENERATOR_VERSION,
+    CampaignFailure,
+    CampaignProfile,
+    CampaignResult,
+    CampaignTraceResult,
+    campaign_profile_names,
+    generate_campaign_trace,
+    get_campaign_profile,
+    run_campaign,
+    write_campaign_artifacts,
+)
 from .compare import ConformanceReport, Divergence, run_conformance
 from .external import (
     AdapterProtocolError,
@@ -34,10 +46,15 @@ from .suite import (
 __all__ = [
     "PROTOCOL_NAME",
     "PROTOCOL_VERSION",
+    "CAMPAIGN_GENERATOR_VERSION",
     "AdapterFactory",
     "AdapterProtocolError",
     "BookSnapshot",
     "BookState",
+    "CampaignFailure",
+    "CampaignProfile",
+    "CampaignResult",
+    "CampaignTraceResult",
     "ConformanceConfig",
     "ConformanceError",
     "ConformanceReport",
@@ -54,12 +71,17 @@ __all__ = [
     "RestingOrder",
     "SuiteCase",
     "TradeFill",
+    "campaign_profile_names",
     "canonical_decimal",
     "copy_bundled_conformance_suite",
+    "generate_campaign_trace",
+    "get_campaign_profile",
     "load_conformance_suite",
     "minimize_failing_trace",
     "rejection_code",
+    "run_campaign",
     "run_conformance",
     "run_conformance_suite",
     "serve_stdio",
+    "write_campaign_artifacts",
 ]

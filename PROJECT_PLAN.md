@@ -17,7 +17,7 @@ handler or trading infrastructure.
 ```text
 src/tracebook/
   core/             matching, lifecycle, snapshots, deterministic replay
-  conformance/      adapters, semantic diffing, trace minimization, standard suite
+  conformance/      adapters, campaigns, semantic diffing, minimization, standard suite
   events/           normalized event replay and offline venue adapters
   corpus/           safe local capture, manifests, golden state, import benchmarks
   simulation/       synthetic order flow and paced workload execution
@@ -32,8 +32,8 @@ integrations/
 
 1. Validate the protocol with one independently implemented Rust, C++, or Java
    adapter and publish it as an integration example.
-2. Add grammar-aware, property-based trace generation for lifecycle and
-   self-trade-prevention state machines.
+2. Extend versioned campaigns with pro-rata, self-trade prevention, tick-grid,
+   and deeper-book profiles plus semantic coverage accounting.
 3. Add a benchmark mode for candidate adapters that separates protocol overhead
    from engine execution and never presents it as production latency.
 4. Stabilize the protocol, event, and report schemas after external-adapter

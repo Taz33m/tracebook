@@ -90,10 +90,18 @@ jobs:
             /tmp/tracebook-conformance-suite \
             --output /tmp/conformance-suite.json \
             --candidate python "$GITHUB_WORKSPACE/examples/conformance_adapter.py"
+          tracebook-conformance campaign \
+            --output-dir /tmp/tracebook-conformance-campaign \
+            --profile fifo-limit-v1 \
+            --seed 20260713 \
+            --traces 3 \
+            --events-per-trace 25 \
+            --candidate python "$GITHUB_WORKSPACE/examples/conformance_adapter.py"
           python -c "import json; assert json.load(open('/tmp/replay.json'))['applied_events'] == 5"
           python -c "import json; assert json.load(open('/tmp/coinbase.json'))['normalization']['sequence_complete'] is True"
           python -c "import json; assert json.load(open('/tmp/corpus-verify.json'))['verified'] is True"
           python -c "import json; assert json.load(open('/tmp/conformance-suite.json'))['conformant'] is True"
+          python -c "import json; p=json.load(open('/tmp/tracebook-conformance-campaign/campaign.json')); assert p['conformant'] is True and p['generated_events'] == 75 and p['generator_version'] == 1"
 
       - name: Check installed dependencies
         run: python -m pip check

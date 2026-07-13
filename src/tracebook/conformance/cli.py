@@ -11,6 +11,11 @@ from typing import List, Optional
 from .._version import __version__
 from ..core.order import SelfTradePolicy
 from ..events import load_market_events
+from .campaign import (
+    campaign_profile_names,
+    run_campaign,
+    write_campaign_artifacts,
+)
 from .compare import run_conformance
 from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .minimize import minimize_failing_trace
@@ -74,6 +79,22 @@ def _build_parser() -> argparse.ArgumentParser:
     minimize.add_argument("--max-runs", type=int, default=100)
     _add_config_arguments(minimize)
     _add_candidate_arguments(minimize)
+
+    campaign = commands.add_parser(
+        "campaign",
+        help="Generate deterministic traces and minimize the first divergence.",
+    )
+    campaign.add_argument("--output-dir", required=True)
+    campaign.add_argument(
+        "--profile",
+        choices=campaign_profile_names(),
+        default="fifo-limit-v1",
+    )
+    campaign.add_argument("--seed", type=int, default=1337)
+    campaign.add_argument("--traces", type=int, default=25)
+    campaign.add_argument("--events-per-trace", type=int, default=100)
+    campaign.add_argument("--max-minimize-runs", type=int, default=100)
+    _add_candidate_arguments(campaign)
     return parser
 
 
@@ -173,6 +194,29 @@ def main(argv: Optional[List[str]] = None) -> int:
             _emit_report(result.to_dict(), args.output)
             print(f"Minimized events written: {Path(args.events_output)}")
             return 0
+        if args.command == "campaign":
+            campaign_result = run_campaign(
+                _candidate_factory(args),
+                profile=args.profile,
+                seed=args.seed,
+                traces=args.traces,
+                events_per_trace=args.events_per_trace,
+                max_minimize_runs=args.max_minimize_runs,
+            )
+            report_path = write_campaign_artifacts(campaign_result, args.output_dir)
+            print(f"Campaign report written: {report_path}")
+            print(
+                f"Traces completed: {len(campaign_result.traces)}/"
+                f"{campaign_result.requested_traces}"
+            )
+            if campaign_result.failure is not None:
+                failure = campaign_result.failure
+                minimized_path = Path(args.output_dir) / "failure" / "minimized.jsonl"
+                print(
+                    f"First divergence reduced from {len(failure.trace.events)} to "
+                    f"{len(failure.minimization.events)} events: {minimized_path}"
+                )
+            return 0 if campaign_result.conformant else 1
         parser.error(f"unknown command: {args.command}")
     except KeyboardInterrupt:
         print("Conformance operation interrupted.", file=sys.stderr)
