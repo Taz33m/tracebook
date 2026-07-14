@@ -65,10 +65,10 @@ tag before requesting a PyPI token.
 After publishing, verify from a clean environment:
 
 ```bash
-python -m pip install --no-cache-dir tracebook-sim==0.4.0
+python -m pip install --no-cache-dir tracebook-sim==0.4.1
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-conformance --help
-python -m pip download --no-deps --no-binary=:all: tracebook-sim==0.4.0
+python -m pip download --no-deps --no-binary=:all: tracebook-sim==0.4.1
 ```
 
 Extract the downloaded sdist in a blank repository, build
@@ -89,7 +89,8 @@ Release notes should include:
 - compatibility notes
 - known limitations
 
-For 0.4.0, begin with [`docs/releases/0.4.0.md`](releases/0.4.0.md). The
+For 0.4.1, begin with [`docs/releases/0.4.1.md`](releases/0.4.1.md). The
+[0.4.0 notes](releases/0.4.0.md) document the failure-corpus release, and the
 [0.3.0 notes](releases/0.3.0.md) document the original project-category change.
 
 Do not publish universal latency or throughput claims from local smoke benchmarks.

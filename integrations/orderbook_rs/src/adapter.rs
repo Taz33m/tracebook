@@ -9,9 +9,11 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 const NO_OWNER: i64 = -1;
 const QUEUE_PRIORITY_PROBE_SYMBOL: &str = "FIFO-PRIORITY-PROBE";
+const TRADE_ID_NAMESPACE_PREFIX: &str = "https://github.com/Taz33m/tracebook/orderbook-rs-adapter/";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FaultMode {
@@ -137,7 +139,11 @@ impl BookHarness {
     fn new(symbol: &str, stp_mode: STPMode) -> Self {
         let trade_capture = Arc::new(Mutex::new(Vec::new()));
         let listener_capture = Arc::clone(&trade_capture);
-        let mut book = OrderBook::<()>::with_clock(symbol, Arc::new(StubClock::new()));
+        let mut book = OrderBook::<()>::with_clock_and_namespace(
+            symbol,
+            Arc::new(StubClock::new()),
+            trade_id_namespace(symbol),
+        );
         book.set_tick_size(1);
         book.set_stp_mode(stp_mode);
         book.set_trade_listener(Arc::new(move |result| {
@@ -700,6 +706,11 @@ fn owner_hash(owner: i64, order_id: u64) -> Hash32 {
     Hash32::new(bytes)
 }
 
+fn trade_id_namespace(symbol: &str) -> Uuid {
+    let name = format!("{TRADE_ID_NAMESPACE_PREFIX}{symbol}");
+    Uuid::new_v5(&Uuid::NAMESPACE_URL, name.as_bytes())
+}
+
 fn expected_immediate_outcome(error: &OrderBookError, order_type: &str) -> bool {
     matches!(error, OrderBookError::SelfTradePrevented { .. })
         || (matches!(order_type, "MARKET" | "IOC" | "FOK")
@@ -748,6 +759,90 @@ mod tests {
         let config = config();
         let number = serde_json::Number::from_str("100.005").unwrap();
         assert_eq!(config.price_ticks(&number).unwrap(), 10_000);
+    }
+
+    fn first_native_trade_id(symbol: &str) -> String {
+        let harness = BookHarness::new(symbol, STPMode::None);
+        harness
+            .book
+            .add_limit_order(
+                Id::sequential(1),
+                10_000,
+                1,
+                Side::Sell,
+                TimeInForce::Gtc,
+                None,
+            )
+            .unwrap();
+        let result = harness
+            .book
+            .match_market_order(Id::sequential(2), 1, Side::Buy)
+            .unwrap();
+        result.trades().as_vec()[0].trade_id().to_string()
+    }
+
+    #[test]
+    fn native_trade_ids_are_deterministic_and_symbol_scoped() {
+        assert_eq!(
+            first_native_trade_id("ALPHA"),
+            first_native_trade_id("ALPHA")
+        );
+        assert_ne!(
+            first_native_trade_id("ALPHA"),
+            first_native_trade_id("BETA")
+        );
+    }
+
+    #[test]
+    fn profile_queue_view_preserves_reduce_and_demotes_replace() {
+        let mut adapter = Adapter::new(ConfigWire {
+            matching_algorithm: "fifo".to_string(),
+            tick_size: "0.01".to_string(),
+            self_trade_policy: "NONE".to_string(),
+            quantity_decimal_places: 12,
+        })
+        .unwrap();
+        let events = [
+            serde_json::json!({
+                "op": "new", "symbol": "ALPHA", "order_id": 1,
+                "side": "SELL", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 101
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": "ALPHA", "order_id": 2,
+                "side": "SELL", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 102
+            }),
+            serde_json::json!({
+                "op": "reduce", "symbol": "ALPHA", "order_id": 1,
+                "quantity": 1.0
+            }),
+            serde_json::json!({
+                "op": "replace", "symbol": "ALPHA", "order_id": 1,
+                "price": 100.0, "quantity": 4.0
+            }),
+        ]
+        .map(|value| serde_json::from_value::<MarketEvent>(value).unwrap());
+
+        for (position, event) in events[..3].iter().enumerate() {
+            adapter.apply(event, (position + 1) as u64).unwrap();
+        }
+        let after_reduce = adapter.snapshot().unwrap();
+        let reduced_ids = after_reduce.books[0]
+            .asks
+            .iter()
+            .map(|order| order.order_id)
+            .collect::<Vec<_>>();
+        assert_eq!(reduced_ids, vec![1, 2]);
+
+        adapter.apply(&events[3], 4).unwrap();
+        let after_replace = adapter.snapshot().unwrap();
+        let replaced_ids = after_replace.books[0]
+            .asks
+            .iter()
+            .map(|order| order.order_id)
+            .collect::<Vec<_>>();
+        assert_eq!(replaced_ids, vec![2, 1]);
     }
 
     #[test]

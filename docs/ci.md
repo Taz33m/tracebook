@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install "tracebook-sim==0.4.0"
+      - run: python -m pip install "tracebook-sim==0.4.1"
       - run: make build
 
       - name: Compare matching semantics

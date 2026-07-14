@@ -6,6 +6,17 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.4.1 - 2026-07-14
+
+- Updated the maintained native adapter to the upstream-reviewed
+  `orderbook-rs` 0.11.0 pin and configured deterministic, symbol-scoped native
+  trade-ID namespaces. Protocol v1 continues to compare portable source-order
+  fill semantics rather than candidate-private trade IDs.
+- Recorded the upstream maintainer's confirmation of Tracebook's reduce,
+  replace, queue-order, and maker/taker mappings. Clarified that generated
+  profiles exclude in-place quantity increases; the review also prompted
+  upstream priority documentation, property tests, and a snapshot-restore fix.
+
 ## 0.4.0 - 2026-07-13
 
 - Began 0.4.0 development with deterministic, versioned differential campaigns.

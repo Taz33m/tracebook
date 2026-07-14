@@ -127,9 +127,20 @@ Tracebook. A candidate claiming this profile is expected to agree on:
 | Output | Applied/rejected outcome, ordered source-ID trades, resting count, and complete priority-state hash after every event |
 
 The profile deliberately excludes market, IOC, FOK, pro-rata, and self-trade
-prevention semantics. Use `fifo-full-v1` for the three additional order
-instructions. STP and pro-rata remain covered by the fixed standard suite, not
-by either generated profile.
+prevention semantics. It also excludes in-place quantity increases: `reduce`
+is a decrement of remaining quantity, while `replace` is cancel-and-new. Use
+`fifo-full-v1` for the three additional order instructions. STP and pro-rata
+remain covered by the fixed standard suite, not by either generated profile.
+
+That upsize exclusion is part of the queue-state contract. The maintained
+`orderbook-rs` adapter reads queue order from native snapshots. Its maintainer
+confirmed in
+[`orderbook-rs` #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203)
+that snapshot and matching order coincide under this profile's monotonic
+admission timestamps and decrease-only updates. An in-place increase can keep
+its old timestamp while receiving a new insertion sequence; any future profile
+that adds upsize must require a consumption-order snapshot and a
+snapshot-restore regression instead of assuming timestamp order is FIFO order.
 
 Generator version 2 specifies SplitMix64 independently of Python's `random`
 module and adds a five-event FIFO priority probe in an isolated symbol. Its end

@@ -186,7 +186,7 @@ mod tests {
             FaultMode::None,
             EngineIdentity {
                 name: "test engine",
-                version: "0.10.4",
+                version: "0.11.0",
             },
         )
         .unwrap();
@@ -198,7 +198,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(values.len(), 2);
         assert_eq!(values[0]["type"], "ready");
-        assert_eq!(values[0]["engine"]["version"], "0.10.4");
+        assert_eq!(values[0]["engine"]["version"], "0.11.0");
         assert_eq!(values[1], json!({"type": "complete", "event_count": 0}));
     }
 }

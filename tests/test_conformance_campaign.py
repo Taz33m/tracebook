@@ -102,6 +102,7 @@ def test_campaign_generator_is_versioned_deterministic_and_stateful():
         "FIFO-PRIORITY-PROBE",
     }
     assert {event.op for event in first} >= {"new", "cancel", "reduce", "replace", "clear"}
+    assert all(event.op != "update" for event in first)
     assert {event.order_type for event in first if event.op == "new"} == {OrderType.LIMIT}
 
 

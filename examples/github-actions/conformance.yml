@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Tracebook
-        run: python -m pip install "tracebook-sim==0.4.0"
+        run: python -m pip install "tracebook-sim==0.4.1"
 
       # Replace this command with the candidate engine's build step.
       - name: Build candidate engine

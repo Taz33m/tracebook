@@ -67,7 +67,7 @@ jobs:
           assert report["candidate_engine"] == {
               "language": "Rust",
               "name": "orderbook-rs FIFO adapter",
-              "version": "0.10.4",
+              "version": "0.11.0",
           }
           assert report["final_state_hash"] == "21a9606e7c77c3b239259f5032245c6330ddcd1d3f7fa25394612d9818becee3"
           PY
