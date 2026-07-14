@@ -7,8 +7,8 @@ process does not import or execute Tracebook's Python engine.
 
 The integration pins:
 
-- `orderbook-rs = 0.10.4` (upstream tag commit
-  `92db5927ac59bf5f68ebdea011e6d7fe9a8ecb64`)
+- `orderbook-rs = 0.11.0` (upstream tag commit
+  `0da8654eeed07132582a804e9306e07f055477f0`)
 - `pricelevel = 0.8.4`
 - Rust `1.88.0` (the first release that compiles upstream's let-chain usage)
 - the complete transitive dependency graph in `Cargo.lock`
@@ -19,7 +19,7 @@ The integration pins:
 flowchart LR
     T["Tracebook runner"] -->|"protocol v1 JSONL"| W["Rust wire server"]
     W --> A["semantic adapter"]
-    A --> E["orderbook-rs 0.10.4"]
+    A --> E["orderbook-rs 0.11.0"]
     E --> A
     A -->|"outcome, trades, state hash"| T
     T --> D["reference comparison"]
@@ -54,7 +54,7 @@ The command exits `0` after 13 events and produces:
   "candidate_engine": {
     "language": "Rust",
     "name": "orderbook-rs FIFO adapter",
-    "version": "0.10.4"
+    "version": "0.11.0"
   },
   "compared_events": 13,
   "conformant": true,
@@ -153,9 +153,40 @@ excluded.
   self-match or reject them for a missing user ID.
 - `CANCEL_RESTING` maps to `CancelMaker`; `CANCEL_INCOMING` maps to
   `CancelTaker`.
+- Reduction only decreases the remaining quantity. It uses native
+  `UpdateQuantity`, which keeps the existing insertion sequence for a decrease.
 - Replacement is translated as validated cancel-and-new, preserving the source
   ID and owner while losing queue priority.
+- Every symbol receives a stable UUID-v5 trade-ID namespace through
+  `with_clock_and_namespace`. Native trade IDs are deterministic across equal
+  command streams, but protocol v1 compares portable source-order fills rather
+  than candidate-private trade IDs.
 - Symbols are independent books, sorted in canonical snapshots.
+
+## External Validation
+
+The `orderbook-rs` maintainer reviewed this adapter against 0.11.0 in
+[issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203). They
+confirmed that native quantity decreases retain FIFO position, replacement is
+cancel-and-add and always loses priority, maker/taker IDs are faithful, and the
+adapter's queue view matches consumption order for `fifo-limit-v1`.
+
+That final statement has a deliberate boundary: the profile never performs an
+in-place quantity increase. Upstream keeps an upsized order's admission
+timestamp while assigning a fresh insertion sequence, so a timestamp-oriented
+snapshot can disagree with matching order after an upsize. The review promoted
+the priority contract into public docs and property tests in
+[`orderbook-rs` PR #204](https://github.com/joaquinbejar/OrderBook-rs/pull/204)
+and exposed a snapshot-round-trip defect tracked in
+[`orderbook-rs` #205](https://github.com/joaquinbejar/OrderBook-rs/issues/205).
+The lower-level repair landed in
+[`PriceLevel` PR #110](https://github.com/joaquinbejar/PriceLevel/pull/110).
+
+The pinned 0.11.0 graph still embeds `pricelevel` 0.8.4, but the discrepancy is
+outside both generated profiles: they decrease in place, model replacement as
+cancel-and-new, and never restore candidate snapshots. A future profile with
+in-place upsize must first require a true consumption-order snapshot and add an
+upsize-snapshot-restore regression.
 
 This adapter tests behavior, not latency. Its process timing includes JSON,
 pipes, translation, snapshots, and OS scheduling.

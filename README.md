@@ -102,7 +102,7 @@ line coverage and not a claim about unsupported candidate features. See the
 
 The strongest maintained integration wraps the independently implemented,
 MIT-licensed [`orderbook-rs`](https://github.com/joaquinbejar/OrderBook-rs)
-0.10.4. The candidate is a native Rust process: no Tracebook Python matching
+0.11.0. The candidate is a native Rust process: no Tracebook Python matching
 code runs on its side of the protocol.
 
 ```bash
@@ -124,7 +124,7 @@ The 13-event trace exits `0` with this proof:
   "candidate_engine": {
     "language": "Rust",
     "name": "orderbook-rs FIFO adapter",
-    "version": "0.10.4"
+    "version": "0.11.0"
   },
   "compared_events": 13,
   "conformant": true,
@@ -138,6 +138,16 @@ behavior, and deep cancellation. The one expected difference is
 `pro-rata-allocation`, because upstream implements FIFO. It also passes a
 deterministic 1,000-event `fifo-full-v1` campaign with ID
 `sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9`.
+
+The upstream maintainer reviewed the adapter's reduce, replace, queue-order,
+and maker/taker mappings in
+[`orderbook-rs` issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203)
+and confirmed them for the maintained profile. The review led upstream to
+publish the priority contract and add property tests in
+[PR #204](https://github.com/joaquinbejar/OrderBook-rs/pull/204). It also
+surfaced a separate upsize-plus-snapshot-restore defect, now tracked upstream;
+Tracebook records that boundary without claiming `fifo-limit-v1` exercises an
+in-place quantity increase.
 
 The integration also ships the separate, clearly named
 `faulty-orderbook-adapter` binary used by the event-173 demonstration. Its
@@ -206,9 +216,10 @@ calling a narrower feature set a failure or silently emulating it.
 
 See the [Python integration guide](integrations/python_matching_engine/README.md)
 and the [generic copy-paste CI workflow](docs/ci.md). The
-[0.4.0 release notes](docs/releases/0.4.0.md) explain the failure-corpus release;
-the [0.3.0 notes](docs/releases/0.3.0.md) explain the original project-category
-change.
+[0.4.1 release notes](docs/releases/0.4.1.md) record the upstream adapter
+validation; the [0.4.0 notes](docs/releases/0.4.0.md) explain the failure-corpus
+release; and the [0.3.0 notes](docs/releases/0.3.0.md) explain the original
+project-category change.
 
 ## Video Walkthrough
 

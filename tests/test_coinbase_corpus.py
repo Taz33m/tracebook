@@ -156,7 +156,7 @@ def test_checked_synthetic_corpus_reproduces_exactly():
     assert verification == {
         "schema_version": 1,
         "verified": True,
-        "corpus_id": "sha256:c41dc283ab11b3580bbb63a0d8e58a5442b03832ab19a233e8f8d2865100e164",
+        "corpus_id": "sha256:447f96316af3595e4e04ff6b0dcb66183d8cd8112b80a7a2353b34038a4d4ca3",
         "files_verified": 4,
         "events_verified": 8,
         "snapshot_sequence": 100,

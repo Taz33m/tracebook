@@ -29,15 +29,27 @@ integrations/
   orderbook_rs/             native Rust adapter, faulty example, regression proof
 ```
 
+## External Validation
+
+The first external-validation milestone was achieved on 2026-07-14. The
+`orderbook-rs` maintainer reviewed and confirmed Tracebook's adapter semantics
+in [issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203), then
+merged public priority documentation and property tests in
+[PR #204](https://github.com/joaquinbejar/OrderBook-rs/pull/204). The review
+also exposed an upsize snapshot-round-trip discrepancy tracked in
+[`orderbook-rs` #205](https://github.com/joaquinbejar/OrderBook-rs/issues/205)
+and repaired at the lower `PriceLevel` layer in
+[PR #110](https://github.com/joaquinbejar/PriceLevel/pull/110). Tracebook did
+not automatically generate that discrepancy; it surfaced through independent
+review of the profile boundary.
+
 ## Next Milestones
 
-1. Get the `orderbook-rs` adapter reviewed or acknowledged by an upstream
-   maintainer, and record any protocol or translation feedback publicly.
-2. Help one third-party engine author connect their own Rust, C++, Java, or
+1. Help one third-party engine author connect their own Rust, C++, Java, or
    Python engine and adopt a saved regression trace in CI.
-3. Use those external adapters to find and publish one real semantic discrepancy
+2. Use those external adapters to find and publish one real semantic discrepancy
    that is not intentionally injected.
-4. Revisit candidate benchmarking and additional profiles only after adapter
+3. Revisit candidate benchmarking and additional profiles only after adapter
    authors reveal where protocol v1 is awkward or underspecified.
 
 ## Decision Rules

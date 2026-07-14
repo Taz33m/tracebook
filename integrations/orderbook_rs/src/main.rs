@@ -3,7 +3,7 @@ use tracebook_orderbook_rs_adapter::server::{EngineIdentity, run};
 
 const ENGINE: EngineIdentity = EngineIdentity {
     name: "orderbook-rs FIFO adapter",
-    version: "0.10.4",
+    version: "0.11.0",
 };
 
 fn main() {

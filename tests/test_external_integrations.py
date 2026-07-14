@@ -58,12 +58,13 @@ def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
     toolchain = (RUST_INTEGRATION / "rust-toolchain.toml").read_text(encoding="utf-8")
     readme = (RUST_INTEGRATION / "README.md").read_text(encoding="utf-8")
 
-    assert 'orderbook-rs = "=0.10.4"' in cargo
+    assert 'orderbook-rs = "=0.11.0"' in cargo
     assert 'pricelevel = "=0.8.4"' in cargo
+    assert 'uuid = { version = "1.23", features = ["v5"] }' in cargo
     assert 'name = "faulty-orderbook-adapter"' in cargo
-    assert 'name = "orderbook-rs"\nversion = "0.10.4"' in lock
+    assert 'name = "orderbook-rs"\nversion = "0.11.0"' in lock
     assert 'channel = "1.88.0"' in toolchain
-    assert "92db5927ac59bf5f68ebdea011e6d7fe9a8ecb64" in readme
+    assert "0da8654eeed07132582a804e9306e07f055477f0" in readme
 
 
 def test_orderbook_rs_compatibility_trace_is_reference_conformant():
@@ -95,6 +96,8 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert 'assert failure["original_divergence_event"] == 173' in workflow
     assert 'assert failure["reduced_event_count"] == 5' in workflow
     assert 'T["Tracebook runner"]' in readme
+    assert "OrderBook-rs/issues/203" in readme
+    assert "in-place quantity increase" in readme
     assert "7/8" in root_readme
 
 
@@ -111,10 +114,12 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     workflow = (ROOT / "examples" / "github-actions" / "conformance.yml").read_text(
         encoding="utf-8"
     )
+    ci_docs = (ROOT / "docs" / "ci.md").read_text(encoding="utf-8")
     release_notes = (ROOT / "docs" / "releases" / "0.3.0.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'python -m pip install "tracebook-sim==0.4.0"' in workflow
+    assert 'python -m pip install "tracebook-sim==0.4.1"' in workflow
+    assert 'python -m pip install "tracebook-sim==0.4.1"' in ci_docs
     assert "tracebook-conformance campaign" in workflow
     assert "--junit-output artifacts/conformance.xml" in workflow
     assert "if: always()" in workflow
@@ -132,3 +137,14 @@ def test_040_release_notes_pin_the_public_failure_story():
     assert "tracebook-conformance reproduce" in notes
     assert "semantic capability coverage" in notes
     assert "external validation, not another feature expansion" in notes
+
+
+def test_041_release_notes_record_external_validation_without_overclaiming():
+    notes = (ROOT / "docs" / "releases" / "0.4.1.md").read_text(encoding="utf-8")
+
+    assert "orderbook-rs` issue #203" in notes
+    assert "orderbook-rs` PR #204" in notes
+    assert "PriceLevel` PR #110" in notes
+    assert "independent review" in notes
+    assert "automatic Tracebook campaign" in notes
+    assert "Conformance protocol: version 1, unchanged" in notes
