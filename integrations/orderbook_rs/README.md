@@ -71,13 +71,14 @@ symbols.
 
 ## Compatibility Profile
 
-The unmodified engine agrees with seven of Tracebook's eight standard cases:
+The unmodified engine agrees with seven of Tracebook's nine v2 standard cases:
 
 | Standard case | Result |
 | --- | --- |
 | `fifo-lifecycle` | Conformant |
 | `order-instructions` | Conformant |
 | `stp-cancel-resting` | Conformant |
+| `stp-cancel-resting-deep` | Expected difference: upstream cancels all same-owner makers at a touched level; Tracebook cancels on encounter |
 | `stp-cancel-incoming` | Conformant |
 | `multi-symbol` | Conformant |
 | `tick-grid` | Conformant |
@@ -87,16 +88,18 @@ The unmodified engine agrees with seven of Tracebook's eight standard cases:
 Run and retain the complete matrix:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/orderbook-rs-suite.json \
   --candidate integrations/orderbook_rs/target/release/tracebook-orderbook-rs
 ```
 
-The suite exits `1` because pro-rata is deliberately unsupported. The maintained
-workflow asserts the exact `7/8` profile and suite ID instead of disguising that
-boundary.
+The suite exits `1` for two explicit contract differences: pro-rata is
+unsupported, and native `CancelMaker` cancels every same-owner maker at a
+touched level before matching while Tracebook's FIFO policy cancels makers only
+as the sweep reaches them. The maintained workflow asserts the exact `7/9`
+profile, suite ID, and four-event STP divergence.
 
 The broader generated gate exercises all FIFO instructions:
 
@@ -212,19 +215,25 @@ artifacts under `target/` are excluded.
 ## Translation Contract
 
 - Source IDs map to `orderbook-rs` sequential IDs and must fit in `u64`.
-- Prices are snapped with Tracebook's half-even tick rule, stored as integer
-  ticks, and restored to canonical decimal strings in observations.
+- Prices reproduce Tracebook's binary64 division followed by ties-to-even tick
+  rounding, are stored as integer ticks, and return as canonical decimal
+  strings. This is intentionally not exact decimal division at half-tick
+  boundaries; for example, `1.015 / 0.01` snaps to `1.01`.
 - Quantities use fixed-point `u64` units at `quantity_decimal_places`; a value
   that rounds to zero or overflows that range is rejected.
 - Real owners map deterministically to `Hash32`. Anonymous owners receive a
   unique per-order identity so STP does not make unrelated anonymous orders
   self-match or reject them for a missing user ID.
 - `CANCEL_RESTING` maps to `CancelMaker`; `CANCEL_INCOMING` maps to
-  `CancelTaker`.
+  `CancelTaker`. `CancelMaker` removes all same-owner makers at every touched
+  level, so the deeper-maker v2 case is a documented semantic difference from
+  Tracebook's cancel-on-encounter reference policy.
 - Reduction only decreases the remaining quantity. It uses native
   `UpdateQuantity`, which keeps the existing insertion sequence for a decrease.
 - Replacement is translated as validated cancel-and-new, preserving the source
-  ID and owner while losing queue priority.
+  ID and owner while losing queue priority. This explicit sequence is
+  load-bearing: native `OrderUpdate::Replace` validates first and may retain the
+  original order when replacement admission fails.
 - Every symbol receives a stable UUID-v5 trade-ID namespace through
   `with_clock_and_namespace`. Native trade IDs are deterministic across equal
   command streams, but protocol v1 compares portable source-order fills rather
@@ -257,6 +266,12 @@ The versioned generated profiles still exclude in-place upsize. They decrease
 in place and model replacement as cancel-and-new, so adding upsize requires a
 new capability-profile version and portable regression rather than changing
 existing trace hashes.
+
+The same external review also found the deeper-maker `CANCEL_RESTING`
+difference now locked in `tracebook-conformance-v2` and tracked in
+[Tracebook issue #57](https://github.com/Taz33m/tracebook/issues/57). This is a
+contract distinction, not an upstream defect: both engines execute the trade
+against order 2, but only Tracebook leaves the unencountered order 3 resting.
 
 This adapter tests behavior, not latency. Its process timing includes JSON,
 pipes, translation, snapshots, and OS scheduling.

@@ -93,7 +93,7 @@ jobs:
           status=$?
           set -e
           if [ "$status" -ne 1 ]; then
-            echo "Expected the unsupported pro-rata case to produce exit 1, got $status" >&2
+            echo "Expected the two documented contract differences to produce exit 1, got $status" >&2
             exit 1
           fi
           python - <<'PY'
@@ -104,7 +104,8 @@ jobs:
           report = json.loads((Path(os.environ["REPORT_ROOT"]) / "standard-suite.json").read_text())
           passed = {case["name"] for case in report["cases"] if case["report"]["conformant"]}
           failed = {case["name"] for case in report["cases"] if not case["report"]["conformant"]}
-          assert report["suite_hash"] == "sha256:0ec99b73c86ce04b9a1fc123a4cbf93e74a69a80c664d0d908c8a22d8528bfe7"
+          assert report["suite_id"] == "tracebook-conformance-v2"
+          assert report["suite_hash"] == "sha256:7b82f87088fbbaa760c8623243d8abfce5be57a477ebea91527b74309190decd"
           assert passed == {
               "fifo-lifecycle",
               "order-instructions",
@@ -114,9 +115,20 @@ jobs:
               "tick-grid",
               "deep-cancellation",
           }
-          assert failed == {"pro-rata-allocation"}
-          divergence = next(case["report"]["divergence"] for case in report["cases"] if case["name"] == "pro-rata-allocation")
-          assert divergence["category"] == "trades"
+          assert failed == {"pro-rata-allocation", "stp-cancel-resting-deep"}
+          divergences = {
+              case["name"]: case["report"]["divergence"]
+              for case in report["cases"]
+              if not case["report"]["conformant"]
+          }
+          assert divergences["pro-rata-allocation"]["category"] == "trades"
+          stp = divergences["stp-cancel-resting-deep"]
+          assert stp["event_index"] == 4
+          assert stp["category"] == "book_state"
+          assert stp["kind"] == "length_mismatch"
+          assert stp["path"] == "$.state.books[0].asks"
+          assert stp["reference"] == 1
+          assert stp["candidate"] == 0
           PY
 
       - name: Run the generated FIFO instruction campaign

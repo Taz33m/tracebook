@@ -6,6 +6,13 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added immutable `tracebook-conformance-v2` as the default bundled suite while
+  retaining v1 behind `sample --suite-version v1`. The new four-event case
+  pins FIFO `CANCEL_RESTING` as cancel-on-encounter and exposes
+  `orderbook-rs`'s valid cancel-all-at-touched-level policy as a documented
+  state difference.
+- Documented the reference engine's binary64 half-even tick behavior and why
+  the Rust adapter's explicit cancel-and-new replacement path is load-bearing.
 - Added `fifo-partial-fill-v1`, a hash-stable generated profile whose
   four-event continuation probe verifies that a partially filled FIFO maker
   retains priority over later same-price makers.

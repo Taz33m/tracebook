@@ -157,7 +157,7 @@ the canonical protocol.
 
 | Candidate | Native surface | Evidence |
 | --- | --- | --- |
-| [`orderbook-rs` 0.12.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, consumption-order queue snapshots | Conformant generated FIFO campaign; `7/8` standard cases with pro-rata explicitly unsupported; semantics reviewed in [upstream issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) |
+| [`orderbook-rs` 0.12.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, consumption-order queue snapshots | Conformant generated FIFO campaign; `7/9` standard cases with pro-rata and one STP policy difference explicit; semantics reviewed in upstream [issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) and Tracebook [issue #57](https://github.com/Taz33m/tracebook/issues/57) |
 | Historical `orderbook-rs` issue #88 | Exact affected Rust dependency behind an opt-in Cargo feature | Flash sequence `15738` and generated event `173` independently reduce to four-event regressions |
 | `faulty-orderbook-adapter` | Real Rust engine plus one documented injected queue-priority fault | Synthetic negative control reduced from event `173` to five causal events |
 | [PythonMatchingEngine](https://github.com/Taz33m/tracebook/tree/main/integrations/python_matching_engine) | Pinned FIFO limit lifecycle, cancellation, reduction, replacement, clear, and queue snapshots | Compatible trace passes; unsupported instructions, STP, tick grid, and pro-rata remain visible differences |

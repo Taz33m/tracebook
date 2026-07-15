@@ -38,7 +38,7 @@ python -m pip check
 ## Remote Verification
 
 - Push to a branch and wait for GitHub Actions on Python 3.10 through 3.13.
-- Confirm the native `orderbook-rs` integration passes its fixed trace, `7/8`
+- Confirm the native `orderbook-rs` integration passes its fixed trace, `7/9`
   suite profile, generated campaign, and intentional-drift negative control.
 - Confirm the pinned PythonMatchingEngine integration workflow passes.
 - Check generated package metadata in the build artifact.

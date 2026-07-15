@@ -31,6 +31,8 @@ from .reproduce import (
     run_reproduction,
 )
 from .suite import (
+    BUNDLED_SUITE_VERSIONS,
+    LATEST_BUNDLED_SUITE_VERSION,
     copy_bundled_conformance_suite,
     load_conformance_suite,
     run_conformance_suite,
@@ -72,6 +74,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sample = commands.add_parser("sample", help="Copy the bundled adversarial suite.")
     sample.add_argument("destination")
+    sample.add_argument(
+        "--suite-version",
+        choices=BUNDLED_SUITE_VERSIONS,
+        default=LATEST_BUNDLED_SUITE_VERSION,
+        help=f"Bundled suite version to copy (default: {LATEST_BUNDLED_SUITE_VERSION}).",
+    )
 
     run = commands.add_parser("run", help="Compare one normalized event trace.")
     run.add_argument("events")
@@ -198,7 +206,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "sample":
-            suite = copy_bundled_conformance_suite(args.destination)
+            suite = copy_bundled_conformance_suite(
+                args.destination,
+                suite_version=args.suite_version,
+            )
             print(f"Conformance suite copied to: {suite.root}")
             print(f"Suite id: {suite.suite_id}")
             print(f"Cases: {len(suite.cases)}")

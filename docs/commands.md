@@ -90,13 +90,16 @@ Options:
 Copy and run the standard suite:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/conformance-suite.json \
   --candidate python examples/conformance_adapter.py
 ```
+
+Pass `--suite-version v1` to `sample` when reproducing the original immutable
+eight-case suite. The default is the latest bundled version.
 
 Compare one trace:
 

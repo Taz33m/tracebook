@@ -32,7 +32,7 @@ from tracebook.simulation.simulation_engine import SimulationConfig, SimulationE
 
 ROOT = Path(__file__).parents[1]
 COINBASE_CORPUS = ROOT / "src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1"
-CONFORMANCE_SUITE = ROOT / "src/tracebook/conformance/fixtures/v1"
+CONFORMANCE_SUITE = ROOT / "src/tracebook/conformance/fixtures/v2"
 
 
 def _require_keys(obj, keys, ctx):

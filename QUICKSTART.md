@@ -51,7 +51,7 @@ The public package can materialize the standard synthetic suite in any clean
 directory:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 ```
 
 From a contributor checkout, run that suite through the included example
@@ -59,7 +59,7 @@ process adapter:
 
 ```bash
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/conformance-suite.json \
   --candidate python examples/conformance_adapter.py
 ```

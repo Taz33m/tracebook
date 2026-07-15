@@ -1,0 +1,7 @@
+{"op":"new","symbol":"ALPHA","order_id":1,"side":"BUY","order_type":"LIMIT","price":10,"quantity":2,"owner":1,"timestamp_ns":1}
+{"op":"new","symbol":"BETA","order_id":1,"side":"SELL","order_type":"LIMIT","price":20,"quantity":3,"owner":2,"timestamp_ns":2}
+{"op":"new","symbol":"ALPHA","order_id":2,"side":"SELL","order_type":"LIMIT","price":10,"quantity":1,"owner":3,"timestamp_ns":3}
+{"op":"replace","symbol":"BETA","order_id":1,"price":19,"quantity":2,"timestamp_ns":4}
+{"op":"new","symbol":"BETA","order_id":2,"side":"BUY","order_type":"MARKET","quantity":1,"owner":4,"timestamp_ns":5}
+{"op":"cancel","symbol":"BETA","order_id":1,"timestamp_ns":6}
+{"op":"clear","symbol":"ALPHA","timestamp_ns":7}

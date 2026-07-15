@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "suite_id": "tracebook-conformance-v2",
+  "suite_hash": "sha256:7b82f87088fbbaa760c8623243d8abfce5be57a477ebea91527b74309190decd",
+  "description": "Synthetic matching-engine semantics covering lifecycle, instructions, encounter-based STP, queue priority, deep books, cancellation pressure, tick normalization, pro-rata allocation, and multiple symbols.",
+  "cases": [
+    {"name":"fifo-lifecycle","events":"fifo-lifecycle.jsonl","sha256":"sha256:68bd8d0f783cb77225b46fe0cafa16849b216af56be8d88ed23f20d7baa9f443","tags":["fifo","partial-fill","replace-priority","crossed-input","rejection"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}},
+    {"name":"order-instructions","events":"order-instructions.jsonl","sha256":"sha256:ed6677e9c8127b8c4611b8180be93ba484ed87d0afa24dbc767fe1af763422e4","tags":["ioc","fok","market"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}},
+    {"name":"stp-cancel-resting","events":"stp-cancel-resting.jsonl","sha256":"sha256:b5f4ffd7762cac532091648cff910ce8039b205d4b2930751eca02195bcfbe01","tags":["self-trade-prevention","cancel-resting"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"CANCEL_RESTING","quantity_decimal_places":12}},
+    {"name":"stp-cancel-resting-deep","events":"stp-cancel-resting-deep.jsonl","sha256":"sha256:00133e11e2da6f3cb693135e9628ce01cb68e80ca5ea0d963ba589c2cbe5ad6e","tags":["self-trade-prevention","cancel-resting","cancel-on-encounter","deep-level"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"CANCEL_RESTING","quantity_decimal_places":12}},
+    {"name":"stp-cancel-incoming","events":"stp-cancel-incoming.jsonl","sha256":"sha256:2c9a35def6b263fd03bc5bb576610fe186b7e6024a8e0b1099fdc8f8313c3460","tags":["self-trade-prevention","cancel-incoming","fok"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"CANCEL_INCOMING","quantity_decimal_places":12}},
+    {"name":"pro-rata-allocation","events":"pro-rata-allocation.jsonl","sha256":"sha256:d353dee1ee54ea2766b83da5cec9f447f9e358b28884f751eaf96b8a7e4bbacb","tags":["pro-rata","partial-fill","replace"],"config":{"matching_algorithm":"pro_rata","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}},
+    {"name":"multi-symbol","events":"multi-symbol.jsonl","sha256":"sha256:19f808ba35128431ad2164eefd3f0350108f14373148de989f19e7b963963193","tags":["multi-symbol","replace","market"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}},
+    {"name":"tick-grid","events":"tick-grid.jsonl","sha256":"sha256:60fb561fbf61e8edc22c3e9d003f416640314a10426c5e0b6f9ae4190dfcca31","tags":["tick-size","normalization","rejection"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}},
+    {"name":"deep-cancellation","events":"deep-cancellation.jsonl","sha256":"sha256:229e59ce8b5fb02e0892a2564551aadf859ee1a61a1f0009f14db4d67d5b3230","tags":["deep-book","cancellation-storm","replace","crossed-input"],"config":{"matching_algorithm":"fifo","tick_size":"0.01","self_trade_policy":"NONE","quantity_decimal_places":12}}
+  ]
+}

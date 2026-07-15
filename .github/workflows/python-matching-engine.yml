@@ -58,10 +58,10 @@ jobs:
 
       - name: Verify the expected full-suite contract profile
         run: |
-          tracebook-conformance sample /tmp/tracebook-conformance-v1
+          tracebook-conformance sample /tmp/tracebook-conformance-v2
           set +e
           tracebook-conformance suite \
-            /tmp/tracebook-conformance-v1 \
+            /tmp/tracebook-conformance-v2 \
             --output /tmp/python-matching-engine-suite.json \
             --timeout 20 \
             --candidate python integrations/python_matching_engine/adapter.py
@@ -71,7 +71,7 @@ jobs:
             echo "Expected semantic-difference exit code 1, got $status" >&2
             exit 1
           fi
-          python -c "import json; p=json.load(open('/tmp/python-matching-engine-suite.json')); passed={c['name'] for c in p['cases'] if c['report']['conformant']}; assert p['suite_hash'] == 'sha256:0ec99b73c86ce04b9a1fc123a4cbf93e74a69a80c664d0d908c8a22d8528bfe7'; assert passed == {'fifo-lifecycle', 'deep-cancellation'}"
+          python -c "import json; p=json.load(open('/tmp/python-matching-engine-suite.json')); passed={c['name'] for c in p['cases'] if c['report']['conformant']}; assert p['suite_id'] == 'tracebook-conformance-v2'; assert p['suite_hash'] == 'sha256:7b82f87088fbbaa760c8623243d8abfce5be57a477ebea91527b74309190decd'; assert passed == {'fifo-lifecycle', 'deep-cancellation'}"
 
       - name: Run the generated FIFO lifecycle campaign
         run: |

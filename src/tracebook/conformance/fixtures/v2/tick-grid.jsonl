@@ -1,0 +1,4 @@
+{"op":"new","symbol":"TEST","order_id":1,"side":"BUY","order_type":"LIMIT","price":100.004,"quantity":1,"owner":1,"timestamp_ns":1}
+{"op":"new","symbol":"TEST","order_id":2,"side":"SELL","order_type":"LIMIT","price":100.006,"quantity":1,"owner":2,"timestamp_ns":2}
+{"op":"new","symbol":"TEST","order_id":3,"side":"BUY","order_type":"LIMIT","price":100.01,"quantity":1,"owner":3,"timestamp_ns":3}
+{"op":"new","symbol":"TEST","order_id":4,"side":"BUY","order_type":"LIMIT","price":0.004,"quantity":1,"owner":4,"timestamp_ns":4}

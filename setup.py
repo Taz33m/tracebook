@@ -143,6 +143,7 @@ setup(
         "tracebook": ["py.typed"],
         "tracebook.corpus.fixtures": ["coinbase-btcusd-synthetic-v1/*"],
         "tracebook.conformance.fixtures.v1": ["*.json", "*.jsonl"],
+        "tracebook.conformance.fixtures.v2": ["*.json", "*.jsonl"],
         "tracebook.visualization.web": ["*.html", "*.css", "*.js"],
     },
     include_package_data=True,

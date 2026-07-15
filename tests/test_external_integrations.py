@@ -91,7 +91,8 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "cargo clippy --locked --all-targets -- -D warnings" in workflow
-    assert 'failed == {"pro-rata-allocation"}' in workflow
+    assert 'failed == {"pro-rata-allocation", "stp-cancel-resting-deep"}' in workflow
+    assert 'stp["path"] == "$.state.books[0].asks"' in workflow
     assert "--profile fifo-full-v1" in workflow
     assert "--events-per-trace 100" in workflow
     assert "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9" in workflow
@@ -109,13 +110,15 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert 'T["Tracebook runner"]' in readme
     assert "OrderBook-rs/issues/203" in readme
     assert "queue-consumption order even after an in-place upsize" in readme
-    assert "7/8" in root_readme
+    assert "7/9" in root_readme
 
 
 def test_source_manifest_includes_native_integration_files():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+    setup = (ROOT / "setup.py").read_text(encoding="utf-8")
 
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
+    assert '"tracebook.conformance.fixtures.v2": ["*.json", "*.jsonl"]' in setup
     assert "recursive-include integrations/flash_benchmark *.json" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest

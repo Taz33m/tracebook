@@ -35,6 +35,7 @@ from tracebook.events import MarketEvent, load_market_events
 
 ROOT = Path(__file__).parents[1]
 SUITE = ROOT / "src/tracebook/conformance/fixtures/v1"
+LATEST_SUITE = ROOT / "src/tracebook/conformance/fixtures/v2"
 EXAMPLE_ADAPTER = ROOT / "examples/conformance_adapter.py"
 FAULTY_ADAPTER = ROOT / "tests/fixtures/faulty_conformance_adapter.py"
 
@@ -397,12 +398,12 @@ def test_bundled_suite_is_hash_locked_copyable_and_fully_conformant(tmp_path):
     copied = copy_bundled_conformance_suite(tmp_path / "suite")
     report = run_conformance_suite(copied, ReferenceEngineAdapter)
 
-    assert copied.suite_id == "tracebook-conformance-v1"
+    assert copied.suite_id == "tracebook-conformance-v2"
     assert copied.suite_hash.startswith("sha256:")
-    assert len(copied.cases) == 8
+    assert len(copied.cases) == 9
     assert all(path.suffix in {".json", ".jsonl"} for path in copied.root.iterdir())
     assert report["conformant"] is True
-    assert report["conformant_cases"] == 8
+    assert report["conformant_cases"] == 9
     assert {tag for case in copied.cases for tag in case.tags} >= {
         "deep-book",
         "cancellation-storm",
@@ -425,12 +426,41 @@ def test_bundled_suite_is_hash_locked_copyable_and_fully_conformant(tmp_path):
     with pytest.raises(ConformanceError, match="suite_hash mismatch"):
         load_conformance_suite(config_tamper.root)
 
+    v1 = copy_bundled_conformance_suite(
+        tmp_path / "suite-v1",
+        suite_version="v1",
+    )
+    assert v1.suite_id == "tracebook-conformance-v1"
+    assert len(v1.cases) == 8
+
+    with pytest.raises(ConformanceError, match="unknown bundled suite version"):
+        copy_bundled_conformance_suite(tmp_path / "unknown", suite_version="v3")
+
+
+def test_cancel_resting_only_removes_self_orders_reached_by_the_sweep():
+    events = load_market_events(LATEST_SUITE / "stp-cancel-resting-deep.jsonl")
+    adapter = ReferenceEngineAdapter(
+        ConformanceConfig.from_dict({"self_trade_policy": "CANCEL_RESTING"})
+    )
+
+    observations = [adapter.apply(event, index) for index, event in enumerate(events, 1)]
+    state = adapter.snapshot()
+    adapter.close()
+
+    assert [(trade.buy_order_id, trade.sell_order_id) for trade in observations[-1].trades] == [
+        (4, 2)
+    ]
+    assert [order.order_id for order in state.books[0].asks] == [3]
+
 
 def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
     suite_path = tmp_path / "suite"
+    v1_suite_path = tmp_path / "suite-v1"
     suite_report = tmp_path / "suite-report.json"
     suite_junit = tmp_path / "suite-report.xml"
     assert main(["sample", str(suite_path)]) == 0
+    assert main(["sample", str(v1_suite_path), "--suite-version", "v1"]) == 0
+    assert load_conformance_suite(v1_suite_path).suite_id == "tracebook-conformance-v1"
     assert (
         main(
             [
@@ -450,7 +480,7 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
     assert json.loads(suite_report.read_text(encoding="utf-8"))["conformant"] is True
     assert ElementTree.parse(suite_junit).getroot().attrib == {
         "name": "tracebook.conformance.suite_report",
-        "tests": "8",
+        "tests": "9",
         "failures": "0",
         "errors": "0",
     }
@@ -540,7 +570,7 @@ def test_cli_sample_suite_and_minimize_workflows(tmp_path, capsys):
         )
         == 2
     )
-    assert "Cases: 8" in capsys.readouterr().out
+    assert "Cases: 9" in capsys.readouterr().out
 
 
 @settings(max_examples=25, deadline=None)

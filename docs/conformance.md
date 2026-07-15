@@ -22,10 +22,10 @@ object per line.
 Copy the bundled synthetic suite and run the example adapter:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/conformance-suite.json \
   --candidate python examples/conformance_adapter.py
 ```
@@ -244,9 +244,19 @@ State ordering is part of the contract:
    but is rejected by engine validation. An invalid cancel/reduce/replace for an
    unknown symbol does not create a book.
 
+For FIFO `CANCEL_RESTING`, self-trade prevention is encounter-based. Matching
+walks makers in priority order, cancels a same-owner maker when the sweep
+reaches it, and continues. Once the incoming quantity is filled, deeper makers
+are not inspected or canceled. An engine that pre-cancels every same-owner
+maker at a touched price level implements a different, valid policy and should
+report that boundary rather than claiming this case.
+
 Only limit orders may appear in resting state. Prices and quantities are decimal
 strings, never binary floating-point JSON numbers. Prices use the canonical
-tick-grid value. Quantities are rounded half-even to the configured
+tick-grid value, but the reference first divides the parsed IEEE-754 binary64
+price by the binary64 tick size and then rounds ties to even. This is not exact
+decimal division: with tick size `0.01`, `1.015` snaps to `1.01`, not `1.02`.
+Quantities are rounded half-even to the configured
 `quantity_decimal_places` (default `12`) before trailing zeroes are removed.
 Zero is always `"0"`; exponent notation is forbidden.
 
@@ -385,14 +395,17 @@ runnable reference. Non-Python adapters implement the same frames directly.
 
 ## Bundled Suite
 
-`tracebook-conformance-v1` is synthetic and redistributable. Every event file is
-SHA-256 locked, and `suite_hash` binds the manifest's case configs, tags, file
-hashes, description, and suite ID. The suite currently covers:
+`tracebook-conformance-v2` is the default synthetic, redistributable suite.
+Every event file is SHA-256 locked, and `suite_hash` binds the manifest's case
+configs, tags, file hashes, description, and suite ID. Version 2 adds a
+four-event FIFO case proving that `CANCEL_RESTING` does not remove a deeper
+same-owner maker that the sweep never reaches. The suite currently covers:
 
 - FIFO partial fills, reduction, cancel-and-new replacement, queue-priority
   loss, crossed input, and rejected lifecycle events;
 - market, IOC, fillable FOK, and unfillable FOK instructions;
-- `CANCEL_RESTING` and `CANCEL_INCOMING` self-trade prevention;
+- encounter-based `CANCEL_RESTING`, including a deeper same-owner maker, and
+  `CANCEL_INCOMING` self-trade prevention;
 - pro-rata allocation and subsequent lifecycle operations;
 - independent source-ID domains across multiple symbols;
 - off-grid tick snapping and a price that snaps to a non-positive tick;
@@ -401,6 +414,10 @@ hashes, description, and suite ID. The suite currently covers:
 
 Suite reports preserve every case report rather than stopping after the first
 failed case, making them suitable for CI artifacts.
+
+Bundled suites are immutable once published. `sample` copies v2 by default;
+use `tracebook-conformance sample ./suite --suite-version v1` to reproduce the
+original eight-case suite and its historical hash.
 
 ## Artifact Contracts
 

@@ -45,6 +45,8 @@ from .reference import ReferenceEngineAdapter, rejection_code
 from .reproduce import ReproductionResult, run_reproduction
 from .semantic_coverage import SemanticCoverage, measure_semantic_coverage
 from .suite import (
+    BUNDLED_SUITE_VERSIONS,
+    LATEST_BUNDLED_SUITE_VERSION,
     ConformanceSuite,
     SuiteCase,
     copy_bundled_conformance_suite,
@@ -60,6 +62,7 @@ __all__ = [
     "AdapterProtocolError",
     "BookSnapshot",
     "BookState",
+    "BUNDLED_SUITE_VERSIONS",
     "CampaignFailure",
     "CampaignProfile",
     "CampaignResult",
@@ -74,6 +77,7 @@ __all__ = [
     "ExternalProcessAdapter",
     "ExternalProcessAdapterFactory",
     "MinimizationResult",
+    "LATEST_BUNDLED_SUITE_VERSION",
     "Observation",
     "Outcome",
     "ReferenceEngineAdapter",
