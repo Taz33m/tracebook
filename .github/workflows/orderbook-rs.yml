@@ -34,6 +34,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Flash build prerequisite
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libboost-dev
+
       - name: Configure integration paths
         run: |
           echo "ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/tracebook-orderbook-rs" >> "$GITHUB_ENV"
