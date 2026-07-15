@@ -6,6 +6,16 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added `fifo-partial-fill-v1`, a hash-stable generated profile whose
+  four-event continuation probe verifies that a partially filled FIFO maker
+  retains priority over later same-price makers.
+- Added a provenance-locked adapter for the historical `orderbook-rs` issue
+  #88 revision. A 200-event campaign reproduces Flash's real maker-priority
+  discrepancy at event 173, minimizes it to four events, and passes the same
+  committed regression on current `orderbook-rs` 0.11.0.
+- Documented the Flash-to-Tracebook discovery and minimization handoff as a
+  bounded case study, with exact campaign, failure, JSON, and JUnit identities.
+
 ## 0.4.1 - 2026-07-14
 
 - Updated the maintained native adapter to the upstream-reviewed

@@ -36,6 +36,7 @@ jobs:
         run: |
           echo "ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/tracebook-orderbook-rs" >> "$GITHUB_ENV"
           echo "FAULTY_ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/faulty-orderbook-adapter" >> "$GITHUB_ENV"
+          echo "HISTORICAL_ADAPTER=$GITHUB_WORKSPACE/integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter" >> "$GITHUB_ENV"
           echo "REPORT_ROOT=$RUNNER_TEMP/orderbook-rs" >> "$GITHUB_ENV"
 
       - name: Install Tracebook
@@ -48,6 +49,8 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
           cargo build --release --locked
+          cargo clippy --locked --no-default-features --features historical-issue-88 --bin orderbook-rs-issue-88-adapter -- -D warnings
+          cargo build --release --locked --no-default-features --features historical-issue-88 --bin orderbook-rs-issue-88-adapter
 
       - name: Verify the fixed native trace
         run: |
@@ -185,6 +188,75 @@ jobs:
           assert regression["conformant"] is True
           assert ElementTree.parse(root / "queue-priority-campaign.xml").getroot().attrib["failures"] == "1"
           assert ElementTree.parse(root / "queue-priority-reproduction.xml").getroot().attrib["failures"] == "0"
+          PY
+
+      - name: Reduce the historical issue 88 defect to four events
+        run: |
+          set +e
+          tracebook-conformance campaign \
+            --profile fifo-partial-fill-v1 \
+            --seed 42 \
+            --traces 1000 \
+            --events-per-trace 200 \
+            --max-minimize-runs 200 \
+            --candidate-cmd "$HISTORICAL_ADAPTER" \
+            --corpus-dir "$REPORT_ROOT/historical-issue-88-corpus" \
+            --stop-after-first \
+            --junit-output "$REPORT_ROOT/historical-issue-88-campaign.xml"
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected historical orderbook-rs issue 88 to produce exit 1, got $status" >&2
+            exit 1
+          fi
+
+          FAILURE_DIR="$REPORT_ROOT/historical-issue-88-corpus/failure-7dd023c684cdb2d0fc0e"
+          cmp "$FAILURE_DIR/reduced.jsonl" integrations/orderbook_rs/regressions/issue-88-reduced.jsonl
+          tracebook-conformance reproduce \
+            "$FAILURE_DIR/reduced.jsonl" \
+            --candidate-cmd "$HISTORICAL_ADAPTER" \
+            --output "$REPORT_ROOT/historical-issue-88-reproduction.json" \
+            --junit-output "$REPORT_ROOT/historical-issue-88-reproduction.xml"
+          tracebook-conformance run \
+            integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
+            --candidate-cmd "$ADAPTER" \
+            --output "$REPORT_ROOT/historical-issue-88-fixed.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          root = Path(os.environ["REPORT_ROOT"])
+          failure_dir = root / "historical-issue-88-corpus" / "failure-7dd023c684cdb2d0fc0e"
+          campaign = json.loads((failure_dir / "campaign.json").read_text())
+          failure = json.loads((failure_dir / "failure.json").read_text())
+          reproduction = json.loads((root / "historical-issue-88-reproduction.json").read_text())
+          fixed = json.loads((root / "historical-issue-88-fixed.json").read_text())
+
+          assert campaign["campaign_id"] == "sha256:e8e158af0223b4e61dbb7efeab10cfd1b34b0d3b478b3e086c12bea008c0b4aa"
+          assert campaign["semantic_coverage"]["coverage_ratio"] == 1.0
+          assert failure["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
+          assert failure["failure_class"] == "queue-priority drift"
+          assert failure["original_divergence_event"] == 173
+          assert failure["original_event_count"] == 173
+          assert failure["reduced_event_count"] == 4
+          assert failure["one_minimal"] is True
+          assert failure["candidate_engine"] == {
+              "language": "Rust",
+              "name": "historical orderbook-rs issue 88 adapter",
+              "version": "0.8.0@53b4d2b0+pricelevel-0.7.0",
+          }
+
+          divergence = reproduction["conformance_report"]["divergence"]
+          assert reproduction["reproduced"] is True
+          assert divergence["path"] == "$.observation.trades[0].sell_order_id"
+          assert divergence["reference"] == 9100000001
+          assert divergence["candidate"] == 9100000002
+          assert fixed["conformant"] is True
+          assert ElementTree.parse(root / "historical-issue-88-campaign.xml").getroot().attrib["failures"] == "1"
+          assert ElementTree.parse(root / "historical-issue-88-reproduction.xml").getroot().attrib["failures"] == "0"
           PY
 
       - name: Prove Rust-side trade drift is detected

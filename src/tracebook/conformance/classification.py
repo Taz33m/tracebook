@@ -43,12 +43,52 @@ def is_queue_priority_probe(events: Sequence[MarketEvent], end_index: int | None
     return crosses
 
 
+def is_partial_fill_priority_probe(
+    events: Sequence[MarketEvent], end_index: int | None = None
+) -> bool:
+    """Return whether a four-event partial-fill continuation probe ends here."""
+    end = len(events) if end_index is None else end_index
+    if end < 4 or end > len(events):
+        return False
+    first, second, first_taker, second_taker = events[end - 4 : end]
+    window = (first, second, first_taker, second_taker)
+    if not all(event.op == "new" and event.symbol == first.symbol for event in window):
+        return False
+    if any(event.order_id is None for event in window):
+        return False
+    if len({event.order_id for event in window}) != 4:
+        return False
+    if first.side is None or second.side != first.side:
+        return False
+    if first_taker.side is None or second_taker.side != first_taker.side:
+        return False
+    if first_taker.side == first.side:
+        return False
+    if first.price is None or any(event.price != first.price for event in window[1:]):
+        return False
+    if (
+        first.quantity is None
+        or second.quantity is None
+        or first_taker.quantity is None
+        or second_taker.quantity is None
+    ):
+        return False
+    return (
+        0 < first_taker.quantity < first.quantity
+        and second.quantity > 0
+        and second_taker.quantity > 0
+    )
+
+
 def classify_failure(events: Sequence[MarketEvent], report: ConformanceReport) -> str:
     """Map a first divergence to a stable, user-facing failure class."""
     divergence = report.divergence
     if divergence is None:
         return "conformant"
-    if divergence.category == "trades" and is_queue_priority_probe(events, divergence.event_index):
+    is_priority_probe = is_queue_priority_probe(
+        events, divergence.event_index
+    ) or is_partial_fill_priority_probe(events, divergence.event_index)
+    if divergence.category == "trades" and is_priority_probe:
         return QUEUE_PRIORITY_DRIFT
     return {
         "outcome": "order-outcome drift",

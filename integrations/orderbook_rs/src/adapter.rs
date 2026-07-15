@@ -2,17 +2,34 @@ use crate::wire::{
     BookSnapshot, BookState, ConfigWire, MarketEvent, ObservationFrame, Outcome, RestingOrder,
     TradeFill,
 };
+#[cfg(all(feature = "current", feature = "historical-issue-88"))]
+compile_error!("select either current or historical-issue-88, not both");
+#[cfg(not(any(feature = "current", feature = "historical-issue-88")))]
+compile_error!("enable either current or historical-issue-88");
+
+#[cfg(feature = "current")]
 use orderbook_rs::{OrderBook, OrderBookError, STPMode, StubClock, TradeResult};
-use pricelevel::{Hash32, Id, PriceLevelSnapshot, Quantity, Side, TimeInForce};
+#[cfg(feature = "historical-issue-88")]
+use orderbook_rs_issue_88::{OrderBook, OrderBookError, STPMode, StubClock, TradeResult};
+#[cfg(feature = "current")]
+use pricelevel::{
+    Hash32, Id, OrderType, OrderUpdate, PriceLevelSnapshot, Quantity, Side, TimeInForce,
+};
+#[cfg(feature = "historical-issue-88")]
+use pricelevel_issue_88::{
+    Hash32, Id, OrderType, OrderUpdate, PriceLevelSnapshot, Quantity, Side, TimeInForce,
+};
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "current")]
 use uuid::Uuid;
 
 const NO_OWNER: i64 = -1;
 const QUEUE_PRIORITY_PROBE_SYMBOL: &str = "FIFO-PRIORITY-PROBE";
+#[cfg(feature = "current")]
 const TRADE_ID_NAMESPACE_PREFIX: &str = "https://github.com/Taz33m/tracebook/orderbook-rs-adapter/";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -139,11 +156,14 @@ impl BookHarness {
     fn new(symbol: &str, stp_mode: STPMode) -> Self {
         let trade_capture = Arc::new(Mutex::new(Vec::new()));
         let listener_capture = Arc::clone(&trade_capture);
+        #[cfg(feature = "current")]
         let mut book = OrderBook::<()>::with_clock_and_namespace(
             symbol,
             Arc::new(StubClock::new()),
             trade_id_namespace(symbol),
         );
+        #[cfg(feature = "historical-issue-88")]
+        let mut book = OrderBook::<()>::with_clock(symbol, Arc::new(StubClock::new()));
         book.set_tick_size(1);
         book.set_stp_mode(stp_mode);
         book.set_trade_listener(Arc::new(move |result| {
@@ -215,8 +235,8 @@ impl BookHarness {
         for level in levels {
             let crosses = match (incoming_side, incoming_price) {
                 (_, None) => true,
-                (Side::Buy, Some(price)) => price >= level.price().as_u128(),
-                (Side::Sell, Some(price)) => price <= level.price().as_u128(),
+                (Side::Buy, Some(price)) => price >= level_price(level),
+                (Side::Sell, Some(price)) => price <= level_price(level),
             };
             if !crosses {
                 continue;
@@ -243,7 +263,7 @@ impl BookHarness {
                     Ok((
                         order_id,
                         order.price().as_u128(),
-                        order.visible_quantity().as_u64(),
+                        visible_quantity(order),
                         order.side(),
                         owner,
                     ))
@@ -251,7 +271,7 @@ impl BookHarness {
                 .collect::<Result<Vec<_>, String>>()?;
 
             for (order_id, price, quantity, side, owner) in predecessors {
-                let id = Id::sequential(order_id);
+                let id = sequential_id(order_id);
                 match self.book.cancel_order(id) {
                     Ok(Some(_)) => {}
                     Ok(None) => return Err("fault injection lost a resting order".to_string()),
@@ -411,7 +431,7 @@ impl Adapter {
             Ok(value) => value,
             Err(message) => return Outcome::rejected("INVALID_ORDER", message),
         };
-        let id = Id::sequential(order_id);
+        let id = sequential_id(order_id);
         if book.book.get_order(id).is_some() {
             return Outcome::rejected("DUPLICATE_ORDER_ID", "order is already active");
         }
@@ -474,7 +494,7 @@ impl Adapter {
 
         match result {
             Ok(()) => Outcome::applied(),
-            Err(OrderBookError::DuplicateOrderId { .. }) => {
+            Err(error) if is_duplicate_order_error(&error) => {
                 book.owners.remove(&order_id);
                 Outcome::rejected("DUPLICATE_ORDER_ID", "order is already active")
             }
@@ -493,7 +513,7 @@ impl Adapter {
             Ok(value) => value,
             Err(message) => return Outcome::rejected("INVALID_CANCEL", message),
         };
-        match book.book.cancel_order(Id::sequential(order_id)) {
+        match book.book.cancel_order(sequential_id(order_id)) {
             Ok(Some(_)) => {
                 book.owners.remove(&order_id);
                 Outcome::applied()
@@ -512,7 +532,7 @@ impl Adapter {
             Ok(value) => value,
             Err(message) => return Outcome::rejected("INVALID_ORDER", message),
         };
-        let id = Id::sequential(order_id);
+        let id = sequential_id(order_id);
         let Some(existing) = book.book.get_order(id) else {
             return Outcome::rejected("ORDER_NOT_ACTIVE", "order is not active");
         };
@@ -525,7 +545,7 @@ impl Adapter {
             Ok(value) => value,
             Err(message) => return Outcome::rejected("INVALID_ORDER", message),
         };
-        let remaining = existing.visible_quantity().as_u64();
+        let remaining = visible_quantity(&existing);
         if reduction > remaining {
             return Outcome::rejected(
                 "INVALID_ORDER",
@@ -536,12 +556,10 @@ impl Adapter {
             return Self::apply_cancel(book, event);
         }
 
-        match book
-            .book
-            .update_order(pricelevel::OrderUpdate::UpdateQuantity {
-                order_id: id,
-                new_quantity: Quantity::new(remaining - reduction),
-            }) {
+        match book.book.update_order(OrderUpdate::UpdateQuantity {
+            order_id: id,
+            new_quantity: Quantity::new(remaining - reduction),
+        }) {
             Ok(Some(_)) => Outcome::applied(),
             Ok(None) => Outcome::rejected("ORDER_NOT_ACTIVE", "order is not active"),
             Err(error) => Outcome::rejected("INVALID_ORDER", error.to_string()),
@@ -557,7 +575,7 @@ impl Adapter {
             Ok(value) => value,
             Err(message) => return Outcome::rejected("INVALID_REPLACEMENT", message),
         };
-        let id = Id::sequential(order_id);
+        let id = sequential_id(order_id);
         let Some(existing) = book.book.get_order(id) else {
             return Outcome::rejected("ORDER_NOT_ACTIVE", "order is not active");
         };
@@ -573,7 +591,7 @@ impl Adapter {
                 Ok(value) => value,
                 Err(message) => return Outcome::rejected("INVALID_REPLACEMENT", message),
             },
-            None => existing.visible_quantity().as_u64(),
+            None => visible_quantity(&existing),
         };
         let side = existing.side();
         let owner = book.owners.get(&order_id).copied().unwrap_or(NO_OWNER);
@@ -661,9 +679,7 @@ impl Adapter {
                 Ok(RestingOrder {
                     order_id,
                     price: self.config.format_price(order.price().as_u128())?,
-                    remaining_quantity: self
-                        .config
-                        .format_quantity(order.visible_quantity().as_u64()),
+                    remaining_quantity: self.config.format_quantity(visible_quantity(order)),
                     owner,
                     order_type: "LIMIT",
                 })
@@ -706,9 +722,50 @@ fn owner_hash(owner: i64, order_id: u64) -> Hash32 {
     Hash32::new(bytes)
 }
 
+#[cfg(feature = "current")]
 fn trade_id_namespace(symbol: &str) -> Uuid {
     let name = format!("{TRADE_ID_NAMESPACE_PREFIX}{symbol}");
     Uuid::new_v5(&Uuid::NAMESPACE_URL, name.as_bytes())
+}
+
+#[cfg(feature = "current")]
+fn sequential_id(order_id: u64) -> Id {
+    Id::sequential(order_id)
+}
+
+#[cfg(feature = "historical-issue-88")]
+fn sequential_id(order_id: u64) -> Id {
+    Id::Sequential(order_id)
+}
+
+#[cfg(feature = "current")]
+fn visible_quantity(order: &OrderType<()>) -> u64 {
+    order.visible_quantity().as_u64()
+}
+
+#[cfg(feature = "historical-issue-88")]
+fn visible_quantity(order: &OrderType<()>) -> u64 {
+    order.visible_quantity()
+}
+
+#[cfg(feature = "current")]
+fn level_price(level: &PriceLevelSnapshot) -> u128 {
+    level.price().as_u128()
+}
+
+#[cfg(feature = "historical-issue-88")]
+fn level_price(level: &PriceLevelSnapshot) -> u128 {
+    level.price()
+}
+
+#[cfg(feature = "current")]
+fn is_duplicate_order_error(error: &OrderBookError) -> bool {
+    matches!(error, OrderBookError::DuplicateOrderId { .. })
+}
+
+#[cfg(feature = "historical-issue-88")]
+fn is_duplicate_order_error(_error: &OrderBookError) -> bool {
+    false
 }
 
 fn expected_immediate_outcome(error: &OrderBookError, order_type: &str) -> bool {
@@ -761,12 +818,13 @@ mod tests {
         assert_eq!(config.price_ticks(&number).unwrap(), 10_000);
     }
 
+    #[cfg(feature = "current")]
     fn first_native_trade_id(symbol: &str) -> String {
         let harness = BookHarness::new(symbol, STPMode::None);
         harness
             .book
             .add_limit_order(
-                Id::sequential(1),
+                sequential_id(1),
                 10_000,
                 1,
                 Side::Sell,
@@ -776,11 +834,12 @@ mod tests {
             .unwrap();
         let result = harness
             .book
-            .match_market_order(Id::sequential(2), 1, Side::Buy)
+            .match_market_order(sequential_id(2), 1, Side::Buy)
             .unwrap();
         result.trades().as_vec()[0].trade_id().to_string()
     }
 
+    #[cfg(feature = "current")]
     #[test]
     fn native_trade_ids_are_deterministic_and_symbol_scoped() {
         assert_eq!(
@@ -845,6 +904,7 @@ mod tests {
         assert_eq!(replaced_ids, vec![2, 1]);
     }
 
+    #[cfg(feature = "current")]
     #[test]
     fn queue_priority_fault_changes_only_the_probe_trade() {
         let wire_config = ConfigWire {

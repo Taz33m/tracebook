@@ -10,6 +10,9 @@ The integration pins:
 - `orderbook-rs = 0.11.0` (upstream tag commit
   `0da8654eeed07132582a804e9306e07f055477f0`)
 - `pricelevel = 0.8.4`
+- historical `orderbook-rs = 0.8.0` at commit
+  `53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf` with `pricelevel = 0.7.0`
+  behind the opt-in `historical-issue-88` feature
 - Rust `1.88.0` (the first release that compiles upstream's let-chain usage)
 - the complete transitive dependency graph in `Cargo.lock`
 
@@ -110,9 +113,54 @@ tracebook-conformance campaign \
 That deterministic 1,000-event campaign is conformant with campaign ID
 `sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9`.
 
+## Historical Real-Defect Proof
+
+Flash's
+[`matching-engine-benchmark`](https://github.com/flash1-dev/matching-engine-benchmark)
+found a real partial-fill priority defect and reported it as
+[`orderbook-rs` #88](https://github.com/joaquinbejar/OrderBook-rs/issues/88).
+The affected lower-level queue moved a partially filled head maker's remainder
+to the tail. Upstream fixed it in
+[`orderbook-rs` PR #131](https://github.com/joaquinbejar/OrderBook-rs/pull/131).
+
+Build the exact historical revision through the same adapter source:
+
+```bash
+cargo build --release --locked \
+  --no-default-features \
+  --features historical-issue-88 \
+  --bin orderbook-rs-issue-88-adapter
+```
+
+Then generate, detect, and minimize the real defect:
+
+```bash
+tracebook-conformance campaign \
+  --profile fifo-partial-fill-v1 \
+  --seed 42 \
+  --traces 1000 \
+  --events-per-trace 200 \
+  --max-minimize-runs 200 \
+  --candidate-cmd ./target/release/orderbook-rs-issue-88-adapter \
+  --corpus-dir .tracebook/corpus \
+  --stop-after-first
+```
+
+The first trace diverges at event 173 with 10/10 semantic capabilities covered.
+Tracebook reduces it to four events and identifies
+`$.observation.trades[0].sell_order_id`: FIFO expects maker `9100000001`, while
+the affected engine consumes maker `9100000002`. The campaign ID is
+`sha256:e8e158af0223b4e61dbb7efeab10cfd1b34b0d3b478b3e086c12bea008c0b4aa`
+and the failure ID is `failure-7dd023c684cdb2d0fc0e`.
+
+The reduced trace is committed at
+[`regressions/issue-88-reduced.jsonl`](regressions/issue-88-reduced.jsonl). The
+maintained 0.11.0 candidate passes it. See the
+[full provenance and reduction case study](../../docs/case-studies/orderbook-rs-issue-88.md).
+
 ## Intentionally Faulty Engine
 
-The same Cargo project builds `faulty-orderbook-adapter`, a separate binary
+The same Cargo project also builds `faulty-orderbook-adapter`, a separate binary
 whose source is [`src/bin/faulty_orderbook_adapter.rs`](src/bin/faulty_orderbook_adapter.rs).
 It uses the real native engine and wire protocol but injects one documented
 defect: after a maker is reduced and replaced, the next crossing order in the
@@ -129,7 +177,7 @@ tracebook-conformance campaign \
   --stop-after-first
 ```
 
-This exits `1` at original event 173, identifies queue-priority drift, and
+This synthetic negative control exits `1` at original event 173, identifies queue-priority drift, and
 reduces the failure to the five causal events. The correct
 `tracebook-orderbook-rs` binary conforms on that reduced trace. The maintained
 workflow pins both results, making the reduced JSONL a real CI regression case.
@@ -137,9 +185,9 @@ workflow pins both results, making the reduced JSONL a real CI regression case.
 The correct binary also retains `--test-fault=drop-first-trade` as a smaller
 protocol negative control. It is not the public demonstration.
 
-All Rust source, `Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` are
-included in the public Tracebook sdist. Build artifacts under `target/` are
-excluded.
+All Rust source, the real four-event regression, `Cargo.toml`, `Cargo.lock`, and
+`rust-toolchain.toml` are included in the public Tracebook sdist. Build
+artifacts under `target/` are excluded.
 
 ## Translation Contract
 

@@ -21,6 +21,7 @@ from tracebook.conformance import (
     ReferenceEngineAdapter,
     campaign_profile_names,
     generate_campaign_trace,
+    is_partial_fill_priority_probe,
     is_queue_priority_probe,
     run_campaign,
     run_reproduction,
@@ -91,7 +92,11 @@ def test_campaign_generator_is_versioned_deterministic_and_stateful():
     second = generate_campaign_trace("fifo-limit-v1", seed=42, event_count=80)
 
     assert CAMPAIGN_GENERATOR_VERSION == 2
-    assert campaign_profile_names() == ("fifo-full-v1", "fifo-limit-v1")
+    assert campaign_profile_names() == (
+        "fifo-full-v1",
+        "fifo-limit-v1",
+        "fifo-partial-fill-v1",
+    )
     assert first == second
     assert trace_sha256(first) == (
         "sha256:1ded355da7f1e8b553868d8e52077b2decd9f3fd2107a963dbd5728a82035f22"
@@ -146,6 +151,29 @@ def test_seed_42_campaign_pins_event_173_probe_and_semantic_coverage():
     )
     assert result.semantic_coverage.queue_priority_probes == 1
     assert result.to_dict()["semantic_coverage"]["coverage_ratio"] == 1.0
+
+
+def test_partial_fill_profile_pins_the_four_event_continuation_probe():
+    result = run_campaign(
+        ReferenceEngineAdapter,
+        profile="fifo-partial-fill-v1",
+        seed=42,
+        traces=1,
+        events_per_trace=200,
+    )
+    events = result.traces[0].events
+
+    assert is_partial_fill_priority_probe(events, 173)
+    assert not is_queue_priority_probe(events, 173)
+    assert result.conformant is True
+    assert result.campaign_id == (
+        "sha256:e5c7a95c554db8f46097f0e613edf0bc47a7c1df343c1e3ef22e002bb5efdec2"
+    )
+    assert result.semantic_coverage.queue_priority_probes == 1
+    assert result.to_dict()["semantic_coverage"]["coverage_ratio"] == 1.0
+
+    minimal_events = generate_campaign_trace("fifo-partial-fill-v1", seed=42, event_count=4)
+    assert is_partial_fill_priority_probe(minimal_events)
 
 
 @pytest.mark.parametrize(
@@ -620,9 +648,10 @@ def test_campaign_is_wired_into_docs_and_ci():
     )
 
     assert "## Differential Campaigns" in readme
-    assert "Reduced reproducer: 5 events" in readme
+    assert "Reduced reproducer: 4 events" in readme
     assert "tracebook-conformance reproduce" in readme
     assert "Generator version 2 specifies SplitMix64" in conformance_docs
+    assert "fifo-partial-fill-v1" in conformance_docs
     assert "tracebook-conformance campaign" in ci_workflow
     assert "--profile fifo-limit-v1" in external_workflow
     assert "--events-per-trace 50" in external_workflow
