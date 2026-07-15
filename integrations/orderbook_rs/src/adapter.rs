@@ -852,6 +852,49 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "current")]
+    #[test]
+    fn native_snapshot_matches_consumption_order_after_quantity_upsize() {
+        let harness = BookHarness::new("ALPHA", STPMode::None);
+        for order_id in [1, 2] {
+            harness
+                .book
+                .add_limit_order(
+                    sequential_id(order_id),
+                    10_000,
+                    5,
+                    Side::Sell,
+                    TimeInForce::Gtc,
+                    None,
+                )
+                .unwrap();
+        }
+        harness
+            .book
+            .update_order(OrderUpdate::UpdateQuantity {
+                order_id: sequential_id(1),
+                new_quantity: Quantity::new(6),
+            })
+            .unwrap();
+
+        let snapshot = harness.book.create_snapshot(usize::MAX);
+        let snapshot_ids = snapshot.asks[0]
+            .orders()
+            .iter()
+            .map(|order| order.id().as_u64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(snapshot_ids, vec![2, 1]);
+
+        let result = harness
+            .book
+            .match_market_order(sequential_id(3), 1, Side::Buy)
+            .unwrap();
+        assert_eq!(
+            result.trades().as_vec()[0].maker_order_id(),
+            sequential_id(2)
+        );
+    }
+
     #[test]
     fn profile_queue_view_preserves_reduce_and_demotes_replace() {
         let mut adapter = Adapter::new(ConfigWire {

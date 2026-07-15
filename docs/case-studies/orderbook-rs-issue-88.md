@@ -19,7 +19,7 @@ Tracebook preserves both sides of that history:
 
 - affected `orderbook-rs 0.8.0` commit
   `53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf` with `pricelevel 0.7.0`;
-- maintained `orderbook-rs 0.11.0` with `pricelevel 0.8.4`.
+- maintained `orderbook-rs 0.12.0` with `pricelevel 0.9.1`.
 
 ## The Defect
 

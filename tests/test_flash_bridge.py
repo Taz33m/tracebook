@@ -197,6 +197,11 @@ def test_real_flash_provenance_hashes_the_durable_evidence():
     assert provenance["minimization"]["runs"] == 193
     assert provenance["minimization"]["one_minimal"] is True
     assert provenance["minimization"]["budget_exhausted"] is False
+    assert provenance["fixed_candidate"] == {
+        "conformant_on_reduced_trace": True,
+        "orderbook_rs_version": "0.12.0",
+        "pricelevel_version": "0.9.1",
+    }
     assert (
         provenance["canonical_evidence"]["divergence_artifact_sha256"]
         == hashlib.sha256(REAL_DIVERGENCE.read_bytes()).hexdigest()

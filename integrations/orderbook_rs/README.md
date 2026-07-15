@@ -7,9 +7,9 @@ process does not import or execute Tracebook's Python engine.
 
 The integration pins:
 
-- `orderbook-rs = 0.11.0` (upstream tag commit
-  `0da8654eeed07132582a804e9306e07f055477f0`)
-- `pricelevel = 0.8.4`
+- `orderbook-rs = 0.12.0` (upstream tag commit
+  `0e44b5b2334a6878c6a7e57491c4dfb7e2df4d72`)
+- `pricelevel = 0.9.1`
 - historical `orderbook-rs = 0.8.0` at commit
   `53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf` with `pricelevel = 0.7.0`
   behind the opt-in `historical-issue-88` feature
@@ -22,7 +22,7 @@ The integration pins:
 flowchart LR
     T["Tracebook runner"] -->|"protocol v1 JSONL"| W["Rust wire server"]
     W --> A["semantic adapter"]
-    A --> E["orderbook-rs 0.11.0"]
+    A --> E["orderbook-rs 0.12.0"]
     E --> A
     A -->|"outcome, trades, state hash"| T
     T --> D["reference comparison"]
@@ -57,7 +57,7 @@ The command exits `0` after 13 events and produces:
   "candidate_engine": {
     "language": "Rust",
     "name": "orderbook-rs FIFO adapter",
-    "version": "0.11.0"
+    "version": "0.12.0"
   },
   "compared_events": 13,
   "conformant": true,
@@ -155,7 +155,7 @@ and the failure ID is `failure-7dd023c684cdb2d0fc0e`.
 
 The reduced trace is committed at
 [`regressions/issue-88-reduced.jsonl`](regressions/issue-88-reduced.jsonl). The
-maintained 0.11.0 candidate passes it. See the
+maintained 0.12.0 candidate passes it. See the
 [full provenance and reduction case study](../../docs/case-studies/orderbook-rs-issue-88.md).
 
 ### Direct Flash Artifact Handoff
@@ -172,7 +172,7 @@ The one-minimal result preserves Flash's actual workload values in
 [`regressions/flash-issue-88-reduced.jsonl`](regressions/flash-issue-88-reduced.jsonl):
 two buys rest at 33532, a crossing sell partially fills the older maker, and a
 later sell IOC exposes the affected queue consuming the newer maker first. The
-historical adapter reports queue-priority drift; 0.11.0 conforms.
+historical adapter reports queue-priority drift; 0.12.0 conforms.
 
 This direct import and the event-173 generated campaign are independent traces
 of the same defect. Their distinct sequence numbers are retained rather than
@@ -233,28 +233,30 @@ artifacts under `target/` are excluded.
 
 ## External Validation
 
-The `orderbook-rs` maintainer reviewed this adapter against 0.11.0 in
+The `orderbook-rs` maintainer reviewed this adapter in
 [issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203). They
 confirmed that native quantity decreases retain FIFO position, replacement is
 cancel-and-add and always loses priority, maker/taker IDs are faithful, and the
 adapter's queue view matches consumption order for `fifo-limit-v1`.
 
-That final statement has a deliberate boundary: the profile never performs an
-in-place quantity increase. Upstream keeps an upsized order's admission
-timestamp while assigning a fresh insertion sequence, so a timestamp-oriented
-snapshot can disagree with matching order after an upsize. The review promoted
-the priority contract into public docs and property tests in
+The review promoted the priority contract into public docs and property tests in
 [`orderbook-rs` PR #204](https://github.com/joaquinbejar/OrderBook-rs/pull/204)
 and exposed a snapshot-round-trip defect tracked in
 [`orderbook-rs` #205](https://github.com/joaquinbejar/OrderBook-rs/issues/205).
 The lower-level repair landed in
 [`PriceLevel` PR #110](https://github.com/joaquinbejar/PriceLevel/pull/110).
 
-The pinned 0.11.0 graph still embeds `pricelevel` 0.8.4, but the discrepancy is
-outside both generated profiles: they decrease in place, model replacement as
-cancel-and-new, and never restore candidate snapshots. A future profile with
-in-place upsize must first require a true consumption-order snapshot and add an
-upsize-snapshot-restore regression.
+In a follow-up on the same issue, the maintainer tested the adapter end to end
+against `orderbook-rs 0.12.0` and `pricelevel 0.9.1`. This graph materializes
+level snapshots in queue-consumption order even after an in-place upsize
+demotes an order. Tracebook independently locks both observations in one native
+test: the snapshot reports the demoted order at the tail and the next trade
+consumes the order shown first.
+
+The versioned generated profiles still exclude in-place upsize. They decrease
+in place and model replacement as cancel-and-new, so adding upsize requires a
+new capability-profile version and portable regression rather than changing
+existing trace hashes.
 
 This adapter tests behavior, not latency. Its process timing includes JSON,
 pipes, translation, snapshots, and OS scheduling.

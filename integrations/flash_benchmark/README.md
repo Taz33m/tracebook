@@ -85,7 +85,7 @@ tracebook-conformance run \
   --candidate-cmd integrations/orderbook_rs/target/release/tracebook-orderbook-rs
 ```
 
-The historical engine reports `queue-priority drift`; the maintained 0.11.0
+The historical engine reports `queue-priority drift`; the maintained 0.12.0
 engine exits `0`.
 
 ## Reproducibility

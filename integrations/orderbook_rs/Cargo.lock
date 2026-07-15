@@ -500,16 +500,16 @@ dependencies = [
 
 [[package]]
 name = "orderbook-rs"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80d1e8509e36ab7c81af79f45333c17a18b89c9d7d167c734ce9f14555922793"
+checksum = "9ae087ecb1fbe96db778b1dcea77b42ee52f9d1cc4fad057e5731f7e69975f52"
 dependencies = [
  "bitflags",
  "crossbeam",
  "crossbeam-skiplist",
  "dashmap",
  "either",
- "pricelevel 0.8.4",
+ "pricelevel 0.9.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -566,9 +566,9 @@ dependencies = [
 
 [[package]]
 name = "pricelevel"
-version = "0.8.4"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75e028ea7fc2a38e3d47eacdea6eeef16b94c0fcd77240858f1037479a18d9fc"
+checksum = "79bc1d8b3056d021ad41c9dfe4af70f9a27e23b17503eb75933d498862d406ee"
 dependencies = [
  "crossbeam-skiplist",
  "dashmap",
@@ -1000,10 +1000,10 @@ dependencies = [
 name = "tracebook-orderbook-rs-adapter"
 version = "0.1.0"
 dependencies = [
- "orderbook-rs 0.11.0",
+ "orderbook-rs 0.12.0",
  "orderbook-rs 0.8.0",
  "pricelevel 0.7.0",
- "pricelevel 0.8.4",
+ "pricelevel 0.9.1",
  "rust_decimal",
  "serde",
  "serde_json",

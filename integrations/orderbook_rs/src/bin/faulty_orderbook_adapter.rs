@@ -3,7 +3,7 @@ use tracebook_orderbook_rs_adapter::server::{EngineIdentity, run};
 
 const ENGINE: EngineIdentity = EngineIdentity {
     name: "intentionally faulty orderbook-rs queue-priority example",
-    version: "0.11.0+queue-priority-fault",
+    version: "0.12.0+queue-priority-fault",
 };
 
 fn main() {

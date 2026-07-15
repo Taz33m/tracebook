@@ -15,8 +15,8 @@
   },
   "fixed_candidate": {
     "conformant_on_reduced_trace": true,
-    "orderbook_rs_version": "0.11.0",
-    "pricelevel_version": "0.8.4"
+    "orderbook_rs_version": "0.12.0",
+    "pricelevel_version": "0.9.1"
   },
   "flash": {
     "commit": "eb6e89fbc4313f77cea7d424bab14a26093cf552",

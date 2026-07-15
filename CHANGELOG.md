@@ -12,7 +12,7 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 - Added a provenance-locked adapter for the historical `orderbook-rs` issue
   #88 revision. A 200-event campaign reproduces Flash's real maker-priority
   discrepancy at event 173, minimizes it to four events, and passes the same
-  committed regression on current `orderbook-rs` 0.11.0.
+  committed regression on current `orderbook-rs` 0.12.0.
 - Documented the Flash-to-Tracebook discovery and minimization handoff as a
   bounded case study, with exact campaign, failure, JSON, and JUnit identities.
 - Consumed Flash's merged schema-v1 canonical divergence at sequence 15738,
@@ -20,6 +20,11 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   IDs, prices, quantities, and IOC instruction to a one-minimal four-event
   regression in 193 runs. The affected engine reproduces queue-priority drift;
   current `orderbook-rs` passes the same trace.
+- Updated the maintained native adapter to `orderbook-rs` 0.12.0 and
+  `pricelevel` 0.9.1 after upstream end-to-end validation. Added a native
+  regression proving snapshots and matching expose the same queue-consumption
+  order after an in-place quantity increase; the versioned campaign profiles
+  remain unchanged.
 
 ## 0.4.1 - 2026-07-14
 

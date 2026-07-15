@@ -140,15 +140,15 @@ still executes before the later maker. The profile exists separately so adding
 this real-world regression does not change `fifo-limit-v1` traces, hashes, or
 failure IDs.
 
-That upsize exclusion is part of the queue-state contract. The maintained
-`orderbook-rs` adapter reads queue order from native snapshots. Its maintainer
-confirmed in
-[`orderbook-rs` #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203)
-that snapshot and matching order coincide under this profile's monotonic
-admission timestamps and decrease-only updates. An in-place increase can keep
-its old timestamp while receiving a new insertion sequence; any future profile
-that adds upsize must require a consumption-order snapshot and a
-snapshot-restore regression instead of assuming timestamp order is FIFO order.
+That upsize exclusion defines the versioned profile surface; it is no longer a
+limitation of the maintained Rust adapter. In
+[`orderbook-rs` #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203),
+the maintainer confirmed that `orderbook-rs 0.12.0` with `pricelevel 0.9.1`
+materializes snapshots in queue-consumption order, including after an in-place
+quantity increase receives a fresh insertion sequence. Tracebook locks that
+guarantee with a native snapshot-and-next-trade regression. Any future profile
+that adds upsize still needs a new versioned capability contract and portable
+regression rather than silently changing `fifo-limit-v1` traces and hashes.
 
 Generator version 2 specifies SplitMix64 independently of Python's `random`
 module and adds a five-event FIFO priority probe in an isolated symbol. Its end

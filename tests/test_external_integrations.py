@@ -58,8 +58,8 @@ def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
     toolchain = (RUST_INTEGRATION / "rust-toolchain.toml").read_text(encoding="utf-8")
     readme = (RUST_INTEGRATION / "README.md").read_text(encoding="utf-8")
 
-    assert 'orderbook-rs = { version = "=0.11.0", optional = true }' in cargo
-    assert 'pricelevel = { version = "=0.8.4", optional = true }' in cargo
+    assert 'orderbook-rs = { version = "=0.12.0", optional = true }' in cargo
+    assert 'pricelevel = { version = "=0.9.1", optional = true }' in cargo
     assert 'uuid = { version = "1.23", features = ["v5"], optional = true }' in cargo
     assert 'name = "orderbook-rs-issue-88-adapter"' in cargo
     assert 'rev = "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf"' in cargo
@@ -67,9 +67,9 @@ def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
     assert 'name = "faulty-orderbook-adapter"' in cargo
     assert 'name = "orderbook-rs"\nversion = "0.8.0"' in lock
     assert "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf" in lock
-    assert 'name = "orderbook-rs"\nversion = "0.11.0"' in lock
+    assert 'name = "orderbook-rs"\nversion = "0.12.0"' in lock
     assert 'channel = "1.88.0"' in toolchain
-    assert "0da8654eeed07132582a804e9306e07f055477f0" in readme
+    assert "0e44b5b2334a6878c6a7e57491c4dfb7e2df4d72" in readme
 
 
 def test_orderbook_rs_compatibility_trace_is_reference_conformant():
@@ -108,7 +108,7 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "four-event JSONL reproducer" in root_readme
     assert 'T["Tracebook runner"]' in readme
     assert "OrderBook-rs/issues/203" in readme
-    assert "in-place quantity increase" in readme
+    assert "queue-consumption order even after an in-place upsize" in readme
     assert "7/8" in root_readme
 
 

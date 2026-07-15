@@ -84,7 +84,7 @@ reduces to four events while preserving the same maker-priority defect.
 </p>
 
 The reduced trace then becomes an ordinary CI regression: it must reproduce
-against the affected revision and pass against `orderbook-rs` `0.11.0`.
+against the affected revision and pass against `orderbook-rs` `0.12.0`.
 
 - [Read the provenance and reduction case study](https://github.com/Taz33m/tracebook/blob/main/docs/case-studies/orderbook-rs-issue-88.md)
 - [Inspect the Flash schema-v1 divergence](https://github.com/Taz33m/tracebook/blob/main/integrations/flash_benchmark/artifacts/orderbook-rs-issue-88-divergence.json)
@@ -157,7 +157,7 @@ the canonical protocol.
 
 | Candidate | Native surface | Evidence |
 | --- | --- | --- |
-| [`orderbook-rs` 0.11.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, full queue snapshots | Conformant generated FIFO campaign; `7/8` standard cases with pro-rata explicitly unsupported; semantics reviewed in [upstream issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) |
+| [`orderbook-rs` 0.12.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, consumption-order queue snapshots | Conformant generated FIFO campaign; `7/8` standard cases with pro-rata explicitly unsupported; semantics reviewed in [upstream issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) |
 | Historical `orderbook-rs` issue #88 | Exact affected Rust dependency behind an opt-in Cargo feature | Flash sequence `15738` and generated event `173` independently reduce to four-event regressions |
 | `faulty-orderbook-adapter` | Real Rust engine plus one documented injected queue-priority fault | Synthetic negative control reduced from event `173` to five causal events |
 | [PythonMatchingEngine](https://github.com/Taz33m/tracebook/tree/main/integrations/python_matching_engine) | Pinned FIFO limit lifecycle, cancellation, reduction, replacement, clear, and queue snapshots | Compatible trace passes; unsupported instructions, STP, tick grid, and pro-rata remain visible differences |
