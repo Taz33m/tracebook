@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title description">
+  <title id="title">Tracebook campaign failure reduction</title>
+  <desc id="description">A terminal report showing queue-priority drift at event 173 reduced to a four-event reproducer.</desc>
+  <rect width="1200" height="520" fill="#0a0e11" />
+  <rect x="24" y="24" width="1152" height="472" rx="8" fill="#11171c" stroke="#2b353e" stroke-width="2" />
+  <rect x="24" y="24" width="1152" height="58" rx="8" fill="#182027" />
+  <rect x="24" y="74" width="1152" height="8" fill="#182027" />
+  <text x="54" y="61" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">tracebook-conformance campaign</text>
+  <text x="1128" y="61" text-anchor="end" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16">seed 42</text>
+
+  <line x1="370" y1="114" x2="370" y2="454" stroke="#2b353e" stroke-width="2" />
+
+  <text x="56" y="134" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">CAMPAIGN</text>
+  <text x="56" y="176" fill="#f4f7f9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">fifo-partial-fill-v1</text>
+  <text x="56" y="216" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">1,000 traces requested</text>
+  <text x="56" y="246" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">200 events per trace</text>
+  <text x="56" y="298" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">REFERENCE</text>
+  <text x="56" y="338" fill="#00c2e8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">Tracebook FIFO</text>
+  <text x="56" y="388" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">CANDIDATE</text>
+  <text x="56" y="428" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">orderbook-rs issue #88</text>
+
+  <text x="410" y="132" fill="#00d084" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">Semantic coverage: 10/10 capabilities</text>
+  <text x="410" y="184" fill="#ff435a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" font-weight="700">Divergence detected at original event 173</text>
+  <text x="410" y="228" fill="#f4f7f9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">Failure class: queue-priority drift</text>
+
+  <rect x="410" y="266" width="314" height="96" rx="8" fill="#0a0e11" stroke="#2b353e" />
+  <text x="434" y="299" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">ORIGINAL TRACE</text>
+  <text x="434" y="342" fill="#f4f7f9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="30" font-weight="700">173 events</text>
+
+  <text x="752" y="324" fill="#00c2e8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="34">→</text>
+
+  <rect x="806" y="266" width="314" height="96" rx="8" fill="#0a0e11" stroke="#00d084" stroke-width="2" />
+  <text x="830" y="299" fill="#00d084" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">REDUCED REPRODUCER</text>
+  <text x="830" y="342" fill="#f4f7f9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="30" font-weight="700">4 events</text>
+
+  <text x="410" y="409" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">Maker expected: 9100000001</text>
+  <text x="410" y="442" fill="#ff435a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">Maker observed: 9100000002</text>
+  <text x="1120" y="466" text-anchor="end" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">JSONL · JSON · JUnit · deterministic replay</text>
+</svg>

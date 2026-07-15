@@ -47,10 +47,17 @@ print(order_book.get_statistics())
 
 ## Test A Matching Engine
 
-Copy the standard synthetic suite and run the included process adapter:
+The public package can materialize the standard synthetic suite in any clean
+directory:
 
 ```bash
 tracebook-conformance sample /tmp/tracebook-conformance-v1
+```
+
+From a contributor checkout, run that suite through the included example
+process adapter:
+
+```bash
 tracebook-conformance suite \
   /tmp/tracebook-conformance-v1 \
   --output /tmp/conformance-suite.json \
