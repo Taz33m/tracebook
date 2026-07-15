@@ -55,7 +55,7 @@ scripts/explain_divergence.py \
 
 The adapter must use `orderbook-rs 0.8.0` commit
 `53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf` and unpatched
-`pricelevel 0.7.0`. Flash's maintained worked adapter applies the upstream fix;
+`pricelevel 0.7.0`. Flash's maintained working adapter applies the upstream fix;
 the exact affected build is retained in Tracebook's Linux workflow.
 
 The upstream comparator reports:

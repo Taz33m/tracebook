@@ -46,7 +46,7 @@ def _load_json_object(path: Path) -> Mapping[str, object]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise FlashBridgeError(f"divergence artifact not found: {path}") from exc
-    except json.JSONDecodeError as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise FlashBridgeError(f"invalid divergence artifact JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise FlashBridgeError("divergence artifact must be a JSON object")

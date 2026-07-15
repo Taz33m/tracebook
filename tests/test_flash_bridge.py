@@ -10,6 +10,7 @@ from integrations.flash_benchmark.bridge import (
     FlashBridgeError,
     convert_divergent_prefix,
     load_divergent_sequence,
+    main,
 )
 from tracebook.conformance import is_partial_fill_priority_probe
 from tracebook.events import load_market_events
@@ -107,6 +108,22 @@ def test_flash_bridge_rejects_unsupported_divergence_artifacts(tmp_path, overrid
 
     with pytest.raises(FlashBridgeError, match=message):
         load_divergent_sequence(divergence)
+
+
+def test_flash_bridge_reports_non_utf8_artifacts_as_cli_errors(tmp_path, capsys):
+    divergence = tmp_path / "divergence.json"
+    divergence.write_bytes(b"\xff")
+
+    status = main(
+        [
+            str(divergence),
+            str(tmp_path / "orders.bin"),
+            str(tmp_path / "prefix.jsonl"),
+        ]
+    )
+
+    assert status == 2
+    assert "invalid divergence artifact JSON" in capsys.readouterr().err
 
 
 def test_flash_bridge_rejects_trailing_or_truncated_workloads(tmp_path):
