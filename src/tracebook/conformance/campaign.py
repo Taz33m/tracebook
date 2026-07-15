@@ -131,6 +131,27 @@ _PROFILES: Mapping[str, CampaignProfile] = {
             "fill-or-kill",
         ),
     ),
+    "fifo-partial-fill-v1": CampaignProfile(
+        name="fifo-partial-fill-v1",
+        description=(
+            "The portable FIFO limit lifecycle surface with a partial-fill "
+            "continuation probe that verifies the original maker keeps priority."
+        ),
+        config=ConformanceConfig(matching_algorithm="fifo"),
+        order_types=(OrderType.LIMIT,),
+        capabilities=(
+            "limit-orders",
+            "fifo-price-time-priority",
+            "partial-fills",
+            "cancellation",
+            "reduction",
+            "replacement",
+            "book-clear",
+            "duplicate-active-order-id",
+            "inactive-lifecycle-request",
+            "multiple-symbols",
+        ),
+    ),
 }
 
 
@@ -356,6 +377,11 @@ _QUEUE_PROBE_SYMBOL = "FIFO-PRIORITY-PROBE"
 _QUEUE_PROBE_FIRST_MAKER = 9_000_000_001
 _QUEUE_PROBE_SECOND_MAKER = 9_000_000_002
 _QUEUE_PROBE_TAKER = 9_000_000_003
+_PARTIAL_FILL_PROBE_SYMBOL = "FIFO-PARTIAL-FILL-PROBE"
+_PARTIAL_FILL_PROBE_FIRST_MAKER = 9_100_000_001
+_PARTIAL_FILL_PROBE_SECOND_MAKER = 9_100_000_002
+_PARTIAL_FILL_PROBE_FIRST_TAKER = 9_100_000_003
+_PARTIAL_FILL_PROBE_SECOND_TAKER = 9_100_000_004
 
 
 def _queue_priority_probe_end(seed: int, event_count: int) -> Optional[int]:
@@ -422,6 +448,58 @@ def _queue_priority_probe(seed: int, event_count: int) -> Mapping[int, MarketEve
     }
 
 
+def _partial_fill_priority_probe(seed: int, event_count: int) -> Mapping[int, MarketEvent]:
+    """Place a four-event maker-continuation probe inside one isolated book."""
+    if event_count < 4:
+        return {}
+    end = min(event_count, 133 + seed % 43)
+    start = end - 3
+    return {
+        start: MarketEvent(
+            op="new",
+            symbol=_PARTIAL_FILL_PROBE_SYMBOL,
+            order_id=_PARTIAL_FILL_PROBE_FIRST_MAKER,
+            side=OrderSide.SELL,
+            price=100.0,
+            quantity=5.0,
+            owner=201,
+            timestamp_ns=start,
+        ),
+        start
+        + 1: MarketEvent(
+            op="new",
+            symbol=_PARTIAL_FILL_PROBE_SYMBOL,
+            order_id=_PARTIAL_FILL_PROBE_SECOND_MAKER,
+            side=OrderSide.SELL,
+            price=100.0,
+            quantity=5.0,
+            owner=202,
+            timestamp_ns=start + 1,
+        ),
+        start
+        + 2: MarketEvent(
+            op="new",
+            symbol=_PARTIAL_FILL_PROBE_SYMBOL,
+            order_id=_PARTIAL_FILL_PROBE_FIRST_TAKER,
+            side=OrderSide.BUY,
+            price=100.0,
+            quantity=2.0,
+            owner=203,
+            timestamp_ns=start + 2,
+        ),
+        end: MarketEvent(
+            op="new",
+            symbol=_PARTIAL_FILL_PROBE_SYMBOL,
+            order_id=_PARTIAL_FILL_PROBE_SECOND_TAKER,
+            side=OrderSide.BUY,
+            price=100.0,
+            quantity=1.0,
+            owner=204,
+            timestamp_ns=end,
+        ),
+    }
+
+
 def generate_campaign_trace(
     profile: str | CampaignProfile,
     seed: int,
@@ -435,11 +513,12 @@ def generate_campaign_trace(
     event_count = _positive_int(event_count, "event_count")
     rng = _SplitMix64(seed)
     next_ids = {symbol: 1 for symbol in selected_profile.symbols}
-    priority_probe = (
-        _queue_priority_probe(seed, event_count)
-        if "fifo-price-time-priority" in selected_profile.capabilities
-        else {}
-    )
+    if selected_profile.name == "fifo-partial-fill-v1":
+        priority_probe = _partial_fill_priority_probe(seed, event_count)
+    elif "fifo-price-time-priority" in selected_profile.capabilities:
+        priority_probe = _queue_priority_probe(seed, event_count)
+    else:
+        priority_probe = {}
     reference = ReferenceEngineAdapter(selected_profile.config)
     events: List[MarketEvent] = []
     active: Tuple[_ActiveOrder, ...] = ()

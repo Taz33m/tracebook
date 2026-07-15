@@ -13,7 +13,12 @@ from .campaign import (
     write_campaign_artifacts,
     write_campaign_corpus,
 )
-from .classification import QUEUE_PRIORITY_DRIFT, classify_failure, is_queue_priority_probe
+from .classification import (
+    QUEUE_PRIORITY_DRIFT,
+    classify_failure,
+    is_partial_fill_priority_probe,
+    is_queue_priority_probe,
+)
 from .compare import ConformanceReport, Divergence, run_conformance
 from .external import (
     AdapterProtocolError,
@@ -84,6 +89,7 @@ __all__ = [
     "generate_campaign_trace",
     "get_campaign_profile",
     "is_queue_priority_probe",
+    "is_partial_fill_priority_probe",
     "load_conformance_suite",
     "minimize_failing_trace",
     "measure_semantic_coverage",

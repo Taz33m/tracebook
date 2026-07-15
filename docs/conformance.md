@@ -107,6 +107,7 @@ public reproducibility boundary:
 | --- | --- |
 | `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicate active IDs, inactive lifecycle requests, multiple symbols, and a structured queue-priority probe |
 | `fifo-full-v1` | Everything in `fifo-limit-v1`, plus market, IOC, and FOK instructions |
+| `fifo-partial-fill-v1` | The `fifo-limit-v1` lifecycle surface with a four-event probe that verifies a partially filled maker keeps priority over a later maker |
 
 ### `fifo-limit-v1` Capability Profile
 
@@ -132,6 +133,13 @@ is a decrement of remaining quantity, while `replace` is cancel-and-new. Use
 `fifo-full-v1` for the three additional order instructions. STP and pro-rata
 remain covered by the fixed standard suite, not by either generated profile.
 
+`fifo-partial-fill-v1` keeps the same portable capability boundary but changes
+the structured probe. Two makers rest at one price, one taker partially fills
+the first maker, and a second taker verifies that the first maker's remainder
+still executes before the later maker. The profile exists separately so adding
+this real-world regression does not change `fifo-limit-v1` traces, hashes, or
+failure IDs.
+
 That upsize exclusion is part of the queue-state contract. The maintained
 `orderbook-rs` adapter reads queue order from native snapshots. Its maintainer
 confirmed in
@@ -148,6 +156,12 @@ position is `min(events_per_trace, 133 + trace_seed % 43)`, so campaign seed 42
 puts the first trace's probe at events 169-173. The probe rests two makers at one
 price, reduces and replaces the first maker, then crosses the level. Correct
 cancel-and-new replacement semantics fill the second maker first.
+
+For `fifo-partial-fill-v1`, generator version 2 places a four-event probe at the
+same deterministic end position. Campaign seed 42 therefore ends the first
+trace's probe at event 173. The first three events leave aggregate depth
+unchanged between conforming and tail-requeue implementations; the fourth
+event exposes the wrong maker ID and reduces to those four causal events.
 
 The same profile, generator version, unsigned 64-bit seed, requested trace
 count, and events-per-trace value produce the same campaign ID and trace hashes

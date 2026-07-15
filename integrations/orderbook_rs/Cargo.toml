@@ -11,19 +11,33 @@ repository = "https://github.com/Taz33m/tracebook"
 [[bin]]
 name = "tracebook-orderbook-rs"
 path = "src/main.rs"
+required-features = ["current"]
 
 [[bin]]
 name = "faulty-orderbook-adapter"
 path = "src/bin/faulty_orderbook_adapter.rs"
+required-features = ["current"]
+
+[[bin]]
+name = "orderbook-rs-issue-88-adapter"
+path = "src/bin/orderbook_rs_issue_88_adapter.rs"
+required-features = ["historical-issue-88"]
+
+[features]
+default = ["current"]
+current = ["dep:orderbook-rs", "dep:pricelevel", "dep:uuid"]
+historical-issue-88 = ["dep:orderbook-rs-issue-88", "dep:pricelevel-issue-88"]
 
 [dependencies]
-orderbook-rs = "=0.11.0"
-pricelevel = "=0.8.4"
+orderbook-rs = { version = "=0.11.0", optional = true }
+pricelevel = { version = "=0.8.4", optional = true }
+orderbook-rs-issue-88 = { package = "orderbook-rs", git = "https://github.com/joaquinbejar/OrderBook-rs.git", rev = "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf", optional = true }
+pricelevel-issue-88 = { package = "pricelevel", version = "=0.7.0", optional = true }
 rust_decimal = "1.39"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 sha2 = "0.11"
-uuid = { version = "1.23", features = ["v5"] }
+uuid = { version = "1.23", features = ["v5"], optional = true }
 
 [profile.release]
 lto = "thin"

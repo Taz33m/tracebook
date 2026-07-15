@@ -14,33 +14,48 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"/></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10--3.13-blue"/>
   <img alt="matching" src="https://img.shields.io/badge/matching-FIFO%20%2B%20pro--rata-7fc7a6"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-292%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-294%20passing-brightgreen"/>
   <img alt="claims" src="https://img.shields.io/badge/claims-bounded-important"/>
 </p>
 
 > **TL;DR:** Give Tracebook a normalized event trace and an adapter for your Rust, C++, Java, Python, or other matching engine. It runs the trace against an inspectable reference engine, identifies the first difference in outcomes, trades, resting orders, or queue priority, and reduces failures to a small reproducible trace. It also retains deterministic replay, verified L3 data workflows, and explicitly bounded local benchmarks.
 
-## The Five-Event Rust Failure
+## A Real Four-Event Rust Failure
 
-The release demo starts with the correct `orderbook-rs` adapter, then runs the
-same engine with one intentionally injected queue-priority defect. Build both
-native binaries:
+Flash's
+[`matching-engine-benchmark`](https://github.com/flash1-dev/matching-engine-benchmark)
+found a real FIFO defect in a historical `orderbook-rs` dependency: after a
+partial fill, the oldest maker's remainder moved behind a later same-price
+maker. Upstream tracked it as
+[`orderbook-rs` #88](https://github.com/joaquinbejar/OrderBook-rs/issues/88) and
+fixed it in
+[`PR #131`](https://github.com/joaquinbejar/OrderBook-rs/pull/131).
+
+Tracebook rebuilds both the exact affected revision and the current fixed
+release through the same native adapter source:
 
 ```bash
 python3 -m pip install -e .
 cargo build --release --locked --manifest-path integrations/orderbook_rs/Cargo.toml
+cargo build --release --locked \
+  --manifest-path integrations/orderbook_rs/Cargo.toml \
+  --no-default-features \
+  --features historical-issue-88 \
+  --bin orderbook-rs-issue-88-adapter
 ```
 
-Generate 200 lifecycle events per trace. Seed 42 places a structured FIFO probe
-at events 169-173; candidate behavior never influences generation:
+Generate 200 lifecycle events per trace. Seed 42 ends a partial-fill
+continuation probe at event 173; candidate behavior never influences
+generation:
 
 ```bash
 tracebook-conformance campaign \
-  --profile fifo-limit-v1 \
+  --profile fifo-partial-fill-v1 \
   --seed 42 \
   --traces 1000 \
   --events-per-trace 200 \
-  --candidate-cmd ./integrations/orderbook_rs/target/release/faulty-orderbook-adapter \
+  --max-minimize-runs 200 \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter \
   --corpus-dir .tracebook/corpus \
   --stop-after-first \
   --junit-output .tracebook/campaign.xml
@@ -49,37 +64,43 @@ tracebook-conformance campaign \
 The command exits `1`, as a CI conformance gate should, and reports:
 
 ```text
+Semantic coverage: 10/10 capabilities
 Divergence detected at original event 173
 Failure class: queue-priority drift
 Original trace: 173 events
-Reduced reproducer: 5 events
+Reduced reproducer: 4 events
 Campaign seed: 42
-Campaign hash: sha256:3630ea1789e27b6e416e1e241ca4ef8d5a28f0f2bf660fae3c0a1c8ff39ba7c6
-Failure id: failure-bc8b19d3e0e3441a98db
+Campaign hash: sha256:e8e158af0223b4e61dbb7efeab10cfd1b34b0d3b478b3e086c12bea008c0b4aa
+Failure id: failure-7dd023c684cdb2d0fc0e
 ```
 
-Replay the five-event result and require the exact stored maker-ID mismatch:
+Replay the result against the historical candidate and require the exact
+stored maker-ID mismatch:
 
 ```bash
 tracebook-conformance reproduce \
-  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
-  --candidate-cmd ./integrations/orderbook_rs/target/release/faulty-orderbook-adapter
+  .tracebook/corpus/failure-7dd023c684cdb2d0fc0e/reduced.jsonl \
+  --candidate-cmd ./integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter
 ```
 
-Then use that same trace as a regression gate for the correct engine:
+Then use the committed trace as a regression gate for the fixed engine:
 
 ```bash
 tracebook-conformance run \
-  .tracebook/corpus/failure-bc8b19d3e0e3441a98db/reduced.jsonl \
+  integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
   --candidate-cmd ./integrations/orderbook_rs/target/release/tracebook-orderbook-rs
 ```
 
 The first command verifies that a known failure remains exactly reproducible;
-the second exits `0` only when the candidate follows FIFO replacement priority.
+the second exits `0` only when a partially filled maker retains FIFO priority.
 The corpus bundle contains `campaign.json`, `failure.json`, `original.jsonl`,
-`reduced.jsonl`, detailed minimization evidence, and semantic coverage. JSON and
-JUnit are first-class outputs, so the same evidence is readable by people, CI
-test reporters, and downstream tooling.
+`reduced.jsonl`, minimization evidence, and semantic coverage. JSON and JUnit
+are first-class outputs for people, CI test reporters, and downstream tooling.
+
+This is a retrospective import of a defect Flash discovered, not a Tracebook
+discovery claim. The
+[case study](docs/case-studies/orderbook-rs-issue-88.md) pins provenance and
+explains why aggregate depth stayed correct while the next maker ID drifted.
 
 ## Differential Campaigns
 
@@ -90,6 +111,10 @@ priority probe. `fifo-full-v1` adds market, IOC, and FOK instructions. Generator
 version 2 uses specified SplitMix64 trace seeds and deterministic probe
 placement. Profile name, generator version, campaign seed, requested trace
 count, and events per trace form the campaign hash.
+
+`fifo-partial-fill-v1` keeps the portable limit-order lifecycle surface but
+uses the real four-event partial-fill continuation regression. It is separate
+so existing `fifo-limit-v1` traces and hashes remain stable.
 
 Every report states which declared capabilities had reference-observed evidence
 in candidate-compared events. This is semantic workload coverage, not Python
@@ -149,10 +174,11 @@ surfaced a separate upsize-plus-snapshot-restore defect, now tracked upstream;
 Tracebook records that boundary without claiming `fifo-limit-v1` exercises an
 in-place quantity increase.
 
-The integration also ships the separate, clearly named
-`faulty-orderbook-adapter` binary used by the event-173 demonstration. Its
-source is included in the public sdist beside the correct adapter, and CI proves
-both the five-event failure and the corrected regression case.
+The integration also ships the provenance-locked historical issue #88 binary
+used by the opening demonstration and a separate, clearly named
+`faulty-orderbook-adapter` synthetic negative control. Their source and the
+four-event real regression are included in the public sdist. CI proves the
+historical failure, current fix, and injected control independently.
 
 See the [native adapter, architecture, boundaries, and copyable CI
 gate](integrations/orderbook_rs/README.md).
@@ -292,7 +318,7 @@ All checks below were run during the latest production repo pass in this checkou
 
 | Proof surface | Verified result |
 | --- | --- |
-| Unit tests | `292` pytest tests passing with `80.86%` statement coverage and a `75%` gate |
+| Unit tests | `294` pytest tests passing with `80.88%` statement coverage and a `75%` gate |
 | System smoke | `python test_system.py` passes all 6 checks |
 | Format and lint | Black and Flake8 cover package, tests, examples, and smoke tooling with `0` issues |
 | Type check | `python -m mypy src/tracebook` reports `0` issues |

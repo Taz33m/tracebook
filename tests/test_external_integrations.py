@@ -58,10 +58,15 @@ def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
     toolchain = (RUST_INTEGRATION / "rust-toolchain.toml").read_text(encoding="utf-8")
     readme = (RUST_INTEGRATION / "README.md").read_text(encoding="utf-8")
 
-    assert 'orderbook-rs = "=0.11.0"' in cargo
-    assert 'pricelevel = "=0.8.4"' in cargo
-    assert 'uuid = { version = "1.23", features = ["v5"] }' in cargo
+    assert 'orderbook-rs = { version = "=0.11.0", optional = true }' in cargo
+    assert 'pricelevel = { version = "=0.8.4", optional = true }' in cargo
+    assert 'uuid = { version = "1.23", features = ["v5"], optional = true }' in cargo
+    assert 'name = "orderbook-rs-issue-88-adapter"' in cargo
+    assert 'rev = "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf"' in cargo
+    assert 'pricelevel", version = "=0.7.0"' in cargo
     assert 'name = "faulty-orderbook-adapter"' in cargo
+    assert 'name = "orderbook-rs"\nversion = "0.8.0"' in lock
+    assert "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf" in lock
     assert 'name = "orderbook-rs"\nversion = "0.11.0"' in lock
     assert 'channel = "1.88.0"' in toolchain
     assert "0da8654eeed07132582a804e9306e07f055477f0" in readme
@@ -95,6 +100,12 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "failure-bc8b19d3e0e3441a98db" in workflow
     assert 'assert failure["original_divergence_event"] == 173' in workflow
     assert 'assert failure["reduced_event_count"] == 5' in workflow
+    assert "--profile fifo-partial-fill-v1" in workflow
+    assert "failure-7dd023c684cdb2d0fc0e" in workflow
+    assert 'assert failure["reduced_event_count"] == 4' in workflow
+    assert "historical orderbook-rs issue 88 adapter" in workflow
+    assert "matching-engine-benchmark" in readme
+    assert "Reduced reproducer: 4 events" in root_readme
     assert 'T["Tracebook runner"]' in readme
     assert "OrderBook-rs/issues/203" in readme
     assert "in-place quantity increase" in readme
@@ -108,6 +119,8 @@ def test_source_manifest_includes_native_integration_files():
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
     assert (RUST_INTEGRATION / "src" / "bin" / "faulty_orderbook_adapter.rs").is_file()
+    assert (RUST_INTEGRATION / "src" / "bin" / "orderbook_rs_issue_88_adapter.rs").is_file()
+    assert (RUST_INTEGRATION / "regressions" / "issue-88-reduced.jsonl").is_file()
 
 
 def test_030_integration_documentation_and_ci_template_are_complete():

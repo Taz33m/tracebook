@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence, Tuple
 
 from ..events import MarketEvent
-from .classification import is_queue_priority_probe
+from .classification import is_partial_fill_priority_probe, is_queue_priority_probe
 from .model import ConformanceConfig
 from .reference import ReferenceEngineAdapter
 
@@ -117,8 +117,9 @@ def measure_semantic_coverage(
                         partial_fill_events += 1
             queue_priority_probes += sum(
                 1
-                for end_index in range(5, len(events) + 1)
+                for end_index in range(4, len(events) + 1)
                 if is_queue_priority_probe(events, end_index)
+                or is_partial_fill_priority_probe(events, end_index)
             )
         finally:
             reference.close()
