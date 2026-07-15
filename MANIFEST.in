@@ -8,7 +8,7 @@ include QUICKSTART.md
 include SECURITY.md
 include SUPPORT.md
 
-recursive-include docs *.md *.png
+recursive-include docs *.md *.png *.svg
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include integrations *.py *.md *.jsonl
 recursive-include integrations/orderbook_rs/src *.rs

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
+  <title id="title">Tracebook</title>
+  <desc id="description">Matching-engine conformance and minimal failing traces. Event 173 reduced to a four-event reproducer.</desc>
+  <rect width="1280" height="640" fill="#090d10" />
+  <rect x="0" y="0" width="12" height="214" fill="#00d084" />
+  <rect x="0" y="214" width="12" height="212" fill="#00c2e8" />
+  <rect x="0" y="426" width="12" height="214" fill="#ff435a" />
+
+  <g transform="translate(78 78)">
+    <rect x="0" y="0" width="72" height="12" rx="6" fill="#00d084" />
+    <rect x="0" y="26" width="104" height="12" rx="6" fill="#00d084" />
+    <rect x="0" y="52" width="54" height="12" rx="6" fill="#ff435a" />
+    <path d="M126 44 H160 L177 6 L202 78 L220 34 H258" fill="none" stroke="#00c2e8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <text x="78" y="254" fill="#f4f7f9" font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="88" font-weight="750">Tracebook</text>
+  <text x="82" y="314" fill="#a9b7c2" font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="29">Matching-engine conformance and minimal failing traces</text>
+
+  <rect x="78" y="382" width="1124" height="170" rx="8" fill="#11171c" stroke="#2b353e" stroke-width="2" />
+  <rect x="78" y="382" width="1124" height="42" rx="8" fill="#182027" />
+  <rect x="78" y="416" width="1124" height="8" fill="#182027" />
+  <text x="104" y="410" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">tracebook-conformance campaign --seed 42</text>
+  <text x="108" y="470" fill="#ff435a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="24" font-weight="700">Divergence detected at event 173</text>
+  <text x="108" y="516" fill="#f4f7f9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="23">queue-priority drift</text>
+  <text x="812" y="477" fill="#65737e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">173 events</text>
+  <text x="949" y="477" fill="#00c2e8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="25">→</text>
+  <text x="992" y="477" fill="#00d084" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" font-weight="700">4 events</text>
+  <text x="812" y="518" fill="#a9b7c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">diff · minimize · replay · CI</text>
+
+  <text x="78" y="600" fill="#65737e" font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18">github.com/Taz33m/tracebook</text>
+</svg>

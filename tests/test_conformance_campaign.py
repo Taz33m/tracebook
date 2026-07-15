@@ -647,8 +647,8 @@ def test_campaign_is_wired_into_docs_and_ci():
         encoding="utf-8"
     )
 
-    assert "## Differential Campaigns" in readme
-    assert "Reduced reproducer: 4 events" in readme
+    assert "## Portable Semantic Profiles" in readme
+    assert "four-event JSONL reproducer" in readme
     assert "tracebook-conformance reproduce" in readme
     assert "Generator version 2 specifies SplitMix64" in conformance_docs
     assert "fifo-partial-fill-v1" in conformance_docs

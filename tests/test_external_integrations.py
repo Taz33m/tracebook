@@ -105,7 +105,7 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert 'assert failure["reduced_event_count"] == 4' in workflow
     assert "historical orderbook-rs issue 88 adapter" in workflow
     assert "matching-engine-benchmark" in readme
-    assert "Reduced reproducer: 4 events" in root_readme
+    assert "four-event JSONL reproducer" in root_readme
     assert 'T["Tracebook runner"]' in readme
     assert "OrderBook-rs/issues/203" in readme
     assert "in-place quantity increase" in readme
@@ -137,8 +137,8 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     assert "--junit-output artifacts/conformance.xml" in workflow
     assert "if: always()" in workflow
     assert "Version 0.3.0 changes the category of the project." in release_notes
-    assert "## Real-Engine Demo" in readme
-    assert 'A <--> E["External engine"]' in readme
+    assert "## Engine Adapters" in readme
+    assert 'A <--> E["Candidate engine"]' in readme
 
 
 def test_040_release_notes_pin_the_public_failure_story():
