@@ -158,6 +158,26 @@ The reduced trace is committed at
 maintained 0.11.0 candidate passes it. See the
 [full provenance and reduction case study](../../docs/case-studies/orderbook-rs-issue-88.md).
 
+### Direct Flash Artifact Handoff
+
+Flash later merged candidate canonical-output export and a schema-v1 offline
+comparator in
+[`matching-engine-benchmark` PR #4](https://github.com/flash1-dev/matching-engine-benchmark/pull/4).
+Running that boundary against the affected graph identifies canonical sequence
+`15738`. Tracebook's bounded
+[`flash_benchmark` bridge](../flash_benchmark) converts the corresponding
+15,739-message binary prefix and minimizes it in 193 runs.
+
+The one-minimal result preserves Flash's actual workload values in
+[`regressions/flash-issue-88-reduced.jsonl`](regressions/flash-issue-88-reduced.jsonl):
+two buys rest at 33532, a crossing sell partially fills the older maker, and a
+later sell IOC exposes the affected queue consuming the newer maker first. The
+historical adapter reports queue-priority drift; 0.11.0 conforms.
+
+This direct import and the event-173 generated campaign are independent traces
+of the same defect. Their distinct sequence numbers are retained rather than
+collapsed into one claim.
+
 ## Intentionally Faulty Engine
 
 The same Cargo project also builds `faulty-orderbook-adapter`, a separate binary

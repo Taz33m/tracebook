@@ -15,6 +15,11 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   committed regression on current `orderbook-rs` 0.11.0.
 - Documented the Flash-to-Tracebook discovery and minimization handoff as a
   bounded case study, with exact campaign, failure, JSON, and JUnit identities.
+- Consumed Flash's merged schema-v1 canonical divergence at sequence 15738,
+  converted its 15,739-message workload prefix, and reduced the actual upstream
+  IDs, prices, quantities, and IOC instruction to a one-minimal four-event
+  regression in 193 runs. The affected engine reproduces queue-priority drift;
+  current `orderbook-rs` passes the same trace.
 
 ## 0.4.1 - 2026-07-14
 

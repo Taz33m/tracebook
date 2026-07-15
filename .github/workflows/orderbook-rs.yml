@@ -7,10 +7,12 @@ on:
   pull_request:
     paths:
       - ".github/workflows/orderbook-rs.yml"
+      - "integrations/flash_benchmark/**"
       - "integrations/orderbook_rs/**"
       - "src/tracebook/conformance/**"
       - "src/tracebook/events/market_replay.py"
       - "tests/test_external_integrations.py"
+      - "tests/test_flash_bridge.py"
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ permissions:
 jobs:
   native-rust-adapter:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -257,6 +259,132 @@ jobs:
           assert fixed["conformant"] is True
           assert ElementTree.parse(root / "historical-issue-88-campaign.xml").getroot().attrib["failures"] == "1"
           assert ElementTree.parse(root / "historical-issue-88-reproduction.xml").getroot().attrib["failures"] == "0"
+          PY
+
+      - name: Rebuild the Flash-to-Tracebook handoff
+        env:
+          FLASH_COMMIT: eb6e89fbc4313f77cea7d424bab14a26093cf552
+          ORDERBOOK_RS_COMMIT: 53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf
+        run: |
+          set -euo pipefail
+          FLASH_ROOT="$RUNNER_TEMP/matching-engine-benchmark"
+          ORDERBOOK_SRC="$RUNNER_TEMP/flash-orderbook-rs"
+          WRAPPER="$RUNNER_TEMP/flash-orderbookrs-wrapper"
+          HANDOFF="$REPORT_ROOT/flash-handoff"
+          mkdir -p "$HANDOFF"
+
+          git clone --quiet https://github.com/flash1-dev/matching-engine-benchmark.git "$FLASH_ROOT"
+          git -C "$FLASH_ROOT" checkout --quiet --detach "$FLASH_COMMIT"
+          cmake -S "$FLASH_ROOT" -B "$FLASH_ROOT/build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$FLASH_ROOT/build" -j2
+
+          git clone --quiet https://github.com/joaquinbejar/OrderBook-rs.git "$ORDERBOOK_SRC"
+          git -C "$ORDERBOOK_SRC" checkout --quiet --detach "$ORDERBOOK_RS_COMMIT"
+          cp -R "$FLASH_ROOT/additional_references/orderbookrs_adapter/wrapper" "$WRAPPER"
+          export ORDERBOOK_SRC WRAPPER
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          manifest = Path(os.environ["WRAPPER"]) / "Cargo.toml"
+          text = manifest.read_text(encoding="utf-8")
+          text = text.replace("../../../third_party/OrderBook-rs", os.environ["ORDERBOOK_SRC"])
+          text = text.split("\n[patch.crates-io]\n", 1)[0] + "\n"
+          manifest.write_text(text, encoding="utf-8")
+          PY
+          cargo build --release --manifest-path "$WRAPPER/Cargo.toml"
+
+          cp "$FLASH_ROOT/reference/canonical_output.txt.gz" "$HANDOFF/flash-reference.txt.gz"
+          set +e
+          (
+            cd "$FLASH_ROOT"
+            ./harness \
+              --engine "$WRAPPER/target/release/liborderbookrs_adapter.so" \
+              --scenario normal \
+              --mode perf \
+              --matcher-core -1 \
+              --drainer-core -1 \
+              --write-canonical-output "$HANDOFF/orderbook-rs-0.8.0-candidate.txt"
+          )
+          harness_status=$?
+          set -e
+          if [ "$harness_status" -ne 1 ]; then
+            echo "Expected the affected Flash adapter to fail consensus, got $harness_status" >&2
+            exit 1
+          fi
+
+          echo "d925e1a4fc03cfcf7f0db8f9ad4c6c8674991250b702e9dc3f1b2b7c9f4bfbc1  $FLASH_ROOT/orders_normal_s23_n1000000.bin" | sha256sum -c -
+          echo "088fa3c690bc76c513b8fffbbce2d49c2874cca470507d4d679d3344c102281c  $HANDOFF/flash-reference.txt.gz" | sha256sum -c -
+
+          set +e
+          (
+            cd "$HANDOFF"
+            python "$FLASH_ROOT/scripts/explain_divergence.py" \
+              flash-reference.txt.gz \
+              orderbook-rs-0.8.0-candidate.txt \
+              --json-output divergence.json
+          )
+          comparator_status=$?
+          set -e
+          if [ "$comparator_status" -ne 1 ]; then
+            echo "Expected Flash's comparator to report divergence, got $comparator_status" >&2
+            exit 1
+          fi
+          cmp \
+            "$HANDOFF/divergence.json" \
+            integrations/flash_benchmark/artifacts/orderbook-rs-issue-88-divergence.json
+
+          python integrations/flash_benchmark/bridge.py \
+            "$HANDOFF/divergence.json" \
+            "$FLASH_ROOT/orders_normal_s23_n1000000.bin" \
+            "$HANDOFF/prefix.jsonl"
+          echo "4e0bb497924a68dcca9575a5860954089bf5d137ab1f577618fba482a19877cd  $HANDOFF/prefix.jsonl" | sha256sum -c -
+
+          tracebook-conformance minimize \
+            "$HANDOFF/prefix.jsonl" \
+            --tick-size 1 \
+            --quantity-decimal-places 0 \
+            --events-output "$HANDOFF/reduced.jsonl" \
+            --output "$HANDOFF/minimization.json" \
+            --junit-output "$HANDOFF/minimization.xml" \
+            --max-runs 200 \
+            --candidate-cmd "$HISTORICAL_ADAPTER"
+          cmp \
+            "$HANDOFF/reduced.jsonl" \
+            integrations/orderbook_rs/regressions/flash-issue-88-reduced.jsonl
+
+          tracebook-conformance reproduce \
+            "$HANDOFF/reduced.jsonl" \
+            --tick-size 1 \
+            --quantity-decimal-places 0 \
+            --output "$HANDOFF/reproduction.json" \
+            --junit-output "$HANDOFF/reproduction.xml" \
+            --candidate-cmd "$HISTORICAL_ADAPTER"
+          tracebook-conformance run \
+            "$HANDOFF/reduced.jsonl" \
+            --tick-size 1 \
+            --quantity-decimal-places 0 \
+            --output "$HANDOFF/fixed.json" \
+            --candidate-cmd "$ADAPTER"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["REPORT_ROOT"]) / "flash-handoff"
+          minimization = json.loads((root / "minimization.json").read_text())
+          reproduction = json.loads((root / "reproduction.json").read_text())
+          fixed = json.loads((root / "fixed.json").read_text())
+          assert minimization["original_event_count"] == 15739
+          assert minimization["minimized_event_count"] == 4
+          assert minimization["runs"] == 193
+          assert minimization["one_minimal"] is True
+          assert minimization["budget_exhausted"] is False
+          assert reproduction["failure_class"] == "queue-priority drift"
+          assert reproduction["reproduced"] is True
+          assert reproduction["conformance_report"]["divergence"]["event_index"] == 4
+          assert fixed["conformant"] is True
           PY
 
       - name: Prove Rust-side trade drift is detected

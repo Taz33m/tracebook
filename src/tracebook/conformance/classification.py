@@ -64,7 +64,7 @@ def is_partial_fill_priority_probe(
         return False
     if first_taker.side == first.side:
         return False
-    if first.price is None or any(event.price != first.price for event in window[1:]):
+    if first.price is None or second.price != first.price:
         return False
     if (
         first.quantity is None
@@ -73,8 +73,18 @@ def is_partial_fill_priority_probe(
         or second_taker.quantity is None
     ):
         return False
+    if first_taker.price is None or second_taker.price is None:
+        return False
+    first_crosses = (first_taker.side == OrderSide.BUY and first_taker.price >= first.price) or (
+        first_taker.side == OrderSide.SELL and first_taker.price <= first.price
+    )
+    second_crosses = (second_taker.side == OrderSide.BUY and second_taker.price >= first.price) or (
+        second_taker.side == OrderSide.SELL and second_taker.price <= first.price
+    )
     return (
-        0 < first_taker.quantity < first.quantity
+        first_crosses
+        and second_crosses
+        and 0 < first_taker.quantity < first.quantity
         and second.quantity > 0
         and second_taker.quantity > 0
     )

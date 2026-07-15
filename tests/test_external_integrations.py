@@ -116,11 +116,13 @@ def test_source_manifest_includes_native_integration_files():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
+    assert "recursive-include integrations/flash_benchmark *.json" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
     assert (RUST_INTEGRATION / "src" / "bin" / "faulty_orderbook_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "src" / "bin" / "orderbook_rs_issue_88_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "regressions" / "issue-88-reduced.jsonl").is_file()
+    assert (RUST_INTEGRATION / "regressions" / "flash-issue-88-reduced.jsonl").is_file()
 
 
 def test_030_integration_documentation_and_ci_template_are_complete():
