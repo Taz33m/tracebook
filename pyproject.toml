@@ -136,4 +136,4 @@ source = ["tracebook"]
 fail_under = 75
 show_missing = true
 skip_covered = true
-# CI type-checks the whole package: `mypy src/tracebook`.
+# CI type-checks the package and research harness: `mypy src/tracebook experiments`.

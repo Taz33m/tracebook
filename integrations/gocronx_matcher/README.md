@@ -15,7 +15,10 @@ active IDs, inactive lifecycle requests, and independent symbol books.
 
 ## Reproduce The Qualification
 
+From the repository root:
+
 ```bash
+cd integrations/gocronx_matcher
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
@@ -39,10 +42,10 @@ traces, 10/10 covered capabilities, and 28 candidate process runs.
 | --- | --- |
 | `new` | `OrderBook::submit_events` |
 | `cancel` | `OrderBook::cancel_events` |
-| `reduce` | quantity-only `OrderBook::amend` |
+| `reduce` | partial reduction via `OrderBook::amend`; full reduction via `cancel_events` |
 | `replace` | validated `cancel` followed by `submit_events` under the same ID |
 | `clear` | replace the symbol's `OrderBook` |
-| full queue state | decode snapshot format version 1, then canonicalize bid price order |
+| full queue state | decode snapshot format version 1, then canonicalize bids descending and asks ascending |
 
 The adapter scales prices into integer ticks and quantities into configured
 fixed-point units. Source owners are retained in adapter metadata because

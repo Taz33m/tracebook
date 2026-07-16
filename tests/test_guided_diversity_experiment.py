@@ -1,11 +1,14 @@
+import hashlib
 import json
 from pathlib import Path
 
 from experiments.guided_diversity import (
     DEFECT_METADATA,
+    ReduceRequeuesAdapter,
     generate_unprobed_trace,
     guidance_decision,
     regenerate_suffix,
+    run_trial,
     semantic_transitions,
 )
 from tracebook.conformance import ReferenceEngineAdapter, run_conformance
@@ -68,11 +71,28 @@ def test_guidance_gate_requires_every_held_out_defect_to_improve():
     assert decision["ship_guided_exploration"] is False
 
 
-def test_frozen_held_out_result_rejects_guidance_without_local_paths():
-    payload = json.loads(
-        (ROOT / "experiments" / "results" / "guided-diversity-v1.json").read_text()
-    )
+def test_trial_results_are_byte_stable_inputs_without_runtime_timings():
+    arguments = {
+        "defect": "injected-reduce-requeues",
+        "strategy": "deterministic",
+        "trial": 1,
+        "seed": 42,
+        "candidate_factory": ReduceRequeuesAdapter,
+        "budget": 2,
+        "event_count": 40,
+        "pool_size": 2,
+    }
 
+    assert run_trial(**arguments) == run_trial(**arguments)
+
+
+def test_frozen_held_out_result_rejects_guidance_without_local_paths():
+    artifact = ROOT / "experiments" / "results" / "guided-diversity-v1.json"
+    payload = json.loads(artifact.read_text())
+
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == (
+        "e798d014dc8ea63cd7714aedf838678d1249354ba9e7adb3f965def9289c9a6c"
+    )
     assert payload["defects"] == DEFECT_METADATA
     assert payload["decision"]["ship_guided_exploration"] is False
     assert (
@@ -88,3 +108,5 @@ def test_frozen_held_out_result_rejects_guidance_without_local_paths():
         == 200.5
     )
     assert "/Users/" not in json.dumps(payload)
+    assert "wall_seconds" not in json.dumps(payload)
+    assert payload["method"]["runtime_timings_in_artifact"] is False

@@ -95,9 +95,9 @@ candidate budgets were equal while reference-side work was intentionally not.
 | Injected replacement keeps priority | 1 / 69.5 | 2 / 204.0 | Guided worse |
 
 Every strategy found every defect in all 12 trials, but guidance improved only
-one of three time-to-divergence distributions and took substantially more wall
-time. Tracebook therefore does **not** ship guided exploration. The public
-generator, hashes, profiles, CLI, and artifact contracts remain unchanged.
+one of three time-to-divergence distributions. Tracebook therefore does **not**
+ship guided exploration. The public generator, hashes, profiles, CLI, and
+artifact contracts remain unchanged.
 
 This result also exposes a structural limitation: before the first divergence,
 a strict differential oracle sees identical reference/candidate behavior.
@@ -109,7 +109,9 @@ The reproducible harness is
 [`experiments/guided_diversity.py`](https://github.com/Taz33m/tracebook/blob/main/experiments/guided_diversity.py).
 The frozen 72-trial artifact is
 [`guided-diversity-v1.json`](https://github.com/Taz33m/tracebook/blob/main/experiments/results/guided-diversity-v1.json),
-SHA-256 `031f939bd2b9634f1d6fc3cf6e0a6eaae3b0bf0aa383dd832a45c6f22fe45543`.
+SHA-256 `e798d014dc8ea63cd7714aedf838678d1249354ba9e7adb3f965def9289c9a6c`.
+Runtime timing is excluded from the canonical payload; two complete reruns
+produced this same byte-for-byte hash.
 
 ## Product Decision
 

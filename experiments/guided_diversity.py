@@ -9,19 +9,22 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
-import time
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Iterable, Sequence
 
 from tracebook.conformance import (
+    AdapterFactory,
+    BookState,
     ConformanceConfig,
     EngineMetadata,
     ExternalProcessAdapter,
     Observation,
     Outcome,
     ReferenceEngineAdapter,
+    RestingOrder,
+    TradeFill,
     run_conformance,
 )
 from tracebook.conformance.campaign import (
@@ -35,7 +38,6 @@ from tracebook.conformance.model import trace_sha256
 from tracebook.core.order import OrderSide, OrderType
 from tracebook.events import MarketEvent
 
-AdapterFactory = Callable[[ConformanceConfig], object]
 Transition = tuple[str, ...]
 
 DEFECT_METADATA = {
@@ -67,7 +69,6 @@ class TrialResult:
     candidate_events: int
     divergence_event: int | None
     divergence_category: str | None
-    wall_seconds: float
 
 
 class _InjectedLifecycleAdapter:
@@ -76,13 +77,13 @@ class _InjectedLifecycleAdapter:
     def __init__(self, config: ConformanceConfig) -> None:
         self._inner = ReferenceEngineAdapter(config)
 
-    def snapshot(self):
+    def snapshot(self) -> BookState:
         return self._inner.snapshot()
 
     def close(self) -> None:
         self._inner.close()
 
-    def _resting(self, event: MarketEvent):
+    def _resting(self, event: MarketEvent) -> tuple[OrderSide, RestingOrder] | None:
         for book in self.snapshot().books:
             if book.symbol != event.symbol:
                 continue
@@ -95,12 +96,11 @@ class _InjectedLifecycleAdapter:
     def _current_observation(
         self,
         index: int,
-        trades=(),
+        outcome: Outcome,
+        trades: Sequence[TradeFill] = (),
     ) -> Observation:
         state = self.snapshot()
-        return Observation(
-            index, Outcome("applied"), tuple(trades), state.digest(), state.order_count
-        )
+        return Observation(index, outcome, tuple(trades), state.digest(), state.order_count)
 
 
 class ReduceRequeuesAdapter(_InjectedLifecycleAdapter):
@@ -118,10 +118,12 @@ class ReduceRequeuesAdapter(_InjectedLifecycleAdapter):
         if reduction <= 0 or reduction >= remaining:
             return self._inner.apply(event, index)
 
-        self._inner.apply(
+        cancel_observation = self._inner.apply(
             MarketEvent(op="cancel", symbol=event.symbol, order_id=event.order_id),
             index,
         )
+        if cancel_observation.outcome.status != "applied":
+            return cancel_observation
         observation = self._inner.apply(
             MarketEvent(
                 op="new",
@@ -136,7 +138,7 @@ class ReduceRequeuesAdapter(_InjectedLifecycleAdapter):
             ),
             index,
         )
-        return self._current_observation(index, observation.trades)
+        return self._current_observation(index, observation.outcome, observation.trades)
 
 
 class SamePriceReplaceKeepsPriorityAdapter(_InjectedLifecycleAdapter):
@@ -155,8 +157,9 @@ class SamePriceReplaceKeepsPriorityAdapter(_InjectedLifecycleAdapter):
         new_quantity = remaining if event.quantity is None else Decimal(str(event.quantity))
         if new_price != old_price or new_quantity <= 0 or new_quantity > remaining:
             return self._inner.apply(event, index)
+        outcome = Outcome("applied")
         if new_quantity < remaining:
-            self._inner.apply(
+            outcome = self._inner.apply(
                 MarketEvent(
                     op="reduce",
                     symbol=event.symbol,
@@ -165,8 +168,8 @@ class SamePriceReplaceKeepsPriorityAdapter(_InjectedLifecycleAdapter):
                     timestamp_ns=event.timestamp_ns,
                 ),
                 index,
-            )
-        return self._current_observation(index)
+            ).outcome
+        return self._current_observation(index, outcome)
 
 
 def generate_unprobed_trace(seed: int, event_count: int) -> tuple[MarketEvent, ...]:
@@ -298,7 +301,6 @@ def run_trial(
     seen: set[Transition] = set()
     corpus: list[tuple[MarketEvent, ...]] = []
     compared_events = 0
-    started = time.monotonic()
     for run in range(1, budget + 1):
         if strategy == "deterministic":
             trace = generate_unprobed_trace(rng.next_u64(), event_count)
@@ -327,7 +329,6 @@ def run_trial(
                 candidate_events=compared_events,
                 divergence_event=divergence.event_index if divergence else None,
                 divergence_category=divergence.category if divergence else None,
-                wall_seconds=time.monotonic() - started,
             )
 
         novel = signature - seen
@@ -345,7 +346,6 @@ def run_trial(
         candidate_events=compared_events,
         divergence_event=None,
         divergence_category=None,
-        wall_seconds=time.monotonic() - started,
     )
 
 
@@ -362,7 +362,6 @@ def summarize(results: Sequence[TrialResult], budget: int, event_count: int) -> 
         "discovery_rate": successes / len(results),
         "median_candidate_runs_censored": statistics.median(censored_runs),
         "median_candidate_events_censored": statistics.median(censored_events),
-        "total_wall_seconds": sum(result.wall_seconds for result in results),
     }
 
 
@@ -448,6 +447,7 @@ def run_experiment(args: argparse.Namespace) -> dict:
             "base_seed": args.seed,
             "candidate_run_budget_equal": True,
             "reference_side_work_equal": False,
+            "runtime_timings_in_artifact": False,
             "guidance": (
                 "Structure-preserving suffix regeneration retained by novel black-box "
                 "semantic transition tuples. Conformant prefixes make the relative "

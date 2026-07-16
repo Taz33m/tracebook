@@ -52,6 +52,7 @@
     "guided_mutation_pool": 8,
     "profile": "fifo-limit-v1",
     "reference_side_work_equal": false,
+    "runtime_timings_in_artifact": false,
     "trials_per_defect": 12
   },
   "summaries": {
@@ -61,7 +62,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 84.5,
         "median_candidate_runs_censored": 1.0,
-        "total_wall_seconds": 1.5614677479898091,
         "trials": 12
       },
       "guided": {
@@ -69,7 +69,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 200.5,
         "median_candidate_runs_censored": 2.0,
-        "total_wall_seconds": 8.928417460032506,
         "trials": 12
       }
     },
@@ -79,7 +78,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 182.5,
         "median_candidate_runs_censored": 2.0,
-        "total_wall_seconds": 1.6672336669871584,
         "trials": 12
       },
       "guided": {
@@ -87,7 +85,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 88.0,
         "median_candidate_runs_censored": 1.0,
-        "total_wall_seconds": 6.673025959957158,
         "trials": 12
       }
     },
@@ -97,7 +94,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 69.5,
         "median_candidate_runs_censored": 1.0,
-        "total_wall_seconds": 1.2317176229553297,
         "trials": 12
       },
       "guided": {
@@ -105,7 +101,6 @@
         "discovery_rate": 1.0,
         "median_candidate_events_censored": 204.0,
         "median_candidate_runs_censored": 2.0,
-        "total_wall_seconds": 13.62257316603791,
         "trials": 12
       }
     }
@@ -120,8 +115,7 @@
       "found": true,
       "seed": 21260816,
       "strategy": "deterministic",
-      "trial": 1,
-      "wall_seconds": 0.1107895839959383
+      "trial": 1
     },
     {
       "candidate_events": 74,
@@ -132,8 +126,7 @@
       "found": true,
       "seed": 21260816,
       "strategy": "guided",
-      "trial": 1,
-      "wall_seconds": 0.4309060419909656
+      "trial": 1
     },
     {
       "candidate_events": 294,
@@ -144,8 +137,7 @@
       "found": true,
       "seed": 21260913,
       "strategy": "deterministic",
-      "trial": 2,
-      "wall_seconds": 0.2232486249995418
+      "trial": 2
     },
     {
       "candidate_events": 54,
@@ -156,8 +148,7 @@
       "found": true,
       "seed": 21260913,
       "strategy": "guided",
-      "trial": 2,
-      "wall_seconds": 0.3921280420036055
+      "trial": 2
     },
     {
       "candidate_events": 72,
@@ -168,8 +159,7 @@
       "found": true,
       "seed": 21261010,
       "strategy": "deterministic",
-      "trial": 3,
-      "wall_seconds": 0.07418970801518299
+      "trial": 3
     },
     {
       "candidate_events": 107,
@@ -180,8 +170,7 @@
       "found": true,
       "seed": 21261010,
       "strategy": "guided",
-      "trial": 3,
-      "wall_seconds": 0.40880379200098105
+      "trial": 3
     },
     {
       "candidate_events": 40,
@@ -192,8 +181,7 @@
       "found": true,
       "seed": 21261107,
       "strategy": "deterministic",
-      "trial": 4,
-      "wall_seconds": 0.07963341599679552
+      "trial": 4
     },
     {
       "candidate_events": 290,
@@ -204,8 +192,7 @@
       "found": true,
       "seed": 21261107,
       "strategy": "guided",
-      "trial": 4,
-      "wall_seconds": 1.0933922920085024
+      "trial": 4
     },
     {
       "candidate_events": 179,
@@ -216,8 +203,7 @@
       "found": true,
       "seed": 21261204,
       "strategy": "deterministic",
-      "trial": 5,
-      "wall_seconds": 0.15894566601491533
+      "trial": 5
     },
     {
       "candidate_events": 104,
@@ -228,8 +214,7 @@
       "found": true,
       "seed": 21261204,
       "strategy": "guided",
-      "trial": 5,
-      "wall_seconds": 0.4149894160218537
+      "trial": 5
     },
     {
       "candidate_events": 71,
@@ -240,8 +225,7 @@
       "found": true,
       "seed": 21261301,
       "strategy": "deterministic",
-      "trial": 6,
-      "wall_seconds": 0.0728746659879107
+      "trial": 6
     },
     {
       "candidate_events": 354,
@@ -252,8 +236,7 @@
       "found": true,
       "seed": 21261301,
       "strategy": "guided",
-      "trial": 6,
-      "wall_seconds": 1.0765148339851294
+      "trial": 6
     },
     {
       "candidate_events": 34,
@@ -264,8 +247,7 @@
       "found": true,
       "seed": 21261398,
       "strategy": "deterministic",
-      "trial": 7,
-      "wall_seconds": 0.05388437499641441
+      "trial": 7
     },
     {
       "candidate_events": 346,
@@ -276,8 +258,7 @@
       "found": true,
       "seed": 21261398,
       "strategy": "guided",
-      "trial": 7,
-      "wall_seconds": 1.0103854160115588
+      "trial": 7
     },
     {
       "candidate_events": 68,
@@ -288,8 +269,7 @@
       "found": true,
       "seed": 21261495,
       "strategy": "deterministic",
-      "trial": 8,
-      "wall_seconds": 0.061871000012615696
+      "trial": 8
     },
     {
       "candidate_events": 28,
@@ -300,8 +280,7 @@
       "found": true,
       "seed": 21261495,
       "strategy": "guided",
-      "trial": 8,
-      "wall_seconds": 0.40255791699746624
+      "trial": 8
     },
     {
       "candidate_events": 276,
@@ -312,8 +291,7 @@
       "found": true,
       "seed": 21261592,
       "strategy": "deterministic",
-      "trial": 9,
-      "wall_seconds": 0.21817979199113324
+      "trial": 9
     },
     {
       "candidate_events": 210,
@@ -324,8 +302,7 @@
       "found": true,
       "seed": 21261592,
       "strategy": "guided",
-      "trial": 9,
-      "wall_seconds": 0.8137468750064727
+      "trial": 9
     },
     {
       "candidate_events": 23,
@@ -336,8 +313,7 @@
       "found": true,
       "seed": 21261689,
       "strategy": "deterministic",
-      "trial": 10,
-      "wall_seconds": 0.06390775000909343
+      "trial": 10
     },
     {
       "candidate_events": 228,
@@ -348,8 +324,7 @@
       "found": true,
       "seed": 21261689,
       "strategy": "guided",
-      "trial": 10,
-      "wall_seconds": 0.700591250002617
+      "trial": 10
     },
     {
       "candidate_events": 291,
@@ -360,8 +335,7 @@
       "found": true,
       "seed": 21261786,
       "strategy": "deterministic",
-      "trial": 11,
-      "wall_seconds": 0.22042849997524172
+      "trial": 11
     },
     {
       "candidate_events": 191,
@@ -372,8 +346,7 @@
       "found": true,
       "seed": 21261786,
       "strategy": "guided",
-      "trial": 11,
-      "wall_seconds": 0.7244257919955999
+      "trial": 11
     },
     {
       "candidate_events": 301,
@@ -384,8 +357,7 @@
       "found": true,
       "seed": 21261883,
       "strategy": "deterministic",
-      "trial": 12,
-      "wall_seconds": 0.223514665995026
+      "trial": 12
     },
     {
       "candidate_events": 477,
@@ -396,8 +368,7 @@
       "found": true,
       "seed": 21261883,
       "strategy": "guided",
-      "trial": 12,
-      "wall_seconds": 1.4599757920077536
+      "trial": 12
     },
     {
       "candidate_events": 198,
@@ -408,8 +379,7 @@
       "found": true,
       "seed": 22260819,
       "strategy": "deterministic",
-      "trial": 1,
-      "wall_seconds": 0.17228491700370796
+      "trial": 1
     },
     {
       "candidate_events": 350,
@@ -420,8 +390,7 @@
       "found": true,
       "seed": 22260819,
       "strategy": "guided",
-      "trial": 1,
-      "wall_seconds": 1.1504248339915648
+      "trial": 1
     },
     {
       "candidate_events": 51,
@@ -432,8 +401,7 @@
       "found": true,
       "seed": 22260916,
       "strategy": "deterministic",
-      "trial": 2,
-      "wall_seconds": 0.056128791999071836
+      "trial": 2
     },
     {
       "candidate_events": 52,
@@ -444,8 +412,7 @@
       "found": true,
       "seed": 22260916,
       "strategy": "guided",
-      "trial": 2,
-      "wall_seconds": 0.3688352500030305
+      "trial": 2
     },
     {
       "candidate_events": 71,
@@ -456,8 +423,7 @@
       "found": true,
       "seed": 22261013,
       "strategy": "deterministic",
-      "trial": 3,
-      "wall_seconds": 0.08625525000388734
+      "trial": 3
     },
     {
       "candidate_events": 212,
@@ -468,8 +434,7 @@
       "found": true,
       "seed": 22261013,
       "strategy": "guided",
-      "trial": 3,
-      "wall_seconds": 0.7239808749873191
+      "trial": 3
     },
     {
       "candidate_events": 13,
@@ -480,8 +445,7 @@
       "found": true,
       "seed": 22261110,
       "strategy": "deterministic",
-      "trial": 4,
-      "wall_seconds": 0.04964470799313858
+      "trial": 4
     },
     {
       "candidate_events": 13,
@@ -492,8 +456,7 @@
       "found": true,
       "seed": 22261110,
       "strategy": "guided",
-      "trial": 4,
-      "wall_seconds": 0.345374707976589
+      "trial": 4
     },
     {
       "candidate_events": 171,
@@ -504,8 +467,7 @@
       "found": true,
       "seed": 22261207,
       "strategy": "deterministic",
-      "trial": 5,
-      "wall_seconds": 0.12910354198538698
+      "trial": 5
     },
     {
       "candidate_events": 253,
@@ -516,8 +478,7 @@
       "found": true,
       "seed": 22261207,
       "strategy": "guided",
-      "trial": 5,
-      "wall_seconds": 0.9737362090090755
+      "trial": 5
     },
     {
       "candidate_events": 19,
@@ -528,8 +489,7 @@
       "found": true,
       "seed": 22261304,
       "strategy": "deterministic",
-      "trial": 6,
-      "wall_seconds": 0.05333954098750837
+      "trial": 6
     },
     {
       "candidate_events": 80,
@@ -540,8 +500,7 @@
       "found": true,
       "seed": 22261304,
       "strategy": "guided",
-      "trial": 6,
-      "wall_seconds": 0.40977058399585076
+      "trial": 6
     },
     {
       "candidate_events": 208,
@@ -552,8 +511,7 @@
       "found": true,
       "seed": 22261401,
       "strategy": "deterministic",
-      "trial": 7,
-      "wall_seconds": 0.1935117089888081
+      "trial": 7
     },
     {
       "candidate_events": 187,
@@ -564,8 +522,7 @@
       "found": true,
       "seed": 22261401,
       "strategy": "guided",
-      "trial": 7,
-      "wall_seconds": 0.8302712499862537
+      "trial": 7
     },
     {
       "candidate_events": 228,
@@ -576,8 +533,7 @@
       "found": true,
       "seed": 22261498,
       "strategy": "deterministic",
-      "trial": 8,
-      "wall_seconds": 0.15254733301117085
+      "trial": 8
     },
     {
       "candidate_events": 66,
@@ -588,8 +544,7 @@
       "found": true,
       "seed": 22261498,
       "strategy": "guided",
-      "trial": 8,
-      "wall_seconds": 0.3807209999940824
+      "trial": 8
     },
     {
       "candidate_events": 463,
@@ -600,8 +555,7 @@
       "found": true,
       "seed": 22261595,
       "strategy": "deterministic",
-      "trial": 9,
-      "wall_seconds": 0.2983408750151284
+      "trial": 9
     },
     {
       "candidate_events": 103,
@@ -612,8 +566,7 @@
       "found": true,
       "seed": 22261595,
       "strategy": "guided",
-      "trial": 9,
-      "wall_seconds": 0.3634295829979237
+      "trial": 9
     },
     {
       "candidate_events": 194,
@@ -624,8 +577,7 @@
       "found": true,
       "seed": 22261692,
       "strategy": "deterministic",
-      "trial": 10,
-      "wall_seconds": 0.14304441600688733
+      "trial": 10
     },
     {
       "candidate_events": 38,
@@ -636,8 +588,7 @@
       "found": true,
       "seed": 22261692,
       "strategy": "guided",
-      "trial": 10,
-      "wall_seconds": 0.36329337500501424
+      "trial": 10
     },
     {
       "candidate_events": 232,
@@ -648,8 +599,7 @@
       "found": true,
       "seed": 22261789,
       "strategy": "deterministic",
-      "trial": 11,
-      "wall_seconds": 0.18003733400837518
+      "trial": 11
     },
     {
       "candidate_events": 96,
@@ -660,8 +610,7 @@
       "found": true,
       "seed": 22261789,
       "strategy": "guided",
-      "trial": 11,
-      "wall_seconds": 0.40998587501235306
+      "trial": 11
     },
     {
       "candidate_events": 156,
@@ -672,8 +621,7 @@
       "found": true,
       "seed": 22261886,
       "strategy": "deterministic",
-      "trial": 12,
-      "wall_seconds": 0.15299524998408742
+      "trial": 12
     },
     {
       "candidate_events": 13,
@@ -684,8 +632,7 @@
       "found": true,
       "seed": 22261886,
       "strategy": "guided",
-      "trial": 12,
-      "wall_seconds": 0.3532024169981014
+      "trial": 12
     },
     {
       "candidate_events": 144,
@@ -696,8 +643,7 @@
       "found": true,
       "seed": 23260822,
       "strategy": "deterministic",
-      "trial": 1,
-      "wall_seconds": 0.13193504099035636
+      "trial": 1
     },
     {
       "candidate_events": 76,
@@ -708,8 +654,7 @@
       "found": true,
       "seed": 23260822,
       "strategy": "guided",
-      "trial": 1,
-      "wall_seconds": 0.3990119160152972
+      "trial": 1
     },
     {
       "candidate_events": 65,
@@ -720,8 +665,7 @@
       "found": true,
       "seed": 23260919,
       "strategy": "deterministic",
-      "trial": 2,
-      "wall_seconds": 0.06501145800575614
+      "trial": 2
     },
     {
       "candidate_events": 65,
@@ -732,8 +676,7 @@
       "found": true,
       "seed": 23260919,
       "strategy": "guided",
-      "trial": 2,
-      "wall_seconds": 0.4057362080202438
+      "trial": 2
     },
     {
       "candidate_events": 266,
@@ -744,8 +687,7 @@
       "found": true,
       "seed": 23261016,
       "strategy": "deterministic",
-      "trial": 3,
-      "wall_seconds": 0.2304489589878358
+      "trial": 3
     },
     {
       "candidate_events": 214,
@@ -756,8 +698,7 @@
       "found": true,
       "seed": 23261016,
       "strategy": "guided",
-      "trial": 3,
-      "wall_seconds": 0.7683008340245578
+      "trial": 3
     },
     {
       "candidate_events": 54,
@@ -768,8 +709,7 @@
       "found": true,
       "seed": 23261113,
       "strategy": "deterministic",
-      "trial": 4,
-      "wall_seconds": 0.05618537499685772
+      "trial": 4
     },
     {
       "candidate_events": 195,
@@ -780,8 +720,7 @@
       "found": true,
       "seed": 23261113,
       "strategy": "guided",
-      "trial": 4,
-      "wall_seconds": 0.7558976250002161
+      "trial": 4
     },
     {
       "candidate_events": 34,
@@ -792,8 +731,7 @@
       "found": true,
       "seed": 23261210,
       "strategy": "deterministic",
-      "trial": 5,
-      "wall_seconds": 0.06175049999728799
+      "trial": 5
     },
     {
       "candidate_events": 203,
@@ -804,8 +742,7 @@
       "found": true,
       "seed": 23261210,
       "strategy": "guided",
-      "trial": 5,
-      "wall_seconds": 0.7443628330074716
+      "trial": 5
     },
     {
       "candidate_events": 132,
@@ -816,8 +753,7 @@
       "found": true,
       "seed": 23261307,
       "strategy": "deterministic",
-      "trial": 6,
-      "wall_seconds": 0.1254340829909779
+      "trial": 6
     },
     {
       "candidate_events": 236,
@@ -828,8 +764,7 @@
       "found": true,
       "seed": 23261307,
       "strategy": "guided",
-      "trial": 6,
-      "wall_seconds": 0.7313522089971229
+      "trial": 6
     },
     {
       "candidate_events": 31,
@@ -840,8 +775,7 @@
       "found": true,
       "seed": 23261404,
       "strategy": "deterministic",
-      "trial": 7,
-      "wall_seconds": 0.05407829099567607
+      "trial": 7
     },
     {
       "candidate_events": 108,
@@ -852,8 +786,7 @@
       "found": true,
       "seed": 23261404,
       "strategy": "guided",
-      "trial": 7,
-      "wall_seconds": 0.4116454169852659
+      "trial": 7
     },
     {
       "candidate_events": 233,
@@ -864,8 +797,7 @@
       "found": true,
       "seed": 23261501,
       "strategy": "deterministic",
-      "trial": 8,
-      "wall_seconds": 0.16131979099009186
+      "trial": 8
     },
     {
       "candidate_events": 319,
@@ -876,8 +808,7 @@
       "found": true,
       "seed": 23261501,
       "strategy": "guided",
-      "trial": 8,
-      "wall_seconds": 1.4774223330023233
+      "trial": 8
     },
     {
       "candidate_events": 58,
@@ -888,8 +819,7 @@
       "found": true,
       "seed": 23261598,
       "strategy": "deterministic",
-      "trial": 9,
-      "wall_seconds": 0.08184091601287946
+      "trial": 9
     },
     {
       "candidate_events": 205,
@@ -900,8 +830,7 @@
       "found": true,
       "seed": 23261598,
       "strategy": "guided",
-      "trial": 9,
-      "wall_seconds": 0.7394459159986582
+      "trial": 9
     },
     {
       "candidate_events": 67,
@@ -912,8 +841,7 @@
       "found": true,
       "seed": 23261695,
       "strategy": "deterministic",
-      "trial": 10,
-      "wall_seconds": 0.07762404199456796
+      "trial": 10
     },
     {
       "candidate_events": 1605,
@@ -924,8 +852,7 @@
       "found": true,
       "seed": 23261695,
       "strategy": "guided",
-      "trial": 10,
-      "wall_seconds": 5.044643333007116
+      "trial": 10
     },
     {
       "candidate_events": 72,
@@ -936,8 +863,7 @@
       "found": true,
       "seed": 23261792,
       "strategy": "deterministic",
-      "trial": 11,
-      "wall_seconds": 0.0556694169936236
+      "trial": 11
     },
     {
       "candidate_events": 476,
@@ -948,8 +874,7 @@
       "found": true,
       "seed": 23261792,
       "strategy": "guided",
-      "trial": 11,
-      "wall_seconds": 1.4441913339833263
+      "trial": 11
     },
     {
       "candidate_events": 176,
@@ -960,8 +885,7 @@
       "found": true,
       "seed": 23261889,
       "strategy": "deterministic",
-      "trial": 12,
-      "wall_seconds": 0.13041974999941885
+      "trial": 12
     },
     {
       "candidate_events": 165,
@@ -972,8 +896,7 @@
       "found": true,
       "seed": 23261889,
       "strategy": "guided",
-      "trial": 12,
-      "wall_seconds": 0.7005632079963107
+      "trial": 12
     }
   ]
 }

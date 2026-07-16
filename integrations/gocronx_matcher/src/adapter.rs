@@ -67,7 +67,7 @@ impl AdapterConfig {
             return Err("price must be finite".to_string());
         }
         let ticks = (price / self.tick_size_f64).round_ties_even();
-        if !ticks.is_finite() || ticks <= 0.0 || ticks > u64::MAX as f64 {
+        if !ticks.is_finite() || ticks <= 0.0 || ticks >= u64::MAX as f64 {
             return Err("price snaps to a non-positive or unsupported tick".to_string());
         }
         Ok(ticks as u64)
@@ -667,6 +667,21 @@ mod tests {
         assert_eq!(
             decode_snapshot(&bytes).unwrap_err(),
             "unsupported matcher snapshot version 2"
+        );
+    }
+
+    #[test]
+    fn price_conversion_rejects_the_exclusive_u64_boundary() {
+        let config = AdapterConfig::from_wire(ConfigWire {
+            tick_size: "1".to_string(),
+            ..ConfigWire::default()
+        })
+        .unwrap();
+        let boundary = serde_json::Number::from_str("18446744073709551616").unwrap();
+
+        assert_eq!(
+            config.price_ticks(&boundary).unwrap_err(),
+            "price snaps to a non-positive or unsupported tick"
         );
     }
 }
