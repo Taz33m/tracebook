@@ -1,0 +1,6 @@
+{"op":"new","symbol":"TEST","order_id":1,"side":"SELL","order_type":"LIMIT","price":100,"quantity":2,"owner":1,"timestamp_ns":1}
+{"op":"new","symbol":"TEST","order_id":2,"side":"BUY","order_type":"FOK","price":100,"quantity":3,"owner":2,"timestamp_ns":2}
+{"op":"new","symbol":"TEST","order_id":3,"side":"BUY","order_type":"IOC","price":100,"quantity":3,"owner":3,"timestamp_ns":3}
+{"op":"new","symbol":"TEST","order_id":4,"side":"BUY","order_type":"MARKET","quantity":1,"owner":4,"timestamp_ns":4}
+{"op":"new","symbol":"TEST","order_id":5,"side":"SELL","order_type":"LIMIT","price":101,"quantity":2,"owner":5,"timestamp_ns":5}
+{"op":"new","symbol":"TEST","order_id":6,"side":"BUY","order_type":"FOK","price":101,"quantity":2,"owner":6,"timestamp_ns":6}

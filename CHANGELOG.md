@@ -6,15 +6,59 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Consolidated native Rust adapter framing, validation, canonical state hashing,
+  and process serving into one shared crate. Migrated package metadata,
+  dependencies, scripts, and package-data declarations to `pyproject.toml`,
+  removing duplicate Rust protocol copies and the legacy `setup.py` metadata
+  source.
+- Moved qualification campaign validation ahead of all candidate work and
+  reject JUnit destinations inside campaign or qualification artifact trees,
+  preventing invalid requests and report-path collisions from causing external
+  side effects.
+- Added qualification contract version 1 and `tracebook-conformance qualify`.
+  One atomic evidence bundle now combines only the immutable fixed cases inside
+  a declared profile, a deterministic generated campaign, complete semantic
+  coverage, JSON, JUnit, and any minimized failure.
+- Reworked the project plan around external-adoption evidence and equal-budget
+  discovery experiments. Added a primary-source research roadmap covering
+  Flash, RESTler, TCP-Fuzz, NEZHA, AFLNet, FEST, PMA, and modern LOB simulators,
+  while explicitly deferring feedback-guided generation until it beats the
+  current generator on held-out defects.
+- Added a commit-pinned `gocronx/matcher` Rust adapter. Its `fifo-limit-v1`
+  qualification passes 3/3 fixed cases, 25/25 generated traces, and 10/10
+  semantic capabilities; JSON/JUnit evidence is retained in scheduled CI while
+  two upstream contract questions remain explicitly pending.
+- Published the frozen qualification-friction and held-out discovery study.
+  Semantic-transition-guided suffix mutation improved one injected defect but
+  regressed on the historical defect and a second injected defect, so no guided
+  generator mode, profile, CLI, or artifact-contract change was shipped.
+
+- Added immutable `tracebook-conformance-v2` as the default bundled suite while
+  retaining v1 behind `sample --suite-version v1`. The new four-event case
+  pins FIFO `CANCEL_RESTING` as cancel-on-encounter and exposes
+  `orderbook-rs`'s valid cancel-all-at-touched-level policy as a documented
+  state difference.
+- Documented the reference engine's binary64 half-even tick behavior and why
+  the Rust adapter's explicit cancel-and-new replacement path is load-bearing.
 - Added `fifo-partial-fill-v1`, a hash-stable generated profile whose
   four-event continuation probe verifies that a partially filled FIFO maker
   retains priority over later same-price makers.
 - Added a provenance-locked adapter for the historical `orderbook-rs` issue
   #88 revision. A 200-event campaign reproduces Flash's real maker-priority
   discrepancy at event 173, minimizes it to four events, and passes the same
-  committed regression on current `orderbook-rs` 0.11.0.
+  committed regression on current `orderbook-rs` 0.12.0.
 - Documented the Flash-to-Tracebook discovery and minimization handoff as a
   bounded case study, with exact campaign, failure, JSON, and JUnit identities.
+- Consumed Flash's merged schema-v1 canonical divergence at sequence 15738,
+  converted its 15,739-message workload prefix, and reduced the actual upstream
+  IDs, prices, quantities, and IOC instruction to a one-minimal four-event
+  regression in 193 runs. The affected engine reproduces queue-priority drift;
+  current `orderbook-rs` passes the same trace.
+- Updated the maintained native adapter to `orderbook-rs` 0.12.0 and
+  `pricelevel` 0.9.1 after upstream end-to-end validation. Added a native
+  regression proving snapshots and matching expose the same queue-consumption
+  order after an in-place quantity increase; the versioned campaign profiles
+  remain unchanged.
 
 ## 0.4.1 - 2026-07-14
 

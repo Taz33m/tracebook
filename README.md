@@ -23,7 +23,7 @@ failure to a deterministic JSONL reproducer.
 **Give it an engine. Get back the smallest trace that proves where it disagrees.**
 
 [Quick start](#quick-start) · [Real failure](#a-real-four-event-rust-failure) ·
-[Profiles](#portable-semantic-profiles) · [Adapters](#engine-adapters) ·
+[Profiles](#portable-semantic-profiles) · [Qualification](#profile-qualification) · [Adapters](#engine-adapters) ·
 [CI](#continuous-integration) · [Architecture](#architecture)
 
 ## Quick Start
@@ -73,19 +73,22 @@ same price. Upstream tracked the defect as
 and fixed it in
 [`PR #131`](https://github.com/joaquinbejar/OrderBook-rs/pull/131).
 
-On `main`, Tracebook runs the exact affected revision and the current fixed
-engine through the same native adapter. Seed `42` generates the first incorrect trade at event
-`173`; deterministic delta debugging reduces the lifecycle history to four
-events while preserving the same maker-ID mismatch.
+Flash's merged schema-v1 export localizes its canonical stream at sequence
+`15738`. Tracebook converts the exact 15,739-message prefix and reduces it to
+four actual workload events. Independently, seed `42` generates a portable
+Tracebook probe whose first incorrect trade is event `173`; that trace also
+reduces to four events while preserving the same maker-priority defect.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Taz33m/tracebook/main/docs/assets/failure-proof.png" alt="Tracebook finds queue-priority drift at event 173 and reduces it to four events" width="860" />
 </p>
 
 The reduced trace then becomes an ordinary CI regression: it must reproduce
-against the affected revision and pass against `orderbook-rs` `0.11.0`.
+against the affected revision and pass against `orderbook-rs` `0.12.0`.
 
 - [Read the provenance and reduction case study](https://github.com/Taz33m/tracebook/blob/main/docs/case-studies/orderbook-rs-issue-88.md)
+- [Inspect the Flash schema-v1 divergence](https://github.com/Taz33m/tracebook/blob/main/integrations/flash_benchmark/artifacts/orderbook-rs-issue-88-divergence.json)
+- [Inspect the Flash-derived four-event regression](https://github.com/Taz33m/tracebook/blob/main/integrations/orderbook_rs/regressions/flash-issue-88-reduced.jsonl)
 - [Inspect the four-event JSONL reproducer](https://github.com/Taz33m/tracebook/blob/main/integrations/orderbook_rs/regressions/issue-88-reduced.jsonl)
 - [Review the native Rust adapter](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs/src)
 
@@ -129,6 +132,28 @@ coverage.
 
 [Read the profile, protocol, hashing, and minimizer contracts](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md).
 
+## Profile Qualification
+
+Use one command for the fixed and generated evidence inside the contract your
+engine actually claims:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './matching-engine --tracebook-stdio' \
+  --output-dir .tracebook/qualification
+```
+
+The atomic bundle includes `qualification.json`, `qualification.xml`, selected
+fixed-suite results, campaign results, semantic coverage, and any minimized
+failure. `fifo-limit-v1` qualification does not run STP or pro-rata cases, so
+unsupported features stay explicit without becoming false failures.
+
+[Read the research-grounded roadmap and adoption experiment](https://github.com/Taz33m/tracebook/blob/main/docs/research-roadmap.md).
+
 ## Architecture
 
 ```mermaid
@@ -154,8 +179,9 @@ the canonical protocol.
 
 | Candidate | Native surface | Evidence |
 | --- | --- | --- |
-| [`orderbook-rs` 0.11.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, full queue snapshots | Conformant generated FIFO campaign; `7/8` standard cases with pro-rata explicitly unsupported; semantics reviewed in [upstream issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) |
-| Historical `orderbook-rs` issue #88 | Exact affected Rust dependency behind an opt-in Cargo feature | Event `173` localized and reduced to the committed four-event regression |
+| [`orderbook-rs` 0.12.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, consumption-order queue snapshots | Conformant generated FIFO campaign; `7/9` standard cases with pro-rata and one STP policy difference explicit; semantics reviewed in upstream [issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) and Tracebook [issue #57](https://github.com/Taz33m/tracebook/issues/57) |
+| [`gocronx/matcher` 0.2.0](https://github.com/Taz33m/tracebook/tree/main/integrations/gocronx_matcher) | Pinned Rust FIFO limit lifecycle over native events and snapshot format v1 | `fifo-limit-v1` qualification passes 3/3 fixed cases, 25/25 generated traces, and 10/10 capabilities; upstream observation and replacement questions remain explicitly pending in [issue #7](https://github.com/gocronx/matcher/issues/7) |
+| Historical `orderbook-rs` issue #88 | Exact affected Rust dependency behind an opt-in Cargo feature | Flash sequence `15738` and generated event `173` independently reduce to four-event regressions |
 | `faulty-orderbook-adapter` | Real Rust engine plus one documented injected queue-priority fault | Synthetic negative control reduced from event `173` to five causal events |
 | [PythonMatchingEngine](https://github.com/Taz33m/tracebook/tree/main/integrations/python_matching_engine) | Pinned FIFO limit lifecycle, cancellation, reduction, replacement, clear, and queue snapshots | Compatible trace passes; unsupported instructions, STP, tick grid, and pro-rata remain visible differences |
 | Your engine | Any language that can read and write newline-delimited JSON | Start from the [adapter contract](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md) and gate only the profile your engine claims |

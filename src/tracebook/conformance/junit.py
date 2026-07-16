@@ -91,6 +91,57 @@ def render_junit(payload: Mapping[str, Any]) -> str:
             _add_case(suite, f"trace-{trace.get('index')}", failed, details)
             tests += 1
             failures += int(failed)
+    elif artifact_type == "tracebook.conformance.qualification":
+        profile = payload.get("profile") or {}
+        coverage = (payload.get("campaign") or {}).get("semantic_coverage") or {}
+        properties = ElementTree.SubElement(suite, "properties")
+        for name, value in (
+            ("qualification.profile", profile.get("name")),
+            ("qualification.qualified", payload.get("qualified")),
+            ("semantic_coverage.coverage_ratio", coverage.get("coverage_ratio")),
+        ):
+            ElementTree.SubElement(
+                properties,
+                "property",
+                {"name": name, "value": str(value)},
+            )
+        suite_payload = (payload.get("suite") or {}).get("report") or {}
+        for case_payload in suite_payload.get("cases", []):
+            report = case_payload["report"]
+            failed = not bool(report.get("conformant"))
+            _add_case(
+                suite,
+                f"suite/{case_payload['name']}",
+                failed,
+                report.get("divergence"),
+            )
+            tests += 1
+            failures += int(failed)
+        campaign_payload = payload.get("campaign") or {}
+        failure_payload = campaign_payload.get("failure") or {}
+        for trace in campaign_payload.get("traces", []):
+            failed = not bool(trace.get("conformant"))
+            details = dict(trace.get("divergence") or {})
+            if failed and failure_payload:
+                details["failure_class"] = failure_payload.get("failure_class")
+                details["failure_id"] = failure_payload.get("failure_id")
+            _add_case(suite, f"campaign/trace-{trace.get('index')}", failed, details)
+            tests += 1
+            failures += int(failed)
+        uncovered = coverage.get("uncovered_capabilities") or []
+        coverage_failed = bool(uncovered)
+        _add_case(
+            suite,
+            "semantic-coverage",
+            coverage_failed,
+            {
+                "category": "semantic_coverage",
+                "message": "declared profile capabilities were not fully exercised",
+                "uncovered_capabilities": uncovered,
+            },
+        )
+        tests += 1
+        failures += int(coverage_failed)
     elif artifact_type == "tracebook.conformance.minimization":
         _add_case(suite, "trace-minimization", False)
         tests = 1

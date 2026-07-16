@@ -87,16 +87,37 @@ Options:
 
 ## Matching-Engine Conformance
 
+Produce one profile-scoped qualification bundle:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './engine-adapter' \
+  --output-dir .tracebook/qualification
+```
+
+This runs profile-relevant immutable suite cases, a generated campaign, and a
+semantic coverage gate. The output contains canonical JSON, JUnit, and any
+automatically minimized failure. Use this command for a first integration or a
+profile-level CI claim; use `suite` when intentionally comparing every broader
+fixed semantic surface.
+
 Copy and run the standard suite:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/conformance-suite.json \
   --candidate python examples/conformance_adapter.py
 ```
+
+Pass `--suite-version v1` to `sample` when reproducing the original immutable
+eight-case suite. The default is the latest bundled version.
 
 Compare one trace:
 

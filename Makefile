@@ -10,7 +10,7 @@ PYTHON_VENV := $(VENV)/bin/python
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[all]"
+	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
 	@echo "Setup complete! Activate with: source $(VENV)/bin/activate"
 
 # Install the package for local use
@@ -19,7 +19,7 @@ install:
 
 # Install development dependencies
 install-dev:
-	$(PIP) install -e ".[all]"
+	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
 
 # Run all tests
 test:
@@ -64,24 +64,24 @@ replay-demo:
 
 # Code formatting with black
 format:
-	$(PYTHON_VENV) -m black src/ tests/ examples/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
 
 # Check formatting without modifying files
 format-check:
-	$(PYTHON_VENV) -m black --check src/ tests/ examples/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black --check src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
 
 # Lint code with flake8
 lint:
-	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
 
 typecheck:
-	$(PYTHON_VENV) -m mypy src/tracebook
+	$(PYTHON_VENV) -m mypy src/tracebook experiments
 
 security:
 	$(PYTHON_VENV) -m bandit -q -r src
 
 compile:
-	$(PYTHON_VENV) -m compileall -q src tests examples install_deps.py test_system.py
+	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
 
 build:
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist

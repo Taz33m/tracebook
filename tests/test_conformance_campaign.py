@@ -580,6 +580,33 @@ def test_campaign_cli_rejects_existing_output_before_running(tmp_path, monkeypat
     assert "already exists" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("artifact_option", ["--output-dir", "--corpus-dir"])
+def test_campaign_cli_rejects_junit_inside_artifact_tree_before_running(
+    tmp_path, monkeypatch, capsys, artifact_option
+):
+    destination = tmp_path / "campaign-artifacts"
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail("campaign ran before JUnit path preflight")
+
+    monkeypatch.setattr("tracebook.conformance.cli.run_campaign", unexpected_run)
+    exit_code = main(
+        [
+            "campaign",
+            artifact_option,
+            str(destination),
+            "--junit-output",
+            str(destination / "campaign.json"),
+            "--candidate",
+            "unused-adapter",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "outside artifact directories" in capsys.readouterr().err
+    assert not destination.exists()
+
+
 def test_campaign_cli_reserves_output_before_candidate_work(tmp_path, monkeypatch):
     result = run_campaign(
         ReferenceEngineAdapter,

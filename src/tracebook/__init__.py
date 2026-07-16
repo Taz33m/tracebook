@@ -23,7 +23,9 @@ from .conformance import (
     minimize_failing_trace,
     run_campaign,
     run_conformance,
+    run_qualification,
     write_campaign_artifacts,
+    write_qualification_artifacts,
 )
 from ._version import __version__
 
@@ -57,6 +59,8 @@ __all__ = [
     "minimize_failing_trace",
     "run_campaign",
     "run_conformance",
+    "run_qualification",
     "write_campaign_artifacts",
+    "write_qualification_artifacts",
     "__version__",
 ]

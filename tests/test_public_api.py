@@ -14,3 +14,5 @@ def test_top_level_package_exports_core_api():
     assert tracebook.CampaignResult
     assert tracebook.run_campaign
     assert tracebook.write_campaign_artifacts
+    assert tracebook.run_qualification
+    assert tracebook.write_qualification_artifacts

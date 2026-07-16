@@ -1,0 +1,27 @@
+{
+  "artifact_type": "matching-engine-benchmark.canonical-divergence",
+  "candidate": {
+    "first_divergent_line": 17449,
+    "path": "orderbook-rs-0.8.0-candidate.txt",
+    "reports": [
+      "0,15738,1,933919,33517,75",
+      "1,15738,33535,17,29765,933919",
+      "1,15738,33532,14,185199,933919",
+      "1,15738,33532,44,146075,933919"
+    ]
+  },
+  "conformant": false,
+  "first_divergent_sequence": 15738,
+  "matching_sequences": 15738,
+  "reference": {
+    "first_divergent_line": 17449,
+    "path": "flash-reference.txt.gz",
+    "reports": [
+      "0,15738,1,933919,33517,75",
+      "1,15738,33535,17,29765,933919",
+      "1,15738,33532,55,146075,933919",
+      "1,15738,33532,3,185199,933919"
+    ]
+  },
+  "schema_version": 1
+}

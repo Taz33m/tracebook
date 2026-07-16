@@ -41,6 +41,14 @@ def test_resting_order_price_is_snapped_onto_the_grid():
     assert book.get_best_bid() == pytest.approx(100.02)
 
 
+def test_half_tick_rounding_uses_binary64_division_before_ties_to_even():
+    book = OrderBook("BTCUSD", tick_size=0.01)
+
+    result = book.submit_limit_order(OrderSide.BUY, 1.015, 1.0)
+
+    assert book.get_order(result.order.order_id).price == pytest.approx(1.01)
+
+
 def test_coarser_tick_size_merges_nearby_prices():
     book = OrderBook("XYZ", tick_size=0.5)
 

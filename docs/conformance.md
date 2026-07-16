@@ -1,8 +1,9 @@
 # Matching-Engine Conformance
 
 For complete maintained adapters, start with the native Rust
-[`orderbook-rs` integration](../integrations/orderbook_rs/README.md), then see
-the narrower
+[`orderbook-rs` integration](../integrations/orderbook_rs/README.md) and the
+profile-scoped [`gocronx/matcher` integration](../integrations/gocronx_matcher/README.md),
+then see the narrower
 [PythonMatchingEngine integration](../integrations/python_matching_engine/README.md).
 To make conformance a pull-request gate, use the
 [copy-paste GitHub Actions workflow](ci.md).
@@ -22,10 +23,10 @@ object per line.
 Copy the bundled synthetic suite and run the example adapter:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/conformance-suite.json \
   --candidate python examples/conformance_adapter.py
 ```
@@ -80,6 +81,44 @@ requires the same failure class, event, structural path, reference value, and
 candidate value. It exits `0` only for that exact reproduction and exits `1`
 when the trace conforms or fails differently. Without metadata it accepts any
 semantic divergence, which is useful for older minimized traces.
+
+## Profile Qualification
+
+`qualify` is the shortest path from an adapter command to a reviewable contract
+result:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './my-engine-adapter --tracebook-stdio' \
+  --output-dir .tracebook/qualification
+```
+
+Qualification contract version 1 runs fixed suite cases selected only from the
+declared profile, then runs the generated campaign and requires complete
+candidate-independent semantic coverage. It does not fail a FIFO engine for
+pro-rata or self-trade-prevention behavior it did not claim.
+
+| Profile | Fixed qualification-v1 cases |
+| --- | --- |
+| `fifo-limit-v1` | `fifo-lifecycle`, `tick-grid`, `deep-cancellation` |
+| `fifo-full-v1` | The limit cases plus `order-instructions` and `multi-symbol` |
+| `fifo-partial-fill-v1` | The limit cases; the generated campaign supplies the distinct continuation probe |
+
+The output directory is reserved before the candidate starts. It contains
+`qualification.json`, `qualification.xml`, the selected `suite.json`, the full
+`campaign.json`, and any ordinary campaign failure and reduced-trace artifacts.
+Exit `0` means every selected fixed case and generated trace agreed and every
+declared capability had reference evidence. Exit `1` means semantic drift or
+incomplete semantic coverage. Exit `2` means the run itself was invalid.
+
+Qualification is strong, reproducible evidence for one versioned profile. It is
+not exchange certification and does not imply support for unselected suite
+cases. Selection version 1 is part of the artifact identity and will not change
+silently.
 
 ## Differential Campaigns
 
@@ -140,15 +179,15 @@ still executes before the later maker. The profile exists separately so adding
 this real-world regression does not change `fifo-limit-v1` traces, hashes, or
 failure IDs.
 
-That upsize exclusion is part of the queue-state contract. The maintained
-`orderbook-rs` adapter reads queue order from native snapshots. Its maintainer
-confirmed in
-[`orderbook-rs` #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203)
-that snapshot and matching order coincide under this profile's monotonic
-admission timestamps and decrease-only updates. An in-place increase can keep
-its old timestamp while receiving a new insertion sequence; any future profile
-that adds upsize must require a consumption-order snapshot and a
-snapshot-restore regression instead of assuming timestamp order is FIFO order.
+That upsize exclusion defines the versioned profile surface; it is no longer a
+limitation of the maintained Rust adapter. In
+[`orderbook-rs` #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203),
+the maintainer confirmed that `orderbook-rs 0.12.0` with `pricelevel 0.9.1`
+materializes snapshots in queue-consumption order, including after an in-place
+quantity increase receives a fresh insertion sequence. Tracebook locks that
+guarantee with a native snapshot-and-next-trade regression. Any future profile
+that adds upsize still needs a new versioned capability contract and portable
+regression rather than silently changing `fifo-limit-v1` traces and hashes.
 
 Generator version 2 specifies SplitMix64 independently of Python's `random`
 module and adds a five-event FIFO priority probe in an isolated symbol. Its end
@@ -244,9 +283,19 @@ State ordering is part of the contract:
    but is rejected by engine validation. An invalid cancel/reduce/replace for an
    unknown symbol does not create a book.
 
+For FIFO `CANCEL_RESTING`, self-trade prevention is encounter-based. Matching
+walks makers in priority order, cancels a same-owner maker when the sweep
+reaches it, and continues. Once the incoming quantity is filled, deeper makers
+are not inspected or canceled. An engine that pre-cancels every same-owner
+maker at a touched price level implements a different, valid policy and should
+report that boundary rather than claiming this case.
+
 Only limit orders may appear in resting state. Prices and quantities are decimal
 strings, never binary floating-point JSON numbers. Prices use the canonical
-tick-grid value. Quantities are rounded half-even to the configured
+tick-grid value, but the reference first divides the parsed IEEE-754 binary64
+price by the binary64 tick size and then rounds ties to even. This is not exact
+decimal division: with tick size `0.01`, `1.015` snaps to `1.01`, not `1.02`.
+Quantities are rounded half-even to the configured
 `quantity_decimal_places` (default `12`) before trailing zeroes are removed.
 Zero is always `"0"`; exponent notation is forbidden.
 
@@ -385,14 +434,17 @@ runnable reference. Non-Python adapters implement the same frames directly.
 
 ## Bundled Suite
 
-`tracebook-conformance-v1` is synthetic and redistributable. Every event file is
-SHA-256 locked, and `suite_hash` binds the manifest's case configs, tags, file
-hashes, description, and suite ID. The suite currently covers:
+`tracebook-conformance-v2` is the default synthetic, redistributable suite.
+Every event file is SHA-256 locked, and `suite_hash` binds the manifest's case
+configs, tags, file hashes, description, and suite ID. Version 2 adds a
+four-event FIFO case proving that `CANCEL_RESTING` does not remove a deeper
+same-owner maker that the sweep never reaches. The suite currently covers:
 
 - FIFO partial fills, reduction, cancel-and-new replacement, queue-priority
   loss, crossed input, and rejected lifecycle events;
 - market, IOC, fillable FOK, and unfillable FOK instructions;
-- `CANCEL_RESTING` and `CANCEL_INCOMING` self-trade prevention;
+- encounter-based `CANCEL_RESTING`, including a deeper same-owner maker, and
+  `CANCEL_INCOMING` self-trade prevention;
 - pro-rata allocation and subsequent lifecycle operations;
 - independent source-ID domains across multiple symbols;
 - off-grid tick snapping and a price that snaps to a non-positive tick;
@@ -401,6 +453,10 @@ hashes, description, and suite ID. The suite currently covers:
 
 Suite reports preserve every case report rather than stopping after the first
 failed case, making them suitable for CI artifacts.
+
+Bundled suites are immutable once published. `sample` copies v2 by default;
+use `tracebook-conformance sample ./suite --suite-version v1` to reproduce the
+original eight-case suite and its historical hash.
 
 ## Artifact Contracts
 
@@ -421,13 +477,20 @@ include generator/profile versions, campaign identity, requested and completed
 work, candidate metadata, every trace seed and hash, and relative failure-bundle
 paths. Campaign artifacts also start at schema version `1`.
 
+Qualification reports use
+`artifact_type = "tracebook.conformance.qualification"`. They bind the
+qualification selection version, source suite ID and hash, selected fixed
+cases, complete suite and campaign reports, semantic coverage checks, candidate
+identity, and a deterministic qualification ID. The atomic bundle includes its
+JSON and JUnit projections plus the underlying campaign artifacts.
+
 Corpus metadata uses `artifact_type = "tracebook.conformance.failure"`.
 Reproduction reports use `artifact_type =
 "tracebook.conformance.reproduction"` and preserve expected and observed
 failure details plus the full conformance report. All JSON artifact schemas
 start at version `1`.
 
-`run`, `suite`, `minimize`, `campaign`, and `reproduce` accept
+`run`, `suite`, `minimize`, `campaign`, `qualify`, and `reproduce` accept
 `--junit-output`. JUnit is a projection of the canonical JSON: divergences are
 test failures, a successful minimization is a passing case, and an exact known
 failure reproduction is a passing case. Campaign JUnit properties include the

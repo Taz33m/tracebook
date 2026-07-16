@@ -1,0 +1,47 @@
+{
+  "artifact_type": "tracebook.integration.flash-handoff",
+  "candidate": {
+    "orderbook_rs_commit": "53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf",
+    "orderbook_rs_version": "0.8.0",
+    "pricelevel_version": "0.7.0"
+  },
+  "canonical_evidence": {
+    "divergence_artifact": "orderbook-rs-issue-88-divergence.json",
+    "divergence_artifact_sha256": "ce3081306fbe7131f40ef5fcc61b46e52044bcf39b9d31f9c7fdb26ad51b39f5",
+    "first_divergent_line": 17449,
+    "first_divergent_sequence": 15738,
+    "matching_sequences": 15738,
+    "reference_gzip_sha256": "088fa3c690bc76c513b8fffbbce2d49c2874cca470507d4d679d3344c102281c"
+  },
+  "fixed_candidate": {
+    "conformant_on_reduced_trace": true,
+    "orderbook_rs_version": "0.12.0",
+    "pricelevel_version": "0.9.1"
+  },
+  "flash": {
+    "commit": "eb6e89fbc4313f77cea7d424bab14a26093cf552",
+    "repository": "https://github.com/flash1-dev/matching-engine-benchmark"
+  },
+  "handoff": {
+    "converted_prefix_event_count": 15739,
+    "converted_prefix_trace_sha256": "sha256:4e0bb497924a68dcca9575a5860954089bf5d137ab1f577618fba482a19877cd",
+    "tracebook_divergence_event": 15739
+  },
+  "minimization": {
+    "budget_exhausted": false,
+    "failure_class": "queue-priority drift",
+    "one_minimal": true,
+    "reduced_event_count": 4,
+    "reduced_trace": "../../orderbook_rs/regressions/flash-issue-88-reduced.jsonl",
+    "reduced_trace_sha256": "sha256:71ddb3f8d9c987b634bf0fed9a3fec688caaf7cb8a264a971037e5a8cf00d59d",
+    "runs": 193
+  },
+  "schema_version": 1,
+  "workload": {
+    "generated_order_count": 1000000,
+    "message_count": 1996097,
+    "scenario": "normal",
+    "seed": 23,
+    "sha256": "d925e1a4fc03cfcf7f0db8f9ad4c6c8674991250b702e9dc3f1b2b7c9f4bfbc1"
+  }
+}

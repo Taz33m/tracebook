@@ -3,6 +3,10 @@ use serde_json::{Number, Value};
 use sha2::{Digest, Sha256};
 use std::io::{self, Write};
 
+mod server;
+
+pub use server::{EngineAdapter, EngineIdentity, run};
+
 pub const PROTOCOL_NAME: &str = "tracebook.conformance";
 pub const PROTOCOL_VERSION: u64 = 1;
 
@@ -73,7 +77,6 @@ pub struct MarketEvent {
     pub quantity: Option<Number>,
     #[serde(default = "default_owner")]
     pub owner: i64,
-    #[allow(dead_code)]
     pub timestamp_ns: Option<u64>,
 }
 

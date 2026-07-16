@@ -10,12 +10,25 @@ include SUPPORT.md
 
 recursive-include docs *.md *.png *.svg
 recursive-include examples *.py *.json *.jsonl *.yml
+recursive-include experiments *.py *.json
 recursive-include integrations *.py *.md *.jsonl
+recursive-include integrations/flash_benchmark *.json
 recursive-include integrations/orderbook_rs/src *.rs
 include integrations/orderbook_rs/Cargo.toml
 include integrations/orderbook_rs/Cargo.lock
 include integrations/orderbook_rs/rust-toolchain.toml
 prune integrations/orderbook_rs/target
+recursive-include integrations/gocronx_matcher/src *.rs
+include integrations/gocronx_matcher/Cargo.toml
+include integrations/gocronx_matcher/Cargo.lock
+include integrations/gocronx_matcher/rust-toolchain.toml
+prune integrations/gocronx_matcher/target
+recursive-include integrations/rust_protocol/src *.rs
+include integrations/rust_protocol/Cargo.toml
+include integrations/rust_protocol/Cargo.lock
+include integrations/rust_protocol/rust-toolchain.toml
+include integrations/rust_protocol/README.md
+prune integrations/rust_protocol/target
 recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl

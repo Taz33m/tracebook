@@ -26,13 +26,14 @@ from tracebook.conformance import (
     run_campaign,
     run_conformance,
     run_conformance_suite,
+    run_qualification,
 )
 from tracebook.events import CoinbaseL3Adapter
 from tracebook.simulation.simulation_engine import SimulationConfig, SimulationEngine
 
 ROOT = Path(__file__).parents[1]
 COINBASE_CORPUS = ROOT / "src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1"
-CONFORMANCE_SUITE = ROOT / "src/tracebook/conformance/fixtures/v1"
+CONFORMANCE_SUITE = ROOT / "src/tracebook/conformance/fixtures/v2"
 
 
 def _require_keys(obj, keys, ctx):
@@ -649,4 +650,47 @@ def test_conformance_campaign_schema():
             "divergence",
         ],
         "conformance.campaign.trace",
+    )
+
+
+def test_conformance_qualification_schema():
+    qualification = _json_roundtrip(
+        run_qualification(
+            ReferenceEngineAdapter,
+            profile="fifo-limit-v1",
+            seed=42,
+            traces=1,
+            events_per_trace=200,
+        ).to_dict()
+    )
+
+    _require_keys(
+        qualification,
+        [
+            "schema_version",
+            "artifact_type",
+            "qualification_version",
+            "qualification_id",
+            "qualified",
+            "candidate_engine",
+            "profile",
+            "suite",
+            "campaign",
+            "checks",
+            "candidate_runs",
+            "paths",
+        ],
+        "conformance.qualification",
+    )
+    assert qualification["artifact_type"] == "tracebook.conformance.qualification"
+    assert qualification["qualified"] is True
+    _require_keys(
+        qualification["suite"],
+        ["suite_id", "suite_hash", "selection_version", "selected_cases", "report"],
+        "conformance.qualification.suite",
+    )
+    _require_keys(
+        qualification["checks"],
+        ["fixed_cases", "generated_campaign", "semantic_coverage"],
+        "conformance.qualification.checks",
     )

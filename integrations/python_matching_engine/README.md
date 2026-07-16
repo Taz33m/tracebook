@@ -58,9 +58,9 @@ The command exits `0` and the report contains:
 Profile the complete standard contract separately:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v1
+tracebook-conformance sample /tmp/tracebook-conformance-v2
 tracebook-conformance suite \
-  /tmp/tracebook-conformance-v1 \
+  /tmp/tracebook-conformance-v2 \
   --output /tmp/python-matching-engine-suite.json \
   --timeout 20 \
   --candidate python integrations/python_matching_engine/adapter.py
@@ -71,7 +71,7 @@ This command intentionally exits `1`. The pinned profile is:
 | Result | Cases |
 | --- | --- |
 | Native agreement | `fifo-lifecycle`, `deep-cancellation` |
-| Expected contract difference | `order-instructions`, `stp-cancel-resting`, `stp-cancel-incoming`, `pro-rata-allocation`, `multi-symbol`, `tick-grid` |
+| Expected contract difference | `order-instructions`, `stp-cancel-resting`, `stp-cancel-resting-deep`, `stp-cancel-incoming`, `pro-rata-allocation`, `multi-symbol`, `tick-grid` |
 
 The profile is an interoperability map, not a quality ranking. Run the
 compatible trace as the integration's pass/fail gate and retain the complete

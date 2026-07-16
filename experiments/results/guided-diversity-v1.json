@@ -1,0 +1,902 @@
+{
+  "artifact_type": "tracebook.experiment.guided-diversity",
+  "artifact_version": 1,
+  "decision": {
+    "checks": {
+      "historical-orderbook-rs-issue-88": {
+        "candidate_events_improved": false,
+        "candidate_runs_not_higher": false,
+        "discovery_rate_not_lower": true,
+        "passed": false
+      },
+      "injected-reduce-requeues": {
+        "candidate_events_improved": true,
+        "candidate_runs_not_higher": true,
+        "discovery_rate_not_lower": true,
+        "passed": true
+      },
+      "injected-replace-keeps-priority": {
+        "candidate_events_improved": false,
+        "candidate_runs_not_higher": false,
+        "discovery_rate_not_lower": true,
+        "passed": false
+      }
+    },
+    "rule": "For every held-out defect: discovery rate must not fall, median censored candidate runs must not rise, and median censored candidate events must fall.",
+    "ship_guided_exploration": false
+  },
+  "defects": {
+    "historical-orderbook-rs-issue-88": {
+      "candidate": "historical orderbook-rs issue 88 adapter",
+      "candidate_version": "0.8.0@53b4d2b0+pricelevel-0.7.0",
+      "kind": "historical",
+      "upstream_issue": "https://github.com/joaquinbejar/OrderBook-rs/issues/88"
+    },
+    "injected-reduce-requeues": {
+      "fault": "A partial quantity reduction cancels and re-adds the order.",
+      "kind": "injected"
+    },
+    "injected-replace-keeps-priority": {
+      "fault": "A same-price non-increasing replacement stays in place.",
+      "kind": "injected"
+    }
+  },
+  "historical_adapter": "integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter",
+  "method": {
+    "base_seed": 20260716,
+    "built_in_priority_probes": false,
+    "candidate_run_budget_equal": true,
+    "candidate_run_budget_per_trial": 40,
+    "events_per_candidate_run": 120,
+    "guidance": "Structure-preserving suffix regeneration retained by novel black-box semantic transition tuples. Conformant prefixes make the relative reference/candidate tuple identical until the first divergence.",
+    "guided_mutation_pool": 8,
+    "profile": "fifo-limit-v1",
+    "reference_side_work_equal": false,
+    "runtime_timings_in_artifact": false,
+    "trials_per_defect": 12
+  },
+  "summaries": {
+    "historical-orderbook-rs-issue-88": {
+      "deterministic": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 84.5,
+        "median_candidate_runs_censored": 1.0,
+        "trials": 12
+      },
+      "guided": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 200.5,
+        "median_candidate_runs_censored": 2.0,
+        "trials": 12
+      }
+    },
+    "injected-reduce-requeues": {
+      "deterministic": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 182.5,
+        "median_candidate_runs_censored": 2.0,
+        "trials": 12
+      },
+      "guided": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 88.0,
+        "median_candidate_runs_censored": 1.0,
+        "trials": 12
+      }
+    },
+    "injected-replace-keeps-priority": {
+      "deterministic": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 69.5,
+        "median_candidate_runs_censored": 1.0,
+        "trials": 12
+      },
+      "guided": {
+        "discoveries": 12,
+        "discovery_rate": 1.0,
+        "median_candidate_events_censored": 204.0,
+        "median_candidate_runs_censored": 2.0,
+        "trials": 12
+      }
+    }
+  },
+  "trials": [
+    {
+      "candidate_events": 97,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 97,
+      "found": true,
+      "seed": 21260816,
+      "strategy": "deterministic",
+      "trial": 1
+    },
+    {
+      "candidate_events": 74,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 74,
+      "found": true,
+      "seed": 21260816,
+      "strategy": "guided",
+      "trial": 1
+    },
+    {
+      "candidate_events": 294,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 54,
+      "found": true,
+      "seed": 21260913,
+      "strategy": "deterministic",
+      "trial": 2
+    },
+    {
+      "candidate_events": 54,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 54,
+      "found": true,
+      "seed": 21260913,
+      "strategy": "guided",
+      "trial": 2
+    },
+    {
+      "candidate_events": 72,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 72,
+      "found": true,
+      "seed": 21261010,
+      "strategy": "deterministic",
+      "trial": 3
+    },
+    {
+      "candidate_events": 107,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 107,
+      "found": true,
+      "seed": 21261010,
+      "strategy": "guided",
+      "trial": 3
+    },
+    {
+      "candidate_events": 40,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 40,
+      "found": true,
+      "seed": 21261107,
+      "strategy": "deterministic",
+      "trial": 4
+    },
+    {
+      "candidate_events": 290,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 50,
+      "found": true,
+      "seed": 21261107,
+      "strategy": "guided",
+      "trial": 4
+    },
+    {
+      "candidate_events": 179,
+      "candidate_runs": 2,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 59,
+      "found": true,
+      "seed": 21261204,
+      "strategy": "deterministic",
+      "trial": 5
+    },
+    {
+      "candidate_events": 104,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 104,
+      "found": true,
+      "seed": 21261204,
+      "strategy": "guided",
+      "trial": 5
+    },
+    {
+      "candidate_events": 71,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 71,
+      "found": true,
+      "seed": 21261301,
+      "strategy": "deterministic",
+      "trial": 6
+    },
+    {
+      "candidate_events": 354,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 114,
+      "found": true,
+      "seed": 21261301,
+      "strategy": "guided",
+      "trial": 6
+    },
+    {
+      "candidate_events": 34,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 34,
+      "found": true,
+      "seed": 21261398,
+      "strategy": "deterministic",
+      "trial": 7
+    },
+    {
+      "candidate_events": 346,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 106,
+      "found": true,
+      "seed": 21261398,
+      "strategy": "guided",
+      "trial": 7
+    },
+    {
+      "candidate_events": 68,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 68,
+      "found": true,
+      "seed": 21261495,
+      "strategy": "deterministic",
+      "trial": 8
+    },
+    {
+      "candidate_events": 28,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 28,
+      "found": true,
+      "seed": 21261495,
+      "strategy": "guided",
+      "trial": 8
+    },
+    {
+      "candidate_events": 276,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 36,
+      "found": true,
+      "seed": 21261592,
+      "strategy": "deterministic",
+      "trial": 9
+    },
+    {
+      "candidate_events": 210,
+      "candidate_runs": 2,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 90,
+      "found": true,
+      "seed": 21261592,
+      "strategy": "guided",
+      "trial": 9
+    },
+    {
+      "candidate_events": 23,
+      "candidate_runs": 1,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 23,
+      "found": true,
+      "seed": 21261689,
+      "strategy": "deterministic",
+      "trial": 10
+    },
+    {
+      "candidate_events": 228,
+      "candidate_runs": 2,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 108,
+      "found": true,
+      "seed": 21261689,
+      "strategy": "guided",
+      "trial": 10
+    },
+    {
+      "candidate_events": 291,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 51,
+      "found": true,
+      "seed": 21261786,
+      "strategy": "deterministic",
+      "trial": 11
+    },
+    {
+      "candidate_events": 191,
+      "candidate_runs": 2,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 71,
+      "found": true,
+      "seed": 21261786,
+      "strategy": "guided",
+      "trial": 11
+    },
+    {
+      "candidate_events": 301,
+      "candidate_runs": 3,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 61,
+      "found": true,
+      "seed": 21261883,
+      "strategy": "deterministic",
+      "trial": 12
+    },
+    {
+      "candidate_events": 477,
+      "candidate_runs": 4,
+      "defect": "historical-orderbook-rs-issue-88",
+      "divergence_category": "trades",
+      "divergence_event": 117,
+      "found": true,
+      "seed": 21261883,
+      "strategy": "guided",
+      "trial": 12
+    },
+    {
+      "candidate_events": 198,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 78,
+      "found": true,
+      "seed": 22260819,
+      "strategy": "deterministic",
+      "trial": 1
+    },
+    {
+      "candidate_events": 350,
+      "candidate_runs": 3,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 110,
+      "found": true,
+      "seed": 22260819,
+      "strategy": "guided",
+      "trial": 1
+    },
+    {
+      "candidate_events": 51,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 51,
+      "found": true,
+      "seed": 22260916,
+      "strategy": "deterministic",
+      "trial": 2
+    },
+    {
+      "candidate_events": 52,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 52,
+      "found": true,
+      "seed": 22260916,
+      "strategy": "guided",
+      "trial": 2
+    },
+    {
+      "candidate_events": 71,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 71,
+      "found": true,
+      "seed": 22261013,
+      "strategy": "deterministic",
+      "trial": 3
+    },
+    {
+      "candidate_events": 212,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 92,
+      "found": true,
+      "seed": 22261013,
+      "strategy": "guided",
+      "trial": 3
+    },
+    {
+      "candidate_events": 13,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 13,
+      "found": true,
+      "seed": 22261110,
+      "strategy": "deterministic",
+      "trial": 4
+    },
+    {
+      "candidate_events": 13,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 13,
+      "found": true,
+      "seed": 22261110,
+      "strategy": "guided",
+      "trial": 4
+    },
+    {
+      "candidate_events": 171,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 51,
+      "found": true,
+      "seed": 22261207,
+      "strategy": "deterministic",
+      "trial": 5
+    },
+    {
+      "candidate_events": 253,
+      "candidate_runs": 3,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 13,
+      "found": true,
+      "seed": 22261207,
+      "strategy": "guided",
+      "trial": 5
+    },
+    {
+      "candidate_events": 19,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 19,
+      "found": true,
+      "seed": 22261304,
+      "strategy": "deterministic",
+      "trial": 6
+    },
+    {
+      "candidate_events": 80,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 80,
+      "found": true,
+      "seed": 22261304,
+      "strategy": "guided",
+      "trial": 6
+    },
+    {
+      "candidate_events": 208,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 88,
+      "found": true,
+      "seed": 22261401,
+      "strategy": "deterministic",
+      "trial": 7
+    },
+    {
+      "candidate_events": 187,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 67,
+      "found": true,
+      "seed": 22261401,
+      "strategy": "guided",
+      "trial": 7
+    },
+    {
+      "candidate_events": 228,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 108,
+      "found": true,
+      "seed": 22261498,
+      "strategy": "deterministic",
+      "trial": 8
+    },
+    {
+      "candidate_events": 66,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 66,
+      "found": true,
+      "seed": 22261498,
+      "strategy": "guided",
+      "trial": 8
+    },
+    {
+      "candidate_events": 463,
+      "candidate_runs": 4,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 103,
+      "found": true,
+      "seed": 22261595,
+      "strategy": "deterministic",
+      "trial": 9
+    },
+    {
+      "candidate_events": 103,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 103,
+      "found": true,
+      "seed": 22261595,
+      "strategy": "guided",
+      "trial": 9
+    },
+    {
+      "candidate_events": 194,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 74,
+      "found": true,
+      "seed": 22261692,
+      "strategy": "deterministic",
+      "trial": 10
+    },
+    {
+      "candidate_events": 38,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 38,
+      "found": true,
+      "seed": 22261692,
+      "strategy": "guided",
+      "trial": 10
+    },
+    {
+      "candidate_events": 232,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 112,
+      "found": true,
+      "seed": 22261789,
+      "strategy": "deterministic",
+      "trial": 11
+    },
+    {
+      "candidate_events": 96,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 96,
+      "found": true,
+      "seed": 22261789,
+      "strategy": "guided",
+      "trial": 11
+    },
+    {
+      "candidate_events": 156,
+      "candidate_runs": 2,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 36,
+      "found": true,
+      "seed": 22261886,
+      "strategy": "deterministic",
+      "trial": 12
+    },
+    {
+      "candidate_events": 13,
+      "candidate_runs": 1,
+      "defect": "injected-reduce-requeues",
+      "divergence_category": "book_state",
+      "divergence_event": 13,
+      "found": true,
+      "seed": 22261886,
+      "strategy": "guided",
+      "trial": 12
+    },
+    {
+      "candidate_events": 144,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 24,
+      "found": true,
+      "seed": 23260822,
+      "strategy": "deterministic",
+      "trial": 1
+    },
+    {
+      "candidate_events": 76,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 76,
+      "found": true,
+      "seed": 23260822,
+      "strategy": "guided",
+      "trial": 1
+    },
+    {
+      "candidate_events": 65,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 65,
+      "found": true,
+      "seed": 23260919,
+      "strategy": "deterministic",
+      "trial": 2
+    },
+    {
+      "candidate_events": 65,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 65,
+      "found": true,
+      "seed": 23260919,
+      "strategy": "guided",
+      "trial": 2
+    },
+    {
+      "candidate_events": 266,
+      "candidate_runs": 3,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 26,
+      "found": true,
+      "seed": 23261016,
+      "strategy": "deterministic",
+      "trial": 3
+    },
+    {
+      "candidate_events": 214,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 94,
+      "found": true,
+      "seed": 23261016,
+      "strategy": "guided",
+      "trial": 3
+    },
+    {
+      "candidate_events": 54,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 54,
+      "found": true,
+      "seed": 23261113,
+      "strategy": "deterministic",
+      "trial": 4
+    },
+    {
+      "candidate_events": 195,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 75,
+      "found": true,
+      "seed": 23261113,
+      "strategy": "guided",
+      "trial": 4
+    },
+    {
+      "candidate_events": 34,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 34,
+      "found": true,
+      "seed": 23261210,
+      "strategy": "deterministic",
+      "trial": 5
+    },
+    {
+      "candidate_events": 203,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 83,
+      "found": true,
+      "seed": 23261210,
+      "strategy": "guided",
+      "trial": 5
+    },
+    {
+      "candidate_events": 132,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 12,
+      "found": true,
+      "seed": 23261307,
+      "strategy": "deterministic",
+      "trial": 6
+    },
+    {
+      "candidate_events": 236,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 116,
+      "found": true,
+      "seed": 23261307,
+      "strategy": "guided",
+      "trial": 6
+    },
+    {
+      "candidate_events": 31,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 31,
+      "found": true,
+      "seed": 23261404,
+      "strategy": "deterministic",
+      "trial": 7
+    },
+    {
+      "candidate_events": 108,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 108,
+      "found": true,
+      "seed": 23261404,
+      "strategy": "guided",
+      "trial": 7
+    },
+    {
+      "candidate_events": 233,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 113,
+      "found": true,
+      "seed": 23261501,
+      "strategy": "deterministic",
+      "trial": 8
+    },
+    {
+      "candidate_events": 319,
+      "candidate_runs": 3,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 79,
+      "found": true,
+      "seed": 23261501,
+      "strategy": "guided",
+      "trial": 8
+    },
+    {
+      "candidate_events": 58,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 58,
+      "found": true,
+      "seed": 23261598,
+      "strategy": "deterministic",
+      "trial": 9
+    },
+    {
+      "candidate_events": 205,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 85,
+      "found": true,
+      "seed": 23261598,
+      "strategy": "guided",
+      "trial": 9
+    },
+    {
+      "candidate_events": 67,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 67,
+      "found": true,
+      "seed": 23261695,
+      "strategy": "deterministic",
+      "trial": 10
+    },
+    {
+      "candidate_events": 1605,
+      "candidate_runs": 14,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 45,
+      "found": true,
+      "seed": 23261695,
+      "strategy": "guided",
+      "trial": 10
+    },
+    {
+      "candidate_events": 72,
+      "candidate_runs": 1,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 72,
+      "found": true,
+      "seed": 23261792,
+      "strategy": "deterministic",
+      "trial": 11
+    },
+    {
+      "candidate_events": 476,
+      "candidate_runs": 4,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 116,
+      "found": true,
+      "seed": 23261792,
+      "strategy": "guided",
+      "trial": 11
+    },
+    {
+      "candidate_events": 176,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 56,
+      "found": true,
+      "seed": 23261889,
+      "strategy": "deterministic",
+      "trial": 12
+    },
+    {
+      "candidate_events": 165,
+      "candidate_runs": 2,
+      "defect": "injected-replace-keeps-priority",
+      "divergence_category": "book_state",
+      "divergence_event": 45,
+      "found": true,
+      "seed": 23261889,
+      "strategy": "guided",
+      "trial": 12
+    }
+  ]
+}

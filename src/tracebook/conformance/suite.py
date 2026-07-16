@@ -15,6 +15,9 @@ from .compare import run_conformance
 from .model import ARTIFACT_SCHEMA_VERSION, ConformanceConfig, ConformanceError
 from .protocol import AdapterFactory
 
+BUNDLED_SUITE_VERSIONS = ("v1", "v2")
+LATEST_BUNDLED_SUITE_VERSION = BUNDLED_SUITE_VERSIONS[-1]
+
 
 @dataclass(frozen=True)
 class SuiteCase:
@@ -157,13 +160,22 @@ def load_conformance_suite(path: str | Path) -> ConformanceSuite:
     )
 
 
-def copy_bundled_conformance_suite(destination: str | Path) -> ConformanceSuite:
-    """Copy the bundled v1 suite to a new user-owned directory."""
+def copy_bundled_conformance_suite(
+    destination: str | Path,
+    *,
+    suite_version: str = LATEST_BUNDLED_SUITE_VERSION,
+) -> ConformanceSuite:
+    """Copy one bundled suite version to a new user-owned directory."""
+    if suite_version not in BUNDLED_SUITE_VERSIONS:
+        versions = ", ".join(BUNDLED_SUITE_VERSIONS)
+        raise ConformanceError(
+            f"unknown bundled suite version {suite_version!r}; expected one of: {versions}"
+        )
     target = Path(destination)
     if target.exists():
         raise ConformanceError(f"destination already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    fixture_root = resources.files("tracebook.conformance.fixtures").joinpath("v1")
+    fixture_root = resources.files("tracebook.conformance.fixtures").joinpath(suite_version)
     created = False
     try:
         target.mkdir()

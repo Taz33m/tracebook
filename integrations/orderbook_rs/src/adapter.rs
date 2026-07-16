@@ -103,7 +103,7 @@ impl AdapterConfig {
             return Err("price must be finite".to_string());
         }
         let ticks = (price / self.tick_size_f64).round_ties_even();
-        if !ticks.is_finite() || ticks <= 0.0 || ticks > u128::MAX as f64 {
+        if !ticks.is_finite() || ticks <= 0.0 || ticks >= u128::MAX as f64 {
             return Err("price snaps to a non-positive or unsupported tick".to_string());
         }
         Ok(ticks as u128)
@@ -597,6 +597,9 @@ impl Adapter {
         let owner = book.owners.get(&order_id).copied().unwrap_or(NO_OWNER);
         let user_id = owner_hash(owner, order_id);
 
+        // This explicit sequence is part of the adapter contract. Native Replace
+        // validates first and may retain the original order on rejection, while
+        // Tracebook replacement is cancel-and-new and always forfeits priority.
         match book.book.cancel_order(id) {
             Ok(Some(_)) => {}
             Ok(None) => return Outcome::rejected("ORDER_NOT_ACTIVE", "order is not active"),
@@ -816,6 +819,29 @@ mod tests {
         let config = config();
         let number = serde_json::Number::from_str("100.005").unwrap();
         assert_eq!(config.price_ticks(&number).unwrap(), 10_000);
+
+        // The protocol follows the reference engine's binary64 division before
+        // ties-to-even rounding, rather than exact decimal division.
+        let binary_boundary = serde_json::Number::from_str("1.015").unwrap();
+        assert_eq!(config.price_ticks(&binary_boundary).unwrap(), 101);
+    }
+
+    #[test]
+    fn price_conversion_rejects_the_exclusive_u128_boundary() {
+        let config = AdapterConfig::from_wire(ConfigWire {
+            matching_algorithm: "fifo".to_string(),
+            tick_size: "1".to_string(),
+            self_trade_policy: "NONE".to_string(),
+            quantity_decimal_places: 3,
+        })
+        .unwrap();
+        let boundary =
+            serde_json::Number::from_str("340282366920938463463374607431768211456").unwrap();
+
+        assert_eq!(
+            config.price_ticks(&boundary).unwrap_err(),
+            "price snaps to a non-positive or unsupported tick"
+        );
     }
 
     #[cfg(feature = "current")]
@@ -849,6 +875,49 @@ mod tests {
         assert_ne!(
             first_native_trade_id("ALPHA"),
             first_native_trade_id("BETA")
+        );
+    }
+
+    #[cfg(feature = "current")]
+    #[test]
+    fn native_snapshot_matches_consumption_order_after_quantity_upsize() {
+        let harness = BookHarness::new("ALPHA", STPMode::None);
+        for order_id in [1, 2] {
+            harness
+                .book
+                .add_limit_order(
+                    sequential_id(order_id),
+                    10_000,
+                    5,
+                    Side::Sell,
+                    TimeInForce::Gtc,
+                    None,
+                )
+                .unwrap();
+        }
+        harness
+            .book
+            .update_order(OrderUpdate::UpdateQuantity {
+                order_id: sequential_id(1),
+                new_quantity: Quantity::new(6),
+            })
+            .unwrap();
+
+        let snapshot = harness.book.create_snapshot(usize::MAX);
+        let snapshot_ids = snapshot.asks[0]
+            .orders()
+            .iter()
+            .map(|order| order.id().as_u64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(snapshot_ids, vec![2, 1]);
+
+        let result = harness
+            .book
+            .match_market_order(sequential_id(3), 1, Side::Buy)
+            .unwrap();
+        assert_eq!(
+            result.trades().as_vec()[0].maker_order_id(),
+            sequential_id(2)
         );
     }
 
@@ -902,6 +971,50 @@ mod tests {
             .map(|order| order.order_id)
             .collect::<Vec<_>>();
         assert_eq!(replaced_ids, vec![2, 1]);
+    }
+
+    #[cfg(feature = "current")]
+    #[test]
+    fn cancel_maker_removes_deeper_same_owner_orders_at_a_touched_level() {
+        let mut adapter = Adapter::new(ConfigWire {
+            matching_algorithm: "fifo".to_string(),
+            tick_size: "0.01".to_string(),
+            self_trade_policy: "CANCEL_RESTING".to_string(),
+            quantity_decimal_places: 12,
+        })
+        .unwrap();
+        let events = [
+            serde_json::json!({
+                "op": "new", "symbol": "TEST", "order_id": 1,
+                "side": "SELL", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 7
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": "TEST", "order_id": 2,
+                "side": "SELL", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 8
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": "TEST", "order_id": 3,
+                "side": "SELL", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 7
+            }),
+            serde_json::json!({
+                "op": "new", "symbol": "TEST", "order_id": 4,
+                "side": "BUY", "order_type": "LIMIT", "price": 100.0,
+                "quantity": 5.0, "owner": 7
+            }),
+        ]
+        .map(|value| serde_json::from_value::<MarketEvent>(value).unwrap());
+
+        let mut final_observation = None;
+        for (position, event) in events.iter().enumerate() {
+            final_observation = Some(adapter.apply(event, (position + 1) as u64).unwrap());
+        }
+
+        let observation = final_observation.unwrap();
+        assert_eq!(observation.trades[0].sell_order_id, 2);
+        assert!(adapter.snapshot().unwrap().books[0].asks.is_empty());
     }
 
     #[cfg(feature = "current")]
