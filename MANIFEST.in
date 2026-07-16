@@ -23,6 +23,12 @@ include integrations/gocronx_matcher/Cargo.toml
 include integrations/gocronx_matcher/Cargo.lock
 include integrations/gocronx_matcher/rust-toolchain.toml
 prune integrations/gocronx_matcher/target
+recursive-include integrations/rust_protocol/src *.rs
+include integrations/rust_protocol/Cargo.toml
+include integrations/rust_protocol/Cargo.lock
+include integrations/rust_protocol/rust-toolchain.toml
+include integrations/rust_protocol/README.md
+prune integrations/rust_protocol/target
 recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl

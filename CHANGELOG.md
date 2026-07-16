@@ -6,6 +6,11 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Consolidated native Rust adapter framing, validation, canonical state hashing,
+  and process serving into one shared crate. Migrated package metadata,
+  dependencies, scripts, and package-data declarations to `pyproject.toml`,
+  removing duplicate Rust protocol copies and the legacy `setup.py` metadata
+  source.
 - Added qualification contract version 1 and `tracebook-conformance qualify`.
   One atomic evidence bundle now combines only the immutable fixed cases inside
   a declared profile, a deterministic generated campaign, complete semantic

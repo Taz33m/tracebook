@@ -3,6 +3,10 @@ use serde_json::{Number, Value};
 use sha2::{Digest, Sha256};
 use std::io::{self, Write};
 
+mod server;
+
+pub use server::{EngineAdapter, EngineIdentity, run};
+
 pub const PROTOCOL_NAME: &str = "tracebook.conformance";
 pub const PROTOCOL_VERSION: u64 = 1;
 
@@ -237,6 +241,15 @@ pub fn write_frame(output: &mut impl Write, value: &impl Serialize) -> io::Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonical_json_sorts_every_object_level() {
+        let value = serde_json::json!({"z": [{"b": 2, "a": 1}], "a": "BTC-USD"});
+        assert_eq!(
+            canonical_json(&value).unwrap(),
+            r#"{"a":"BTC-USD","z":[{"a":1,"b":2}]}"#
+        );
+    }
 
     #[test]
     fn empty_state_hash_matches_tracebook() {

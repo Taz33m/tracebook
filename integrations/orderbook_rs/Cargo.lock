@@ -997,6 +997,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracebook-conformance-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+]
+
+[[package]]
 name = "tracebook-orderbook-rs-adapter"
 version = "0.1.0"
 dependencies = [
@@ -1005,9 +1014,8 @@ dependencies = [
  "pricelevel 0.7.0",
  "pricelevel 0.9.1",
  "rust_decimal",
- "serde",
  "serde_json",
- "sha2 0.11.0",
+ "tracebook-conformance-protocol",
  "uuid",
 ]
 

@@ -10,7 +10,7 @@ PYTHON_VENV := $(VENV)/bin/python
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[all]"
+	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
 	@echo "Setup complete! Activate with: source $(VENV)/bin/activate"
 
 # Install the package for local use
@@ -19,7 +19,7 @@ install:
 
 # Install development dependencies
 install-dev:
-	$(PIP) install -e ".[all]"
+	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
 
 # Run all tests
 test:

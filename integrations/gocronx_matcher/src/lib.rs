@@ -1,3 +1,3 @@
 pub mod adapter;
 pub mod server;
-pub mod wire;
+pub use tracebook_conformance_protocol as wire;

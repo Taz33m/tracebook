@@ -686,14 +686,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracebook-conformance-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "tracebook-gocronx-matcher-adapter"
 version = "0.1.0"
 dependencies = [
  "matcher",
  "rust_decimal",
- "serde",
  "serde_json",
- "sha2",
+ "tracebook-conformance-protocol",
 ]
 
 [[package]]

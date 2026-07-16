@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/gocronx-matcher.yml"
       - "integrations/gocronx_matcher/**"
+      - "integrations/rust_protocol/**"
       - "src/tracebook/conformance/**"
       - "src/tracebook/events/market_replay.py"
       - "tests/test_external_integrations.py"
@@ -43,6 +44,9 @@ jobs:
       - name: Build and lint the pinned adapter
         working-directory: integrations/gocronx_matcher
         run: |
+          cargo fmt --manifest-path ../rust_protocol/Cargo.toml --check
+          cargo clippy --manifest-path ../rust_protocol/Cargo.toml --locked --all-targets -- -D warnings
+          cargo test --manifest-path ../rust_protocol/Cargo.toml --locked
           cargo fmt --check
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked

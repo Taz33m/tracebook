@@ -5,6 +5,10 @@ through Tracebook's version 1 NDJSON process protocol. The dependency is pinned
 to commit `b8d48356c8a2677e0d8a1965d754e3c4884bb947` (`matcher 0.2.0`) and the
 toolchain is pinned to Rust 1.88.0.
 
+Framing, protocol validation, and canonical state hashing come from the shared
+[`rust_protocol`](../rust_protocol) crate. This crate contains only the matcher
+translation boundary and engine-specific state reconstruction.
+
 The adapter qualifies for `fifo-limit-v1`: FIFO limit orders, partial fills,
 cancellation, quantity reduction, priority-losing replacement, clear, duplicate
 active IDs, inactive lifecycle requests, and independent symbol books.
