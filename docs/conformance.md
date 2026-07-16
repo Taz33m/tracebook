@@ -1,8 +1,9 @@
 # Matching-Engine Conformance
 
 For complete maintained adapters, start with the native Rust
-[`orderbook-rs` integration](../integrations/orderbook_rs/README.md), then see
-the narrower
+[`orderbook-rs` integration](../integrations/orderbook_rs/README.md) and the
+profile-scoped [`gocronx/matcher` integration](../integrations/gocronx_matcher/README.md),
+then see the narrower
 [PythonMatchingEngine integration](../integrations/python_matching_engine/README.md).
 To make conformance a pull-request gate, use the
 [copy-paste GitHub Actions workflow](ci.md).

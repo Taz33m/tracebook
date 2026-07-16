@@ -73,3 +73,16 @@ Use held-out defects, publish seeds and artifacts, and compare time to first
 divergence plus reduced trace size. Do not mutate existing profile versions or
 campaign hashes. A successful guided mode receives a new generator version and
 artifact contract; an inconclusive result remains research code.
+
+## 2026-07-16 Result
+
+The qualification and guidance experiments are recorded in the
+[design-partner study](qualification-design-partners.md). Both pinned Rust
+candidates passed the same 28-run `fifo-limit-v1` qualification. The
+`orderbook-rs` maintainer loop is complete; `gocronx/matcher` review and upstream
+CI adoption remain pending.
+
+Guided suffix regeneration improved time-to-divergence for one injected defect
+but regressed on the historical defect and a second injected defect. It therefore
+remains research-only. No generator version, profile, CLI, or artifact contract
+changed.

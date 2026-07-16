@@ -27,6 +27,7 @@ src/tracebook/
 integrations/
   python_matching_engine/  pinned external adapter and compatibility trace
   orderbook_rs/             native Rust adapter, faulty example, regression proof
+  gocronx_matcher/          pinned Rust adapter and profile qualification
 ```
 
 ## External Validation
@@ -48,6 +49,12 @@ divergence export let Tracebook reduce a real historical `orderbook-rs`
 priority defect from 15,739 workload messages to a four-event regression. Flash
 is the discovery source; Tracebook provides localization, reduction, replay,
 and CI evidence.
+
+A second profile qualification now passes against pinned `gocronx/matcher`
+source. Tracebook CI preserves the JSON and JUnit bundle, while maintainer review
+of the snapshot observation surface, replacement representation, and possible
+upstream CI adoption remains pending. That distinction is part of the evidence,
+not a reason to label the upstream contract settled.
 
 ## Current Product Hypothesis
 
@@ -78,13 +85,12 @@ experiments rather than presumed roadmap wins.
 
 ## Next Milestones
 
-1. Have two external engine authors run `tracebook-conformance qualify`; record
-   time to first result and every adapter/protocol obstacle. At least one should
-   adopt the resulting qualification or reduced trace in CI.
-2. Build a held-out discovery benchmark from the real Flash/orderbook-rs defect
-   plus independently implemented faults. Compare the current deterministic
-   generator with transition- or differential-diversity guidance under the same
-   candidate-run budget. Ship guidance only if it improves discovery yield.
+1. Complete the `gocronx/matcher` maintainer review and ask whether the
+   qualification artifact or a future reduced trace belongs in upstream CI.
+   Tracebook-side qualification is green, but author adoption is still pending.
+2. Keep guided exploration research-only. The first frozen held-out comparison
+   improved one injected defect and regressed on the historical defect plus a
+   second injected defect, so it failed the product gate.
 3. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
    only after qualification evidence identifies a repeated external need.
 

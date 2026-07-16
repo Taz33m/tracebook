@@ -15,6 +15,14 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   Flash, RESTler, TCP-Fuzz, NEZHA, AFLNet, FEST, PMA, and modern LOB simulators,
   while explicitly deferring feedback-guided generation until it beats the
   current generator on held-out defects.
+- Added a commit-pinned `gocronx/matcher` Rust adapter. Its `fifo-limit-v1`
+  qualification passes 3/3 fixed cases, 25/25 generated traces, and 10/10
+  semantic capabilities; JSON/JUnit evidence is retained in scheduled CI while
+  two upstream contract questions remain explicitly pending.
+- Published the frozen qualification-friction and held-out discovery study.
+  Semantic-transition-guided suffix mutation improved one injected defect but
+  regressed on the historical defect and a second injected defect, so no guided
+  generator mode, profile, CLI, or artifact-contract change was shipped.
 
 - Added immutable `tracebook-conformance-v2` as the default bundled suite while
   retaining v1 behind `sample --suite-version v1`. The new four-event case

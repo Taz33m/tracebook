@@ -21,6 +21,7 @@ from tracebook.events import load_market_events
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "integrations" / "python_matching_engine"
 RUST_INTEGRATION = ROOT / "integrations" / "orderbook_rs"
+GOCRONX_INTEGRATION = ROOT / "integrations" / "gocronx_matcher"
 
 
 def test_python_matching_engine_integration_is_commit_pinned():
@@ -113,6 +114,23 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "7/9" in root_readme
 
 
+def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assumptions():
+    cargo = (GOCRONX_INTEGRATION / "Cargo.toml").read_text(encoding="utf-8")
+    lock = (GOCRONX_INTEGRATION / "Cargo.lock").read_text(encoding="utf-8")
+    readme = (GOCRONX_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "gocronx-matcher.yml").read_text(encoding="utf-8")
+
+    assert 'rev = "b8d48356c8a2677e0d8a1965d754e3c4884bb947"' in cargo
+    assert "b8d48356c8a2677e0d8a1965d754e3c4884bb947" in lock
+    assert "snapshot format version 1" in readme
+    assert "issue #7" in readme
+    assert "awaiting an upstream" in readme
+    assert "stable public inspection contract" in readme
+    assert "tracebook-conformance qualify" in workflow
+    assert "sha256:f702a24e4e0113b3591107aab40f2aec189daee4f87486273c791481db622591" in workflow
+    assert "actions/upload-artifact@v7" in workflow
+
+
 def test_source_manifest_includes_native_integration_files():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
     setup = (ROOT / "setup.py").read_text(encoding="utf-8")
@@ -122,6 +140,10 @@ def test_source_manifest_includes_native_integration_files():
     assert "recursive-include integrations/flash_benchmark *.json" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
+    assert "recursive-include integrations/gocronx_matcher/src *.rs" in manifest
+    assert "include integrations/gocronx_matcher/Cargo.lock" in manifest
+    assert "prune integrations/gocronx_matcher/target" in manifest
+    assert "recursive-include experiments *.py *.json" in manifest
     assert (RUST_INTEGRATION / "src" / "bin" / "faulty_orderbook_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "src" / "bin" / "orderbook_rs_issue_88_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "regressions" / "issue-88-reduced.jsonl").is_file()

@@ -1,0 +1,24 @@
+[package]
+name = "tracebook-gocronx-matcher-adapter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+license = "MIT"
+description = "Pinned gocronx/matcher adapter for Tracebook conformance testing"
+repository = "https://github.com/Taz33m/tracebook"
+
+[[bin]]
+name = "tracebook-gocronx-matcher"
+path = "src/main.rs"
+
+[dependencies]
+matcher = { git = "https://github.com/gocronx/matcher.git", rev = "b8d48356c8a2677e0d8a1965d754e3c4884bb947" }
+rust_decimal = "1.39"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+sha2 = "0.11"
+
+[profile.release]
+lto = "thin"
+strip = true
