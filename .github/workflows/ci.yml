@@ -33,19 +33,19 @@ jobs:
           python -m pip install -e ".[dev,dashboard]"
 
       - name: Run format check
-        run: python -m black --check src tests examples integrations install_deps.py test_system.py
+        run: python -m black --check src tests examples integrations experiments install_deps.py test_system.py
 
       - name: Run lint
-        run: python -m flake8 src tests examples integrations install_deps.py test_system.py
+        run: python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
 
       - name: Run type check
-        run: python -m mypy --python-version "${{ matrix.python-version }}" src/tracebook
+        run: python -m mypy --python-version "${{ matrix.python-version }}" src/tracebook experiments
 
       - name: Run security static analysis
         run: python -m bandit -q -r src integrations
 
       - name: Run compile check
-        run: python -m compileall -q src tests examples integrations install_deps.py test_system.py
+        run: python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
 
       - name: Run pytest with coverage gate
         run: python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75

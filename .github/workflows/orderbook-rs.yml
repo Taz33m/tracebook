@@ -9,6 +9,7 @@ on:
       - ".github/workflows/orderbook-rs.yml"
       - "integrations/flash_benchmark/**"
       - "integrations/orderbook_rs/**"
+      - "integrations/rust_protocol/**"
       - "src/tracebook/conformance/**"
       - "src/tracebook/events/market_replay.py"
       - "tests/test_external_integrations.py"
@@ -52,6 +53,9 @@ jobs:
       - name: Build and lint the pinned native adapter
         working-directory: integrations/orderbook_rs
         run: |
+          cargo fmt --manifest-path ../rust_protocol/Cargo.toml --check
+          cargo clippy --manifest-path ../rust_protocol/Cargo.toml --locked --all-targets -- -D warnings
+          cargo test --manifest-path ../rust_protocol/Cargo.toml --locked
           cargo fmt --check
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
@@ -80,6 +84,31 @@ jobs:
               "version": "0.12.0",
           }
           assert report["final_state_hash"] == "21a9606e7c77c3b239259f5032245c6330ddcd1d3f7fa25394612d9818becee3"
+          PY
+
+      - name: Qualify fifo-limit-v1
+        run: |
+          tracebook-conformance qualify \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --max-minimize-runs 100 \
+            --candidate-cmd "$ADAPTER" \
+            --output-dir "$REPORT_ROOT/qualification"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "qualification" / "qualification.json").read_text()
+          )
+          assert report["qualified"] is True
+          assert report["qualification_id"] == "sha256:5597e97cf8dbf42d25dedb035bb6e1fd05dbdb2ea31d2576a802fd9b3d0efee4"
+          assert report["candidate_runs"] == 28
+          assert report["campaign"]["generated_events"] == 5000
+          assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
           PY
 
       - name: Verify the honest standard-suite profile

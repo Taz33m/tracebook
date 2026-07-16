@@ -1,0 +1,90 @@
+name: gocronx matcher integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 2"
+  pull_request:
+    paths:
+      - ".github/workflows/gocronx-matcher.yml"
+      - "integrations/gocronx_matcher/**"
+      - "integrations/rust_protocol/**"
+      - "src/tracebook/conformance/**"
+      - "src/tracebook/events/market_replay.py"
+      - "tests/test_external_integrations.py"
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-rust-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Configure integration paths
+        run: |
+          echo "ADAPTER=$GITHUB_WORKSPACE/integrations/gocronx_matcher/target/release/tracebook-gocronx-matcher" >> "$GITHUB_ENV"
+          echo "REPORT_ROOT=$RUNNER_TEMP/gocronx-matcher" >> "$GITHUB_ENV"
+
+      - name: Install Tracebook
+        run: python -m pip install -e .
+
+      - name: Build and lint the pinned adapter
+        working-directory: integrations/gocronx_matcher
+        run: |
+          cargo fmt --manifest-path ../rust_protocol/Cargo.toml --check
+          cargo clippy --manifest-path ../rust_protocol/Cargo.toml --locked --all-targets -- -D warnings
+          cargo test --manifest-path ../rust_protocol/Cargo.toml --locked
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --release --locked
+
+      - name: Qualify fifo-limit-v1
+        run: |
+          tracebook-conformance qualify \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --max-minimize-runs 100 \
+            --candidate-cmd "$ADAPTER" \
+            --output-dir "$REPORT_ROOT/qualification"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "qualification" / "qualification.json").read_text()
+          )
+          assert report["qualified"] is True
+          assert report["qualification_id"] == "sha256:f702a24e4e0113b3591107aab40f2aec189daee4f87486273c791481db622591"
+          assert report["candidate_runs"] == 28
+          assert report["campaign"]["generated_events"] == 5000
+          assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
+          assert report["candidate_engine"] == {
+              "language": "Rust",
+              "name": "gocronx/matcher FIFO adapter",
+              "version": "0.2.0@b8d48356c8a2",
+          }
+          PY
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gocronx-matcher-qualification
+          path: ${{ runner.temp }}/gocronx-matcher
+          if-no-files-found: error

@@ -29,9 +29,10 @@ flowchart LR
     D --> R["report or minimized trace"]
 ```
 
-`wire.rs` owns framing and canonical SHA-256 state serialization. `adapter.rs`
-owns numeric conversion, source IDs, owners, lifecycle operations, trade
-translation, and complete queue snapshots. `orderbook-rs` performs all matching.
+The shared [`rust_protocol`](../rust_protocol) crate owns framing, protocol
+validation, and canonical SHA-256 state serialization. `adapter.rs` owns numeric
+conversion, source IDs, owners, lifecycle operations, trade translation, and
+complete queue snapshots. `orderbook-rs` performs all matching.
 
 ## Run The Proof
 

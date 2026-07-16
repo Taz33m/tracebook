@@ -1,4 +1,4 @@
-use crate::adapter::{Adapter, FaultMode};
+use crate::adapter::Adapter;
 use tracebook_conformance_protocol::{
     BookState, ConfigWire, EngineAdapter, MarketEvent, ObservationFrame,
 };
@@ -15,8 +15,6 @@ impl EngineAdapter for Adapter {
     }
 }
 
-pub fn run(fault_mode: FaultMode, identity: EngineIdentity) -> i32 {
-    tracebook_conformance_protocol::run(identity, |config: ConfigWire| {
-        Adapter::new_with_fault(config, fault_mode)
-    })
+pub fn run(identity: EngineIdentity) -> i32 {
+    tracebook_conformance_protocol::run(identity, |config: ConfigWire| Adapter::new(config))
 }

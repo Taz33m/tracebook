@@ -3,6 +3,11 @@ from pathlib import Path
 
 import pytest
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
+
 from integrations.python_matching_engine.adapter import (
     UPSTREAM_PATH_ENV,
     UPSTREAM_COMMIT,
@@ -21,6 +26,8 @@ from tracebook.events import load_market_events
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "integrations" / "python_matching_engine"
 RUST_INTEGRATION = ROOT / "integrations" / "orderbook_rs"
+GOCRONX_INTEGRATION = ROOT / "integrations" / "gocronx_matcher"
+RUST_PROTOCOL = ROOT / "integrations" / "rust_protocol"
 
 
 def test_python_matching_engine_integration_is_commit_pinned():
@@ -113,15 +120,56 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "7/9" in root_readme
 
 
+def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assumptions():
+    cargo = (GOCRONX_INTEGRATION / "Cargo.toml").read_text(encoding="utf-8")
+    lock = (GOCRONX_INTEGRATION / "Cargo.lock").read_text(encoding="utf-8")
+    readme = (GOCRONX_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "gocronx-matcher.yml").read_text(encoding="utf-8")
+
+    assert 'rev = "b8d48356c8a2677e0d8a1965d754e3c4884bb947"' in cargo
+    assert "b8d48356c8a2677e0d8a1965d754e3c4884bb947" in lock
+    assert "snapshot format version 1" in readme
+    assert "issue #7" in readme
+    assert "awaiting an upstream" in readme
+    assert "stable public inspection contract" in readme
+    assert "tracebook-conformance qualify" in workflow
+    assert "sha256:f702a24e4e0113b3591107aab40f2aec189daee4f87486273c791481db622591" in workflow
+    assert "actions/upload-artifact@v7" in workflow
+
+
+def test_native_adapters_share_one_rust_protocol_contract():
+    shared_source = (RUST_PROTOCOL / "src" / "lib.rs").read_text(encoding="utf-8")
+    shared_server = (RUST_PROTOCOL / "src" / "server.rs").read_text(encoding="utf-8")
+
+    for integration in (RUST_INTEGRATION, GOCRONX_INTEGRATION):
+        cargo = (integration / "Cargo.toml").read_text(encoding="utf-8")
+        assert 'tracebook-conformance-protocol = { path = "../rust_protocol" }' in cargo
+        assert not (integration / "src" / "wire.rs").exists()
+        assert len((integration / "src" / "server.rs").read_text().splitlines()) < 40
+
+    assert "pub trait EngineAdapter" in shared_server
+    assert "event indexes must be contiguous and start at 1" in shared_server
+    assert "pub fn canonical_json" in shared_source
+    assert "pub fn write_frame" in shared_source
+
+
 def test_source_manifest_includes_native_integration_files():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
-    setup = (ROOT / "setup.py").read_text(encoding="utf-8")
+    with (ROOT / "pyproject.toml").open("rb") as stream:
+        package_data = tomllib.load(stream)["tool"]["setuptools"]["package-data"]
 
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
-    assert '"tracebook.conformance.fixtures.v2": ["*.json", "*.jsonl"]' in setup
+    assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
     assert "recursive-include integrations/flash_benchmark *.json" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
+    assert "recursive-include integrations/gocronx_matcher/src *.rs" in manifest
+    assert "include integrations/gocronx_matcher/Cargo.lock" in manifest
+    assert "prune integrations/gocronx_matcher/target" in manifest
+    assert "recursive-include integrations/rust_protocol/src *.rs" in manifest
+    assert "include integrations/rust_protocol/Cargo.lock" in manifest
+    assert "prune integrations/rust_protocol/target" in manifest
+    assert "recursive-include experiments *.py *.json" in manifest
     assert (RUST_INTEGRATION / "src" / "bin" / "faulty_orderbook_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "src" / "bin" / "orderbook_rs_issue_88_adapter.rs").is_file()
     assert (RUST_INTEGRATION / "regressions" / "issue-88-reduced.jsonl").is_file()

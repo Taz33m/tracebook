@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install tracebook from the local checkout using package extras.
 
-This helper intentionally delegates dependency selection to setup.py so it
+This helper intentionally delegates dependency selection to pyproject.toml so it
 cannot drift from the package metadata. Prefer the README commands for normal
 development; this script exists for contributors who want one small installer.
 """
@@ -11,7 +11,7 @@ import subprocess
 import sys
 from typing import List
 
-EXTRAS = ("dev", "dashboard", "analysis", "capture", "all")
+EXTRAS = ("dev", "dashboard", "analysis", "capture")
 
 
 def build_install_target(extras: List[str]) -> str:

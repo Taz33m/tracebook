@@ -103,7 +103,7 @@ impl AdapterConfig {
             return Err("price must be finite".to_string());
         }
         let ticks = (price / self.tick_size_f64).round_ties_even();
-        if !ticks.is_finite() || ticks <= 0.0 || ticks > u128::MAX as f64 {
+        if !ticks.is_finite() || ticks <= 0.0 || ticks >= u128::MAX as f64 {
             return Err("price snaps to a non-positive or unsupported tick".to_string());
         }
         Ok(ticks as u128)
@@ -824,6 +824,24 @@ mod tests {
         // ties-to-even rounding, rather than exact decimal division.
         let binary_boundary = serde_json::Number::from_str("1.015").unwrap();
         assert_eq!(config.price_ticks(&binary_boundary).unwrap(), 101);
+    }
+
+    #[test]
+    fn price_conversion_rejects_the_exclusive_u128_boundary() {
+        let config = AdapterConfig::from_wire(ConfigWire {
+            matching_algorithm: "fifo".to_string(),
+            tick_size: "1".to_string(),
+            self_trade_policy: "NONE".to_string(),
+            quantity_decimal_places: 3,
+        })
+        .unwrap();
+        let boundary =
+            serde_json::Number::from_str("340282366920938463463374607431768211456").unwrap();
+
+        assert_eq!(
+            config.price_ticks(&boundary).unwrap_err(),
+            "price snaps to a non-positive or unsupported tick"
+        );
     }
 
     #[cfg(feature = "current")]
