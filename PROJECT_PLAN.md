@@ -43,14 +43,50 @@ and repaired at the lower `PriceLevel` layer in
 not automatically generate that discrepancy; it surfaced through independent
 review of the profile boundary.
 
+The second external-validation milestone is also complete. Flash's canonical
+divergence export let Tracebook reduce a real historical `orderbook-rs`
+priority defect from 15,739 workload messages to a four-event regression. Flash
+is the discovery source; Tracebook provides localization, reduction, replay,
+and CI evidence.
+
+## Current Product Hypothesis
+
+The immediate bottleneck is adoption, not another matching algorithm. An engine
+author should be able to move from an adapter command to a trustworthy,
+profile-scoped compatibility artifact in one invocation. Qualification version
+1 combines relevant immutable suite cases, a deterministic generated campaign,
+semantic coverage, JSON, JUnit, and any minimized failure without testing
+features outside the profile the engine claims.
+
+## How The Roadmap Is Chosen
+
+Roadmap decisions use an evidence ladder:
+
+1. **Maintainer behavior:** Did an external author run the tool, understand the
+   result, accept the semantic boundary, and keep the regression in CI?
+2. **Workflow friction:** Measure time to first qualification, adapter size,
+   failed command attempts, protocol questions, and manual artifact edits.
+3. **Discovery yield:** Under an equal candidate-run budget, compare unique
+   semantic transitions, time to first divergence, and minimized reproducer
+   quality on held-out real and injected defects.
+4. **Repeatability:** Prefer results independently reproduced from the public
+   package over repository-local demos, stars, benchmark volume, or test count.
+
+A feature moves into the maintained product only when it improves one of those
+measures for an external engine. Paper-derived techniques begin as controlled
+experiments rather than presumed roadmap wins.
+
 ## Next Milestones
 
-1. Help one third-party engine author connect their own Rust, C++, Java, or
-   Python engine and adopt a saved regression trace in CI.
-2. Use those external adapters to find and publish one real semantic discrepancy
-   that is not intentionally injected.
-3. Revisit candidate benchmarking and additional profiles only after adapter
-   authors reveal where protocol v1 is awkward or underspecified.
+1. Have two external engine authors run `tracebook-conformance qualify`; record
+   time to first result and every adapter/protocol obstacle. At least one should
+   adopt the resulting qualification or reduced trace in CI.
+2. Build a held-out discovery benchmark from the real Flash/orderbook-rs defect
+   plus independently implemented faults. Compare the current deterministic
+   generator with transition- or differential-diversity guidance under the same
+   candidate-run budget. Ship guidance only if it improves discovery yield.
+3. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
+   only after qualification evidence identifies a repeated external need.
 
 ## Decision Rules
 

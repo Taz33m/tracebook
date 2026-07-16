@@ -976,10 +976,35 @@ class _CampaignOutputReservation:
             self._directory_fd = None
         self._active = False
 
-    def write(self, result: CampaignResult) -> Path:
+    def write(
+        self,
+        result: CampaignResult,
+        *,
+        extra_files: Optional[Mapping[str, bytes]] = None,
+    ) -> Path:
         """Commit a complete campaign bundle over this exact reservation."""
         if not isinstance(result, CampaignResult):
             raise ConformanceError("result must be a CampaignResult")
+        reserved_names = {
+            _RESERVATION_MARKER,
+            "campaign.json",
+            "failure",
+            "failure.json",
+            "original.jsonl",
+            "reduced.jsonl",
+        }
+        extras: Dict[str, bytes] = {}
+        for name, payload in (extra_files or {}).items():
+            if (
+                not isinstance(name, str)
+                or not name
+                or Path(name).name != name
+                or name in reserved_names
+            ):
+                raise ConformanceError(f"unsafe extra campaign artifact name: {name!r}")
+            if not isinstance(payload, bytes):
+                raise ConformanceError(f"extra campaign artifact {name!r} must be bytes")
+            extras[name] = payload
         directory_fd = self._directory_fd
         if directory_fd is None or not self._active or self._committed:
             raise ConformanceError("campaign output reservation is not active")
@@ -1015,7 +1040,7 @@ class _CampaignOutputReservation:
                 )
 
             try:
-                expected_top_level = {_RESERVATION_MARKER, "campaign.json"}
+                expected_top_level = {_RESERVATION_MARKER, "campaign.json", *extras}
                 expected_failure_files: Optional[set[str]] = None
                 if result.failure is not None:
                     expected_top_level.update({"failure.json", "original.jsonl", "reduced.jsonl"})
@@ -1046,6 +1071,8 @@ class _CampaignOutputReservation:
                     "campaign.json",
                     directory_fd,
                 )
+                for name, payload in sorted(extras.items()):
+                    _write_exclusive_bytes(name, payload, directory_fd)
                 reservation_unchanged = (
                     self._same_directory()
                     and _relative_names(directory_fd) == expected_top_level

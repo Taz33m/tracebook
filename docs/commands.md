@@ -87,6 +87,24 @@ Options:
 
 ## Matching-Engine Conformance
 
+Produce one profile-scoped qualification bundle:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './engine-adapter' \
+  --output-dir .tracebook/qualification
+```
+
+This runs profile-relevant immutable suite cases, a generated campaign, and a
+semantic coverage gate. The output contains canonical JSON, JUnit, and any
+automatically minimized failure. Use this command for a first integration or a
+profile-level CI claim; use `suite` when intentionally comparing every broader
+fixed semantic surface.
+
 Copy and run the standard suite:
 
 ```bash

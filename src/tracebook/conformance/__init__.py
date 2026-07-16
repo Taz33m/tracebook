@@ -41,6 +41,13 @@ from .model import (
     canonical_decimal,
 )
 from .protocol import AdapterFactory, EngineAdapter, serve_stdio
+from .qualification import (
+    QUALIFICATION_VERSION,
+    QualificationResult,
+    qualification_case_names,
+    run_qualification,
+    write_qualification_artifacts,
+)
 from .reference import ReferenceEngineAdapter, rejection_code
 from .reproduce import ReproductionResult, run_reproduction
 from .semantic_coverage import SemanticCoverage, measure_semantic_coverage
@@ -57,6 +64,7 @@ from .suite import (
 __all__ = [
     "PROTOCOL_NAME",
     "PROTOCOL_VERSION",
+    "QUALIFICATION_VERSION",
     "CAMPAIGN_GENERATOR_VERSION",
     "AdapterFactory",
     "AdapterProtocolError",
@@ -81,6 +89,7 @@ __all__ = [
     "Observation",
     "Outcome",
     "ReferenceEngineAdapter",
+    "QualificationResult",
     "ReproductionResult",
     "RestingOrder",
     "SuiteCase",
@@ -97,13 +106,16 @@ __all__ = [
     "load_conformance_suite",
     "minimize_failing_trace",
     "measure_semantic_coverage",
+    "qualification_case_names",
     "QUEUE_PRIORITY_DRIFT",
     "rejection_code",
     "run_campaign",
     "run_conformance",
     "run_conformance_suite",
+    "run_qualification",
     "run_reproduction",
     "serve_stdio",
     "write_campaign_artifacts",
     "write_campaign_corpus",
+    "write_qualification_artifacts",
 ]

@@ -6,6 +6,16 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added qualification contract version 1 and `tracebook-conformance qualify`.
+  One atomic evidence bundle now combines only the immutable fixed cases inside
+  a declared profile, a deterministic generated campaign, complete semantic
+  coverage, JSON, JUnit, and any minimized failure.
+- Reworked the project plan around external-adoption evidence and equal-budget
+  discovery experiments. Added a primary-source research roadmap covering
+  Flash, RESTler, TCP-Fuzz, NEZHA, AFLNet, FEST, PMA, and modern LOB simulators,
+  while explicitly deferring feedback-guided generation until it beats the
+  current generator on held-out defects.
+
 - Added immutable `tracebook-conformance-v2` as the default bundled suite while
   retaining v1 behind `sample --suite-version v1`. The new four-event case
   pins FIFO `CANCEL_RESTING` as cancel-on-encounter and exposes

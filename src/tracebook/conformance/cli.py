@@ -24,6 +24,7 @@ from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .junit import write_junit
 from .minimize import minimize_failing_trace
 from .model import ConformanceConfig, ConformanceError
+from .qualification import _QualificationOutputReservation, run_qualification
 from .reproduce import (
     discover_failure_metadata,
     load_failure_metadata,
@@ -128,6 +129,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     campaign.add_argument("--junit-output")
     _add_candidate_arguments(campaign)
+
+    qualify = commands.add_parser(
+        "qualify",
+        help="Produce one profile-scoped fixed-plus-generated evidence bundle.",
+    )
+    qualify.add_argument("--output-dir", required=True)
+    qualify.add_argument(
+        "--suite-version",
+        choices=BUNDLED_SUITE_VERSIONS,
+        default=LATEST_BUNDLED_SUITE_VERSION,
+    )
+    qualify.add_argument(
+        "--profile",
+        choices=campaign_profile_names(),
+        default="fifo-limit-v1",
+    )
+    qualify.add_argument("--seed", type=int, default=1337)
+    qualify.add_argument("--traces", type=int, default=25)
+    qualify.add_argument("--events-per-trace", type=int, default=200)
+    qualify.add_argument("--max-minimize-runs", type=int, default=100)
+    qualify.add_argument("--junit-output")
+    _add_candidate_arguments(qualify)
 
     reproduce = commands.add_parser(
         "reproduce",
@@ -305,6 +328,44 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"Failure id: {campaign_result.failure_id}")
                 print(f"Reduced trace: {reduced_path}")
             return 0 if campaign_result.conformant else 1
+        if args.command == "qualify":
+            _require_distinct_paths(args.output_dir, args.junit_output)
+            with _QualificationOutputReservation(args.output_dir) as qualification_reservation:
+                qualification = run_qualification(
+                    _candidate_factory(args),
+                    profile=args.profile,
+                    suite_version=args.suite_version,
+                    seed=args.seed,
+                    traces=args.traces,
+                    events_per_trace=args.events_per_trace,
+                    max_minimize_runs=args.max_minimize_runs,
+                )
+                report_path = qualification_reservation.write(qualification)
+            payload = qualification.to_dict()
+            _emit_junit(payload, args.junit_output)
+            coverage = qualification.campaign.semantic_coverage
+            print(f"Qualification report written: {report_path}")
+            print(f"Profile: {qualification.profile.name}")
+            print(
+                f"Fixed cases: {qualification.fixed_cases_passed}/"
+                f"{len(qualification.selected_cases)}"
+            )
+            print(
+                f"Campaign traces: {len(qualification.campaign.traces)}/"
+                f"{qualification.campaign.requested_traces}"
+            )
+            print(
+                f"Semantic coverage: {len(coverage.covered_capabilities)}/"
+                f"{len(coverage.expected_capabilities)} capabilities"
+            )
+            print(f"Qualification: {'PASS' if qualification.qualified else 'FAIL'}")
+            if qualification.campaign.failure is not None:
+                failure = qualification.campaign.failure
+                print(f"Divergence detected at original event {len(failure.original_events)}")
+                print(f"Failure class: {failure.failure_class}")
+                print(f"Reduced reproducer: {len(failure.minimization.events)} events")
+                print(f"Reduced trace: {report_path.parent / 'reduced.jsonl'}")
+            return 0 if qualification.qualified else 1
         if args.command == "reproduce":
             _require_distinct_paths(
                 args.events,

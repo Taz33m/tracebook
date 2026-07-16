@@ -81,6 +81,44 @@ candidate value. It exits `0` only for that exact reproduction and exits `1`
 when the trace conforms or fails differently. Without metadata it accepts any
 semantic divergence, which is useful for older minimized traces.
 
+## Profile Qualification
+
+`qualify` is the shortest path from an adapter command to a reviewable contract
+result:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './my-engine-adapter --tracebook-stdio' \
+  --output-dir .tracebook/qualification
+```
+
+Qualification contract version 1 runs fixed suite cases selected only from the
+declared profile, then runs the generated campaign and requires complete
+candidate-independent semantic coverage. It does not fail a FIFO engine for
+pro-rata or self-trade-prevention behavior it did not claim.
+
+| Profile | Fixed qualification-v1 cases |
+| --- | --- |
+| `fifo-limit-v1` | `fifo-lifecycle`, `tick-grid`, `deep-cancellation` |
+| `fifo-full-v1` | The limit cases plus `order-instructions` and `multi-symbol` |
+| `fifo-partial-fill-v1` | The limit cases; the generated campaign supplies the distinct continuation probe |
+
+The output directory is reserved before the candidate starts. It contains
+`qualification.json`, `qualification.xml`, the selected `suite.json`, the full
+`campaign.json`, and any ordinary campaign failure and reduced-trace artifacts.
+Exit `0` means every selected fixed case and generated trace agreed and every
+declared capability had reference evidence. Exit `1` means semantic drift or
+incomplete semantic coverage. Exit `2` means the run itself was invalid.
+
+Qualification is strong, reproducible evidence for one versioned profile. It is
+not exchange certification and does not imply support for unselected suite
+cases. Selection version 1 is part of the artifact identity and will not change
+silently.
+
 ## Differential Campaigns
 
 Campaigns generate stateful traces, compare them one at a time, and stop at the
@@ -438,13 +476,20 @@ include generator/profile versions, campaign identity, requested and completed
 work, candidate metadata, every trace seed and hash, and relative failure-bundle
 paths. Campaign artifacts also start at schema version `1`.
 
+Qualification reports use
+`artifact_type = "tracebook.conformance.qualification"`. They bind the
+qualification selection version, source suite ID and hash, selected fixed
+cases, complete suite and campaign reports, semantic coverage checks, candidate
+identity, and a deterministic qualification ID. The atomic bundle includes its
+JSON and JUnit projections plus the underlying campaign artifacts.
+
 Corpus metadata uses `artifact_type = "tracebook.conformance.failure"`.
 Reproduction reports use `artifact_type =
 "tracebook.conformance.reproduction"` and preserve expected and observed
 failure details plus the full conformance report. All JSON artifact schemas
 start at version `1`.
 
-`run`, `suite`, `minimize`, `campaign`, and `reproduce` accept
+`run`, `suite`, `minimize`, `campaign`, `qualify`, and `reproduce` accept
 `--junit-output`. JUnit is a projection of the canonical JSON: divergences are
 test failures, a successful minimization is a passing case, and an exact known
 failure reproduction is a passing case. Campaign JUnit properties include the

@@ -23,7 +23,7 @@ failure to a deterministic JSONL reproducer.
 **Give it an engine. Get back the smallest trace that proves where it disagrees.**
 
 [Quick start](#quick-start) · [Real failure](#a-real-four-event-rust-failure) ·
-[Profiles](#portable-semantic-profiles) · [Adapters](#engine-adapters) ·
+[Profiles](#portable-semantic-profiles) · [Qualification](#profile-qualification) · [Adapters](#engine-adapters) ·
 [CI](#continuous-integration) · [Architecture](#architecture)
 
 ## Quick Start
@@ -131,6 +131,28 @@ generation. Reports distinguish semantic workload coverage from Python source
 coverage.
 
 [Read the profile, protocol, hashing, and minimizer contracts](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md).
+
+## Profile Qualification
+
+Use one command for the fixed and generated evidence inside the contract your
+engine actually claims:
+
+```bash
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 \
+  --seed 42 \
+  --traces 25 \
+  --events-per-trace 200 \
+  --candidate-cmd './matching-engine --tracebook-stdio' \
+  --output-dir .tracebook/qualification
+```
+
+The atomic bundle includes `qualification.json`, `qualification.xml`, selected
+fixed-suite results, campaign results, semantic coverage, and any minimized
+failure. `fifo-limit-v1` qualification does not run STP or pro-rata cases, so
+unsupported features stay explicit without becoming false failures.
+
+[Read the research-grounded roadmap and adoption experiment](https://github.com/Taz33m/tracebook/blob/main/docs/research-roadmap.md).
 
 ## Architecture
 
