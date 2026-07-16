@@ -11,6 +11,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   dependencies, scripts, and package-data declarations to `pyproject.toml`,
   removing duplicate Rust protocol copies and the legacy `setup.py` metadata
   source.
+- Moved qualification campaign validation ahead of all candidate work and
+  reject JUnit destinations inside campaign or qualification artifact trees,
+  preventing invalid requests and report-path collisions from causing external
+  side effects.
 - Added qualification contract version 1 and `tracebook-conformance qualify`.
   One atomic evidence bundle now combines only the immutable fixed cases inside
   a declared profile, a deterministic generated campaign, complete semantic

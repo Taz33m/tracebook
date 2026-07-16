@@ -224,6 +224,21 @@ def _require_distinct_paths(*paths: Optional[str]) -> None:
         raise ConformanceError("input and output paths must be distinct")
 
 
+def _require_path_outside_directories(
+    path: Optional[str],
+    *directories: Optional[str],
+) -> None:
+    if path is None:
+        return
+    resolved_path = Path(path).expanduser().resolve()
+    for directory in directories:
+        if directory is None:
+            continue
+        resolved_directory = Path(directory).expanduser().resolve()
+        if resolved_path == resolved_directory or resolved_directory in resolved_path.parents:
+            raise ConformanceError("JUnit output must be outside artifact directories")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -284,7 +299,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Minimized events written: {Path(args.events_output)}")
             return 0
         if args.command == "campaign":
-            _require_distinct_paths(args.output_dir, args.corpus_dir, args.junit_output)
+            _require_distinct_paths(args.output_dir, args.corpus_dir)
+            _require_path_outside_directories(
+                args.junit_output,
+                args.output_dir,
+                args.corpus_dir,
+            )
             candidate_factory = _candidate_factory(args)
             with ExitStack() as stack:
                 reservation = (
@@ -329,7 +349,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"Reduced trace: {reduced_path}")
             return 0 if campaign_result.conformant else 1
         if args.command == "qualify":
-            _require_distinct_paths(args.output_dir, args.junit_output)
+            _require_path_outside_directories(args.junit_output, args.output_dir)
             with _QualificationOutputReservation(args.output_dir) as qualification_reservation:
                 qualification = run_qualification(
                     _candidate_factory(args),

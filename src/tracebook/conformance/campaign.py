@@ -217,6 +217,21 @@ def _campaign_seed(value: int) -> int:
     return int(value)
 
 
+def _validated_campaign_parameters(
+    seed: int,
+    traces: int,
+    events_per_trace: int,
+    max_minimize_runs: int,
+) -> Tuple[int, int, int, int]:
+    """Normalize campaign controls before any candidate process is started."""
+    return (
+        _campaign_seed(seed),
+        _positive_int(traces, "traces"),
+        _positive_int(events_per_trace, "events_per_trace"),
+        _positive_int(max_minimize_runs, "max_minimize_runs"),
+    )
+
+
 def _trace_seed(seed: int, trace_index: int) -> int:
     mixer = _SplitMix64(seed ^ ((trace_index * _GOLDEN_GAMMA) & _MASK_64))
     return mixer.next_u64()
@@ -738,10 +753,12 @@ def run_campaign(
     selected_profile = get_campaign_profile(profile) if isinstance(profile, str) else profile
     if not isinstance(selected_profile, CampaignProfile):
         raise ConformanceError("profile must be a campaign profile or profile name")
-    seed = _campaign_seed(seed)
-    traces = _positive_int(traces, "traces")
-    events_per_trace = _positive_int(events_per_trace, "events_per_trace")
-    max_minimize_runs = _positive_int(max_minimize_runs, "max_minimize_runs")
+    seed, traces, events_per_trace, max_minimize_runs = _validated_campaign_parameters(
+        seed,
+        traces,
+        events_per_trace,
+        max_minimize_runs,
+    )
 
     results: List[CampaignTraceResult] = []
     candidate_engine: Optional[EngineMetadata] = None

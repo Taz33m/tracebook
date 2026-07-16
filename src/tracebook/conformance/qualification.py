@@ -13,6 +13,7 @@ from .campaign import (
     CampaignProfile,
     CampaignResult,
     _CampaignOutputReservation,
+    _validated_campaign_parameters,
     get_campaign_profile,
     run_campaign,
 )
@@ -189,6 +190,12 @@ def run_qualification(
             f"unknown bundled suite version {suite_version!r}; expected one of: {versions}"
         )
     case_names = qualification_case_names(selected_profile)
+    seed, traces, events_per_trace, max_minimize_runs = _validated_campaign_parameters(
+        seed,
+        traces,
+        events_per_trace,
+        max_minimize_runs,
+    )
 
     with tempfile.TemporaryDirectory(prefix="tracebook-qualification-") as temporary:
         suite = copy_bundled_conformance_suite(

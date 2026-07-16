@@ -105,6 +105,24 @@ def test_qualification_rejects_candidate_identity_drift_between_phases():
         )
 
 
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"seed": -1}, "seed"),
+        ({"seed": True}, "seed"),
+        ({"traces": 0}, "traces"),
+        ({"events_per_trace": 0}, "events_per_trace"),
+        ({"max_minimize_runs": 0}, "max_minimize_runs"),
+    ],
+)
+def test_qualification_rejects_invalid_campaign_controls_before_candidate_work(arguments, message):
+    def unexpected_candidate(_config):
+        pytest.fail("candidate started before qualification argument validation")
+
+    with pytest.raises(ConformanceError, match=message):
+        run_qualification(unexpected_candidate, **arguments)
+
+
 def test_qualification_cli_produces_a_public_adapter_evidence_bundle(tmp_path, capsys):
     destination = tmp_path / "external-qualification"
     candidate_cmd = shlex.join([sys.executable, str(EXAMPLE_ADAPTER)])
@@ -179,3 +197,33 @@ def test_qualification_cli_rejects_existing_output_before_candidate_work(
 
     assert exit_code == 2
     assert "already exists" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "junit_relative",
+    [Path("."), Path("campaign.json"), Path("nested/report.xml")],
+)
+def test_qualification_cli_rejects_junit_inside_bundle_before_candidate_work(
+    tmp_path, monkeypatch, capsys, junit_relative
+):
+    destination = tmp_path / "qualification"
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail("qualification ran before JUnit path preflight")
+
+    monkeypatch.setattr("tracebook.conformance.cli.run_qualification", unexpected_run)
+    exit_code = main(
+        [
+            "qualify",
+            "--output-dir",
+            str(destination),
+            "--junit-output",
+            str(destination / junit_relative),
+            "--candidate",
+            "unused-adapter",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "outside artifact directories" in capsys.readouterr().err
+    assert not destination.exists()
