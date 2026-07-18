@@ -15,9 +15,11 @@ pip install -e ".[dev,dashboard]"
 Run these before opening a pull request:
 
 ```bash
-python -m black --check src tests examples integrations install_deps.py test_system.py
-python -m flake8 src tests examples integrations install_deps.py test_system.py
+python -m black --check src tests examples integrations experiments install_deps.py test_system.py
+python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
+python -m mypy src/tracebook experiments
 python -m bandit -q -r src integrations
+python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json

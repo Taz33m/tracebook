@@ -85,14 +85,38 @@ experiments rather than presumed roadmap wins.
 
 ## Next Milestones
 
-1. Complete the `gocronx/matcher` maintainer review and ask whether the
-   qualification artifact or a future reduced trace belongs in upstream CI.
-   Tracebook-side qualification is green, but author adoption is still pending.
-2. Keep guided exploration research-only. The first frozen held-out comparison
+1. Run a time-boxed adoption sprint with independently maintained engines.
+   Complete the `gocronx/matcher` review loop and recruit at least two additional
+   authors or contributors. Record successful and blocked attempts through the
+   public engine-qualification report rather than counting repository-local
+   integrations as adoption.
+2. Observe at least two external onboarding attempts before building an adapter
+   scaffold. If adapter mechanics repeatedly dominate the work, extract only
+   the repeated protocol server, canonical-state, fixture, and CI pieces while
+   leaving engine-specific semantics explicit.
+3. Keep guided exploration research-only. The first frozen held-out comparison
    improved one injected defect and regressed on the historical defect plus a
    second injected defect, so it failed the product gate.
-3. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
+4. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
    only after qualification evidence identifies a repeated external need.
+
+## Next Release Gate
+
+The next feature release is gated by external use, not a calendar date. Before
+cutting it, require:
+
+- two independently maintained engines qualified with the public package;
+- one candidate repository retaining a qualification or reduced regression in
+  its own CI;
+- an observed time to first qualification under 30 minutes for a new adapter
+  author; and
+- evidence that any new adapter helper removes repeated friction rather than
+  merely reducing Tracebook's own integration code.
+
+The north-star measure is the number of externally maintained engine CI jobs
+that run Tracebook and retain its evidence. Downloads, clones, stars, local
+adapters, and passing campaign counts are awareness or technical signals, not
+adoption by themselves.
 
 ## Decision Rules
 

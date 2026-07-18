@@ -6,6 +6,13 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added a structured public engine-qualification intake that records time to
+  evidence, adapter size, failed attempts, protocol questions, profile-boundary
+  disagreements, artifacts, and upstream CI adoption. The project plan now
+  gates the next feature release on independently maintained engine use.
+- Aligned contributor and release quality commands so experimental research is
+  formatted, linted, type-checked, and compiled, while maintained integration
+  code is included in the local security scan.
 - Consolidated native Rust adapter framing, validation, canonical state hashing,
   and process serving into one shared crate. Migrated package metadata,
   dependencies, scripts, and package-data declarations to `pyproject.toml`,

@@ -78,7 +78,7 @@ typecheck:
 	$(PYTHON_VENV) -m mypy src/tracebook experiments
 
 security:
-	$(PYTHON_VENV) -m bandit -q -r src
+	$(PYTHON_VENV) -m bandit -q -r src integrations
 
 compile:
 	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments install_deps.py test_system.py

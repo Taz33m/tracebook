@@ -119,3 +119,10 @@ The next product step is not generator expansion. It is completing the second
 maintainer loop and learning whether an author will keep the qualification or a
 future reduced trace in their own CI. That is the remaining demand signal the
 current experiment did not produce locally.
+
+New attempts should use the public
+[engine qualification report](https://github.com/Taz33m/tracebook/issues/new?template=engine_qualification.yml)
+to record time to evidence, engine-specific adapter size, failed attempts,
+protocol questions, profile-boundary disagreements, and the upstream CI
+decision. Repository-local integration work does not count as adoption until an
+independent engine author runs or accepts the workflow.
