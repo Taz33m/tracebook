@@ -1,0 +1,150 @@
+name: Engine qualification
+description: Qualify a matching engine or report where adapter onboarding became difficult.
+title: "[Qualification]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A qualification is evidence for one named profile and workload, not production certification. Reports from incomplete attempts are useful too.
+
+  - type: input
+    id: engine
+    attributes:
+      label: Engine repository
+      description: Public repository URL for the candidate engine.
+      placeholder: https://github.com/owner/engine
+    validations:
+      required: true
+
+  - type: input
+    id: revision
+    attributes:
+      label: Candidate revision
+      description: Release, tag, or commit tested.
+      placeholder: v1.2.3 or 0123456789abcdef
+    validations:
+      required: true
+
+  - type: dropdown
+    id: relationship
+    attributes:
+      label: Your relationship to the engine
+      options:
+        - Maintainer
+        - Contributor
+        - Independent evaluator
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Adapter language and environment
+      placeholder: Rust 1.88 on Ubuntu 24.04; Python 3.13
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile attempted
+      options:
+        - fifo-limit-v1
+        - fifo-full-v1
+        - fifo-partial-fill-v1
+        - Unsure which profile applies
+    validations:
+      required: true
+
+  - type: input
+    id: package_version
+    attributes:
+      label: Public Tracebook version
+      placeholder: tracebook-sim==0.4.1
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Qualification command
+      description: Remove secrets and machine-specific paths before posting.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: time
+    attributes:
+      label: Time to first artifact or blocker
+      placeholder: 24 minutes
+    validations:
+      required: true
+
+  - type: input
+    id: adapter_size
+    attributes:
+      label: Engine-specific adapter size
+      description: Approximate lines of code, excluding generated and shared protocol code.
+      placeholder: 280 lines
+
+  - type: input
+    id: failed_attempts
+    attributes:
+      label: Failed attempts
+      description: Number of build, protocol, or qualification attempts before the reported result.
+      placeholder: "2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Protocol questions and profile-boundary disagreements
+      description: Include assumptions that needed maintainer confirmation, even if qualification passed.
+      placeholder: Snapshot order was documented but replacement priority needed confirmation.
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Conformant for the selected profile
+        - Semantic divergence found
+        - Blocked before qualification completed
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Qualification or reduced-trace evidence
+      description: Link the JSON/JUnit bundle, reduced JSONL trace, CI run, or sanitized error output.
+
+  - type: dropdown
+    id: ci
+    attributes:
+      label: Upstream CI decision
+      options:
+        - Retained in candidate CI
+        - Planned for candidate CI
+        - Not retained
+        - Undecided
+    validations:
+      required: true
+
+  - type: textarea
+    id: friction
+    attributes:
+      label: Largest source of friction
+      description: What single change would most reduce the next engine author's time to evidence?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: public
+    attributes:
+      label: Public report
+      options:
+        - label: I removed secrets, proprietary traces, and private source from this public issue.
+          required: true

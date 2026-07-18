@@ -69,3 +69,39 @@ def test_dependency_groups_do_not_repeat_packages_internally():
             requirement.split(";", 1)[0].split("[", 1)[0].lower() for requirement in requirements
         ]
         assert len(normalized) == len(set(normalized)), f"duplicate dependency in {group_name}"
+
+
+def test_release_gate_covers_research_and_integration_code():
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "black --check src tests examples integrations experiments" in workflow
+    assert "flake8 src tests examples integrations experiments" in workflow
+    assert "mypy --python-version 3.13 src/tracebook experiments" in workflow
+    assert "bandit -q -r src integrations" in workflow
+    assert "compileall -q src tests examples integrations experiments" in workflow
+
+
+def test_engine_qualification_form_captures_adoption_evidence():
+    form = (ROOT / ".github" / "ISSUE_TEMPLATE" / "engine_qualification.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for field_id in (
+        "engine",
+        "revision",
+        "relationship",
+        "profile",
+        "package_version",
+        "time",
+        "adapter_size",
+        "failed_attempts",
+        "questions",
+        "result",
+        "evidence",
+        "ci",
+        "friction",
+    ):
+        assert f"id: {field_id}" in form
+
+    assert "not production certification" in form
+    assert "I removed secrets, proprietary traces, and private source" in form

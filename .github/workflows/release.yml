@@ -27,11 +27,11 @@ jobs:
 
       - name: Run release quality gate
         run: |
-          python -m black --check src tests examples integrations install_deps.py test_system.py
-          python -m flake8 src tests examples integrations install_deps.py test_system.py
-          python -m mypy --python-version 3.13 src/tracebook
+          python -m black --check src tests examples integrations experiments install_deps.py test_system.py
+          python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
+          python -m mypy --python-version 3.13 src/tracebook experiments
           python -m bandit -q -r src integrations
-          python -m compileall -q src tests examples integrations install_deps.py test_system.py
+          python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
           python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
           python test_system.py
 

@@ -62,6 +62,11 @@ For a working adapter before writing your own, use the
 [native orderbook-rs walkthrough](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs)
 or the smaller
 [Python process example](https://github.com/Taz33m/tracebook/blob/main/examples/conformance_adapter.py).
+Engine maintainers and independent evaluators can also open a structured
+[engine qualification report](https://github.com/Taz33m/tracebook/issues/new?template=engine_qualification.yml).
+Successful and blocked attempts are both useful: the report records time to
+evidence, adapter size, protocol questions, profile boundaries, and whether the
+result belongs in the candidate project's CI.
 
 ## A Real Four-Event Rust Failure
 
