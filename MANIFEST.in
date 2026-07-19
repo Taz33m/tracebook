@@ -9,6 +9,13 @@ include SECURITY.md
 include SUPPORT.md
 
 recursive-include docs *.md *.png *.svg
+exclude docs/openwiki.md
+exclude docs/graphify.md
+exclude AGENTS.md
+exclude CLAUDE.md
+prune openwiki
+prune graphify-out
+prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
 recursive-include integrations *.py *.md *.jsonl

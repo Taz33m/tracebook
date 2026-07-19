@@ -184,10 +184,10 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     release_notes = (ROOT / "docs" / "releases" / "0.3.0.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'python -m pip install "tracebook-sim==0.4.1"' in workflow
-    assert 'python -m pip install "tracebook-sim==0.4.1"' in ci_docs
-    assert "tracebook-conformance campaign" in workflow
-    assert "--junit-output artifacts/conformance.xml" in workflow
+    assert 'python -m pip install "tracebook-sim==0.5.0"' in workflow
+    assert 'python -m pip install "tracebook-sim==0.5.0"' in ci_docs
+    assert "tracebook-conformance qualify" in workflow
+    assert "--output-dir artifacts/qualification" in workflow
     assert "if: always()" in workflow
     assert "Version 0.3.0 changes the category of the project." in release_notes
     assert "## Engine Adapters" in readme
@@ -214,3 +214,12 @@ def test_041_release_notes_record_external_validation_without_overclaiming():
     assert "independent review" in notes
     assert "automatic Tracebook campaign" in notes
     assert "Conformance protocol: version 1, unchanged" in notes
+
+
+def test_050_release_notes_publish_the_qualification_surface():
+    notes = (ROOT / "docs" / "releases" / "0.5.0.md").read_text(encoding="utf-8")
+
+    assert "tracebook-conformance qualify" in notes
+    assert "tracebook-sim==0.5.0" in notes
+    assert "public package" in notes
+    assert "not production certification" in notes

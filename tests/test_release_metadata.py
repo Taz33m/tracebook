@@ -21,7 +21,7 @@ def test_runtime_version_has_single_source_of_truth():
     metadata = _pyproject()
 
     assert tracebook.__version__ == __version__
-    assert __version__ == "0.4.1"
+    assert __version__ == "0.5.0"
     assert metadata["project"]["dynamic"] == ["version"]
     assert metadata["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "tracebook._version.__version__"
@@ -79,6 +79,21 @@ def test_release_gate_covers_research_and_integration_code():
     assert "mypy --python-version 3.13 src/tracebook experiments" in workflow
     assert "bandit -q -r src integrations" in workflow
     assert "compileall -q src tests examples integrations experiments" in workflow
+
+
+def test_sdist_excludes_local_navigation_material():
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    for directive in (
+        "exclude docs/openwiki.md",
+        "exclude docs/graphify.md",
+        "exclude AGENTS.md",
+        "exclude CLAUDE.md",
+        "prune openwiki",
+        "prune graphify-out",
+        "prune .local-tools",
+    ):
+        assert directive in manifest
 
 
 def test_engine_qualification_form_captures_adoption_evidence():
