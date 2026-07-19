@@ -86,3 +86,21 @@ Guided suffix regeneration improved time-to-divergence for one injected defect
 but regressed on the historical defect and a second injected defect. It therefore
 remains research-only. No generator version, profile, CLI, or artifact contract
 changed.
+
+## 2026-07-19 Public-Package Result
+
+The `geseq/orderbook` maintainer proposed a native amendment API after the
+profile discussion exposed that cancel plus resubmit would violate
+priority-preserving reduction. The resulting draft
+[`geseq/orderbook` PR #30](https://github.com/geseq/orderbook/pull/30) passes the
+public `tracebook-sim==0.5.0` qualification from a fresh clone: 3/3 fixed cases,
+25/25 generated traces, 5,000 events, 10/10 capabilities, and 28 candidate
+runs. Full measurements and limitations are in the
+[design-partner study](qualification-design-partners.md).
+
+This result changes the next question, not the product surface. The 865-line Go
+adapter suggests that reusable protocol support may matter, but one integration
+cannot distinguish shared friction from engine-specific translation. Tracebook
+will wait for a second independent onboarding and the upstream CI decision
+before extracting a Go SDK or changing the protocol. Guided generation remains
+research-only because the held-out experiment still failed its product gate.
