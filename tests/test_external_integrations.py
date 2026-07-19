@@ -133,7 +133,7 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "awaiting an upstream" in readme
     assert "stable public inspection contract" in readme
     assert "tracebook-conformance qualify" in workflow
-    assert "sha256:f702a24e4e0113b3591107aab40f2aec189daee4f87486273c791481db622591" in workflow
+    assert "sha256:45472685dcda853b202f1f973814fc2c91193b6ac0813dac2900ca2c273579c3" in workflow
     assert "actions/upload-artifact@v7" in workflow
 
 
