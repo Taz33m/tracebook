@@ -1,0 +1,67 @@
+FROM 15,739 EVENTS TO FOUR:
+REPRODUCIBLE FAILURE ANALYSIS FOR MATCHING ENGINES
+
+Presenter: Taz33m
+Project: Tracebook
+Proposed format: 20-minute technical presentation with terminal demonstration
+Full paper: No
+
+ABSTRACT
+
+Matching-engine benchmarks can show that two implementations disagree, but the
+result is often a large workload, an output hash, or a first mismatching line.
+That is enough for detection and ranking. It is not yet the small, semantic,
+deterministic regression an engine maintainer needs in order to understand and
+repair queue-priority behavior.
+
+This presentation introduces Tracebook, an open-source conformance and failure-
+forensics toolkit for matching engines. Tracebook runs normalized lifecycle
+traces through an inspectable reference engine and a separate candidate process,
+compares outcomes, trades, maker and taker identities, full resting queue state,
+and rejection reasons, then classifies and minimizes the first divergence.
+
+The central demonstration uses a real historical FIFO defect originally found
+by Flash's matching-engine-benchmark in an orderbook-rs dependency. Flash
+localized the disagreement in its canonical workload. Tracebook imports that
+versioned boundary, reconstructs the exact 15,739-message prefix, and reduces it
+to four events in 193 candidate runs. An independent deterministic campaign
+finds the same partial-fill priority defect at event 173 and also reduces it to
+four events. The reduced trace fails against the historical dependency graph,
+passes against orderbook-rs 0.12.0, and is retained in Tracebook's CI as a
+regression.
+
+The talk also reports what external adapter work taught us. A maintainer review
+changed how queue snapshots were interpreted. A clean public-package onboarding
+exposed a release-integrity gap before it tested the candidate. A controlled
+guided-generation experiment improved one injected defect but regressed on two
+held-out defects, so the feature did not ship.
+
+The broader lesson is that matching-engine correctness evidence must remain
+profile-scoped, reproducible, and reviewable. A divergence is not an automatic
+blame assignment, and a passing campaign is not production certification.
+Useful open-source infrastructure makes both its proof and its limits portable.
+
+AUDIENCE TAKEAWAYS
+
+1. How to define portable matching semantics without hiding engine-specific
+   policy choices.
+2. Why trade identities and queue order catch failures that aggregate depth
+   misses.
+3. How deterministic generation, semantic diffing, and delta debugging turn a
+   large failure into a four-event CI regression.
+4. How maintainer feedback and negative experiments should control an open-
+   source roadmap.
+
+ATTRIBUTION AND CLAIM BOUNDARY
+
+Flash discovered the historical defect and owns broad benchmark discovery.
+Tracebook's contribution is the versioned artifact handoff, semantic
+localization, deterministic reduction, reproduction, and CI preservation. The
+presentation makes this boundary explicit throughout.
+
+PROJECT LINKS
+
+Repository: https://github.com/Taz33m/tracebook
+Public package: https://pypi.org/project/tracebook-sim/
+Field note: https://github.com/Taz33m/tracebook/blob/main/docs/field-notes/001-failure-forensics.md
+Flash benchmark: https://github.com/flash1-dev/matching-engine-benchmark

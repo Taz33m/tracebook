@@ -96,6 +96,17 @@ def test_sdist_excludes_local_navigation_material():
         assert directive in manifest
 
 
+def test_citation_metadata_tracks_the_public_release():
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "cff-version: 1.2.0" in citation
+    assert 'version: "0.5.0"' in citation
+    assert "date-released: 2026-07-19" in citation
+    assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
+    assert "include CITATION.cff" in manifest
+
+
 def test_engine_qualification_form_captures_adoption_evidence():
     form = (ROOT / ".github" / "ISSUE_TEMPLATE" / "engine_qualification.yml").read_text(
         encoding="utf-8"

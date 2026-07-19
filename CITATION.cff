@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use Tracebook in research or engineering work, please cite this software."
+type: software
+title: "Tracebook: Matching-Engine Conformance Testing and Reproducible Failure Analysis"
+abstract: >-
+  Tracebook runs deterministic order-lifecycle traces through an inspectable
+  reference engine and an external matching engine, compares semantic outcomes,
+  localizes the first divergence, and reduces failures to reproducible CI
+  regressions.
+authors:
+  - family-names: "Taz33m"
+    email: "tazeemmahashin@gmail.com"
+version: "0.5.0"
+date-released: 2026-07-19
+license: MIT
+repository-code: "https://github.com/Taz33m/tracebook"
+url: "https://pypi.org/project/tracebook-sim/0.5.0/"
+keywords:
+  - matching engine
+  - conformance testing
+  - differential testing
+  - delta debugging
+  - market microstructure
+  - limit order book

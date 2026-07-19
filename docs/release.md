@@ -74,7 +74,7 @@ python -m pip download --no-deps --no-binary=:all: tracebook-sim==0.5.0
 Extract the downloaded sdist in a blank repository, build
 `integrations/orderbook_rs` with `cargo build --release --locked`, and run the
 seed-42 faulty campaign plus `reproduce` using only the installed public command
-and extracted Rust source. Require event 173, a five-event reduced trace, exact
+and extracted Rust source. Require event 173, a four-event reduced trace, exact
 reproduction, semantic coverage, JSON, JUnit, and conformance of the correct
 binary on the reduced regression case.
 
