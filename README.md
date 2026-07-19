@@ -233,18 +233,16 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install "tracebook-sim==0.4.1"
+      - run: python -m pip install "tracebook-sim==0.5.0"
       - run: make build
       - run: |
-          tracebook-conformance campaign \
+          tracebook-conformance qualify \
             --profile fifo-limit-v1 \
             --seed 42 \
             --traces 25 \
             --events-per-trace 200 \
             --candidate-cmd './build/matching-engine --tracebook-stdio' \
-            --corpus-dir artifacts/corpus \
-            --stop-after-first \
-            --junit-output artifacts/conformance.xml
+            --output-dir artifacts/qualification
 ```
 
 The repository includes a

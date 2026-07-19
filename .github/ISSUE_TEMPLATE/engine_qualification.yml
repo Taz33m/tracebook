@@ -60,7 +60,7 @@ body:
     id: package_version
     attributes:
       label: Public Tracebook version
-      placeholder: tracebook-sim==0.4.1
+      placeholder: tracebook-sim==0.5.0
     validations:
       required: true
 

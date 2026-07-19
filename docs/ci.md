@@ -37,21 +37,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install "tracebook-sim==0.4.1"
+      - run: python -m pip install "tracebook-sim==0.5.0"
       - run: make build
 
       - name: Compare matching semantics
         run: |
-          mkdir -p artifacts
-          tracebook-conformance campaign \
+          tracebook-conformance qualify \
             --profile fifo-limit-v1 \
             --seed 42 \
             --traces 25 \
             --events-per-trace 200 \
             --candidate-cmd './build/matching-engine --tracebook-stdio' \
-            --corpus-dir artifacts/corpus \
-            --stop-after-first \
-            --junit-output artifacts/conformance.xml
+            --output-dir artifacts/qualification
 
       - uses: actions/upload-artifact@v7
         if: always()
@@ -61,11 +58,12 @@ jobs:
           if-no-files-found: error
 ```
 
-`tracebook-conformance campaign` exits `0` only when every requested trace
-agrees, `1` on a semantic divergence, and `2` for invalid configuration,
-adapter, protocol, or filesystem errors. Because the corpus and JUnit reports
-are committed before exit, `if: always()` preserves the exact first
-disagreement for failed builds.
+`tracebook-conformance qualify` exits `0` only when the selected fixed cases,
+generated traces, and declared semantic coverage pass. It exits `1` on a
+semantic divergence or incomplete coverage and `2` for invalid configuration,
+adapter, protocol, or filesystem errors. The atomic bundle contains JSON,
+JUnit, the selected suite, the campaign, and any minimized first disagreement,
+so `if: always()` preserves reviewable evidence for failed builds.
 
 Projects with a deliberately narrower contract should maintain a suite that
 matches their declared capabilities and run selected standard traces as a

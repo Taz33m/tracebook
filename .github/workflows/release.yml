@@ -47,6 +47,34 @@ jobs:
           python -m build --sdist --wheel --outdir dist
           python -m twine check dist/*
 
+      - name: Reject private navigation material in sdist
+        run: |
+          python - <<'PY'
+          import pathlib
+          import tarfile
+
+          archive = next(pathlib.Path("dist").glob("*.tar.gz"))
+          forbidden = {
+              "AGENTS.md",
+              "CLAUDE.md",
+              "docs/openwiki.md",
+              "docs/graphify.md",
+          }
+          forbidden_prefixes = ("openwiki/", "graphify-out/", ".local-tools/")
+          with tarfile.open(archive, "r:gz") as source:
+              packaged = {
+                  "/".join(pathlib.PurePosixPath(name).parts[1:])
+                  for name in source.getnames()
+              }
+          leaked = sorted(
+              path
+              for path in packaged
+              if path in forbidden or path.startswith(forbidden_prefixes)
+          )
+          if leaked:
+              raise SystemExit(f"private navigation material in sdist: {leaked}")
+          PY
+
       - uses: actions/upload-artifact@v7
         with:
           name: python-distributions

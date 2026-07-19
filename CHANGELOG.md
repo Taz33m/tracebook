@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.5.0 - 2026-07-19
+
 - Added a structured public engine-qualification intake that records time to
   evidence, adapter size, failed attempts, protocol questions, profile-boundary
   disagreements, artifacts, and upstream CI adoption. The project plan now
