@@ -1,9 +1,13 @@
 # Qualification Design-Partner Study
 
-Status at `2026-07-16T20:28:55Z`: two independently authored Rust engines have
-passing `fifo-limit-v1` artifacts. One maintainer review loop is complete; the
-second is awaiting an upstream reply. This distinction prevents a local adapter
-success from being mislabeled as adoption.
+Status at `2026-07-19T23:09:03Z`: two independently authored Rust engines have
+passing repository-local `fifo-limit-v1` artifacts. One Rust maintainer review
+loop is complete; the other is awaiting an upstream reply. A third,
+maintainer-directed Go integration now passes from the public package and is
+proposed in the candidate repository as draft PR
+[`geseq/orderbook` #30](https://github.com/geseq/orderbook/pull/30). It remains
+an adoption proposal until the maintainer reviews it and decides whether to
+retain the workflow.
 
 ## Frozen Protocol
 
@@ -79,6 +83,54 @@ cancel plus resubmit is the preferred representation of Tracebook's broader
 replacement operation. The adapter pins snapshot version 1 and labels both
 assumptions while review is pending.
 
+## Public-Package Qualification Proposal
+
+The `geseq/orderbook` maintainer answered the three initial contract questions
+and then proposed adding a native amendment API when Tracebook showed that
+cancel plus create could not honestly satisfy priority-preserving reduction.
+Draft PR #30 implements that maintainer-selected direction, a detached FIFO
+snapshot, an adapter example, and a public-PyPI qualification job.
+
+| Measure | `geseq/orderbook@88e80980` |
+| --- | ---: |
+| Maintainer API direction to first local artifact | About 43 h 24 m |
+| Public-package qualification after candidate build | 17.30 s |
+| Candidate process runs | 28 |
+| Fixed cases | 3/3 |
+| Generated traces / events | 25/25 / 5,000 |
+| Semantic capabilities | 10/10 |
+| Adapter source / adapter tests | 865 / 130 lines |
+| Semantic qualification failures | 0 |
+| Failed clean-package attempts before candidate launch | 1 |
+| Qualification retained in candidate CI | Proposed; maintainer decision pending |
+
+The final qualification ID is
+`sha256:4216d817384360e6edc50bf6b801b80fa6306b4e2910f5b9bed968b4daaf79d9`.
+It was reproduced from a fresh remote clone with the `tracebook-sim==0.5.0`
+wheel fetched from PyPI. The local environment used `--no-deps` after repeated
+network timeouts transferring NumPy; the proposed upstream job performs the
+normal dependency-resolving install and is still awaiting its first run.
+
+The single failed clean-package attempt was useful product evidence: public
+version 0.4.1 did not yet expose `qualify`, even though the repository did. That
+release-integrity gap directly triggered 0.5.0. No candidate protocol or
+semantic attempt failed after the public command became available.
+
+The integration surfaced four boundaries rather than hiding them:
+
+- priority-preserving reduction required a native engine operation;
+- replacement semantics were initially left to the engine, then implemented in
+  the draft as priority-losing remove and re-entry;
+- the engine's native eight-decimal quantity representation required an exact,
+  workload-bounded bridge to Tracebook's twelve-decimal wire values;
+- the 865-line adapter includes protocol framing, canonical hashing, state
+  translation, and that decimal bridge because no shared Go adapter SDK exists.
+
+That file size is a hypothesis for reusable Go protocol support, not yet a
+feature decision. A second independent Go onboarding must show the same burden
+before Tracebook extracts an SDK. There is no reduced trace for this candidate
+because all compared events conformed.
+
 ## Diversity Experiment
 
 The second experiment removed all built-in priority probes, then compared fresh
@@ -115,10 +167,11 @@ produced this same byte-for-byte hash.
 
 ## Product Decision
 
-The next product step is not generator expansion. It is completing the second
-maintainer loop and learning whether an author will keep the qualification or a
-future reduced trace in their own CI. That is the remaining demand signal the
-current experiment did not produce locally.
+The next product step is not generator expansion or a speculative Go SDK. It is
+getting a maintainer decision on the `geseq/orderbook` draft and observing a
+second independent public-package onboarding. The first result tells us whether
+the artifact belongs in an engine's CI; the second tells us whether the large Go
+adapter reflects a repeated protocol burden or only this engine's boundaries.
 
 New attempts should use the public
 [engine qualification report](https://github.com/Taz33m/tracebook/issues/new?template=engine_qualification.yml)

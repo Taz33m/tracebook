@@ -56,6 +56,16 @@ of the snapshot observation surface, replacement representation, and possible
 upstream CI adoption remains pending. That distinction is part of the evidence,
 not a reason to label the upstream contract settled.
 
+The first maintainer-directed public-package qualification is now proposed in
+[`geseq/orderbook` PR #30](https://github.com/geseq/orderbook/pull/30). The
+maintainer selected a native amendment API after the profile review exposed that
+cancel plus create could not preserve reduction priority. From a fresh clone,
+the 0.5.0 public command passed 3/3 fixed cases, 25/25 generated traces, 5,000
+events, and 10/10 capabilities. The draft also proposes keeping JSON/JUnit
+qualification in the candidate repository's CI. Review and retention remain
+pending, so this is evidence of a serious onboarding attempt rather than a claim
+of independent adoption.
+
 ## Current Product Hypothesis
 
 The immediate bottleneck is adoption, not another matching algorithm. An engine
@@ -86,13 +96,14 @@ experiments rather than presumed roadmap wins.
 ## Next Milestones
 
 1. Run a time-boxed adoption sprint with independently maintained engines.
-   Complete the `gocronx/matcher` review loop and recruit at least two additional
-   authors or contributors. Record successful and blocked attempts through the
-   public engine-qualification report rather than counting repository-local
-   integrations as adoption.
+   Complete the `geseq/orderbook` draft review, continue the `gocronx/matcher`
+   review loop, and recruit at least one additional author or contributor.
+   Record successful and blocked attempts through the public engine-qualification
+   report rather than counting repository-local integrations as adoption.
 2. Observe at least two external onboarding attempts before building an adapter
-   scaffold. If adapter mechanics repeatedly dominate the work, extract only
-   the repeated protocol server, canonical-state, fixture, and CI pieces while
+   scaffold. The 865-line Go adapter is the first concrete signal that protocol
+   framing, canonical hashing, state translation, and decimal handling may
+   dominate the work. Extract only pieces repeated by a second author while
    leaving engine-specific semantics explicit.
 3. Keep guided exploration research-only. The first frozen held-out comparison
    improved one injected defect and regressed on the historical defect plus a
