@@ -8,7 +8,7 @@ abstract: >-
   localizes the first divergence, and reduces failures to reproducible CI
   regressions.
 authors:
-  - family-names: "Taz33m"
+  - name: "Taz33m"
     email: "tazeemmahashin@gmail.com"
 version: "0.5.0"
 date-released: 2026-07-19

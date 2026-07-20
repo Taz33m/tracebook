@@ -52,12 +52,14 @@ against the maintained release.
 
 ```bash
 tracebook-conformance reproduce \
-  .tracebook/corpus/failure-7dd023c684cdb2d0fc0e/reduced.jsonl \
-  --candidate-cmd ./orderbook-rs-issue-88-adapter
+  integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
+  --candidate-cmd \
+    ./integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter
 
 tracebook-conformance run \
   integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
-  --candidate-cmd ./tracebook-orderbook-rs
+  --candidate-cmd \
+    ./integrations/orderbook_rs/target/release/tracebook-orderbook-rs
 ```
 
 The full provenance, build commands, hashes, and exact divergence path are in

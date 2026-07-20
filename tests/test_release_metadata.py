@@ -103,8 +103,23 @@ def test_citation_metadata_tracks_the_public_release():
     assert "cff-version: 1.2.0" in citation
     assert 'version: "0.5.0"' in citation
     assert "date-released: 2026-07-19" in citation
+    assert '- name: "Taz33m"' in citation
+    assert "family-names:" not in citation
     assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
     assert "include CITATION.cff" in manifest
+
+
+def test_research_docs_keep_injected_and_historical_reducers_distinct():
+    release_guide = (ROOT / "docs" / "release.md").read_text(encoding="utf-8")
+    field_note = (ROOT / "docs" / "field-notes" / "001-failure-forensics.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "seed-42 faulty campaign" in release_guide
+    assert "five-event reduced trace" in release_guide
+    assert "reduced 15,739 messages to four events" in field_note
+    assert "integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter" in field_note
+    assert "integrations/orderbook_rs/target/release/tracebook-orderbook-rs" in field_note
 
 
 def test_engine_qualification_form_captures_adoption_evidence():
