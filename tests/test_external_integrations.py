@@ -160,7 +160,7 @@ def test_source_manifest_includes_native_integration_files():
 
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
     assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
-    assert "recursive-include integrations/flash_benchmark *.json" in manifest
+    assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
     assert "recursive-include integrations/gocronx_matcher/src *.rs" in manifest

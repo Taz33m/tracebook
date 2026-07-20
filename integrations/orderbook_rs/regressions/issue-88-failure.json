@@ -1,0 +1,58 @@
+{
+  "artifact_type": "tracebook.conformance.failure",
+  "budget_exhausted": false,
+  "campaign_id": "sha256:e8e158af0223b4e61dbb7efeab10cfd1b34b0d3b478b3e086c12bea008c0b4aa",
+  "campaign_seed": 42,
+  "candidate_engine": {
+    "language": "Rust",
+    "name": "historical orderbook-rs issue 88 adapter",
+    "version": "0.8.0@53b4d2b0+pricelevel-0.7.0"
+  },
+  "config": {
+    "matching_algorithm": "fifo",
+    "quantity_decimal_places": 12,
+    "self_trade_policy": "NONE",
+    "tick_size": "0.01"
+  },
+  "expected_reduced_divergence": {
+    "candidate": 9100000002,
+    "category": "trades",
+    "event": {
+      "op": "new",
+      "order_id": 9100000004,
+      "order_type": "LIMIT",
+      "owner": 204,
+      "price": 100.0,
+      "quantity": 1.0,
+      "side": "BUY",
+      "symbol": "FIFO-PARTIAL-FILL-PROBE",
+      "timestamp_ns": 173
+    },
+    "event_index": 4,
+    "kind": "value_mismatch",
+    "message": "candidate executions differ from the reference",
+    "path": "$.observation.trades[0].sell_order_id",
+    "reference": 9100000001,
+    "snapshot_error": null
+  },
+  "failure_class": "queue-priority drift",
+  "failure_id": "failure-7dd023c684cdb2d0fc0e",
+  "generator_version": 2,
+  "one_minimal": true,
+  "original_divergence_event": 173,
+  "original_event_count": 173,
+  "original_trace_sha256": "sha256:59aae7f12cf2703f4a2ce87fad8b5aa25162d3cf2dbfdcb624f3b84753dcd4a6",
+  "paths": {
+    "campaign": "campaign.json",
+    "minimization": "failure/minimization.json",
+    "original": "original.jsonl",
+    "reduced": "reduced.jsonl"
+  },
+  "profile": "fifo-partial-fill-v1",
+  "reduced_event_count": 4,
+  "reduced_trace_sha256": "sha256:c7b3f3132e230e74734c442a798df614691491f9ca58b8eeee49d1555bd68f76",
+  "schema_version": 1,
+  "target_category": "trades",
+  "trace_index": 1,
+  "trace_seed": 2949826092126892291
+}

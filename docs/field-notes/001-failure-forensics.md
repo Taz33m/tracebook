@@ -53,6 +53,8 @@ against the maintained release.
 ```bash
 tracebook-conformance reproduce \
   integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
+  --metadata \
+    integrations/orderbook_rs/regressions/issue-88-failure.json \
   --candidate-cmd \
     ./integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter
 
@@ -61,6 +63,10 @@ tracebook-conformance run \
   --candidate-cmd \
     ./integrations/orderbook_rs/target/release/tracebook-orderbook-rs
 ```
+
+The checked-in metadata binds this command to the expected failure class,
+four-event trace hash, and exact maker-ID mismatch. A different divergence is
+not reported as a successful reproduction.
 
 The full provenance, build commands, hashes, and exact divergence path are in
 the [case study](../case-studies/orderbook-rs-issue-88.md).

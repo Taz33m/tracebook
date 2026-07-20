@@ -260,8 +260,10 @@ jobs:
 
           FAILURE_DIR="$REPORT_ROOT/historical-issue-88-corpus/failure-7dd023c684cdb2d0fc0e"
           cmp "$FAILURE_DIR/reduced.jsonl" integrations/orderbook_rs/regressions/issue-88-reduced.jsonl
+          cmp "$FAILURE_DIR/failure.json" integrations/orderbook_rs/regressions/issue-88-failure.json
           tracebook-conformance reproduce \
-            "$FAILURE_DIR/reduced.jsonl" \
+            integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
+            --metadata integrations/orderbook_rs/regressions/issue-88-failure.json \
             --candidate-cmd "$HISTORICAL_ADAPTER" \
             --output "$REPORT_ROOT/historical-issue-88-reproduction.json" \
             --junit-output "$REPORT_ROOT/historical-issue-88-reproduction.xml"
@@ -299,6 +301,9 @@ jobs:
 
           divergence = reproduction["conformance_report"]["divergence"]
           assert reproduction["reproduced"] is True
+          assert reproduction["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
+          assert reproduction["expected"]["failure_class"] == "queue-priority drift"
+          assert reproduction["expected"]["divergence"] == divergence
           assert divergence["path"] == "$.observation.trades[0].sell_order_id"
           assert divergence["reference"] == 9100000001
           assert divergence["candidate"] == 9100000002
