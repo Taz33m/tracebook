@@ -137,6 +137,7 @@ def test_historical_field_note_pins_the_exact_reduced_divergence():
     assert metadata["artifact_type"] == "tracebook.conformance.failure"
     assert metadata["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
     assert metadata["failure_class"] == "queue-priority drift"
+    assert "paths" not in metadata
     assert metadata["reduced_event_count"] == 4
     assert metadata["reduced_trace_sha256"] == (
         "sha256:c7b3f3132e230e74734c442a798df614691491f9ca58b8eeee49d1555bd68f76"
@@ -144,6 +145,7 @@ def test_historical_field_note_pins_the_exact_reduced_divergence():
     assert divergence["path"] == "$.observation.trades[0].sell_order_id"
     assert divergence["reference"] == 9100000001
     assert divergence["candidate"] == 9100000002
+    assert metadata_path.with_name("issue-88-reduced.jsonl").is_file()
     assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
 
 

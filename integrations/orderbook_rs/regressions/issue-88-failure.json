@@ -42,12 +42,6 @@
   "original_divergence_event": 173,
   "original_event_count": 173,
   "original_trace_sha256": "sha256:59aae7f12cf2703f4a2ce87fad8b5aa25162d3cf2dbfdcb624f3b84753dcd4a6",
-  "paths": {
-    "campaign": "campaign.json",
-    "minimization": "failure/minimization.json",
-    "original": "original.jsonl",
-    "reduced": "reduced.jsonl"
-  },
   "profile": "fifo-partial-fill-v1",
   "reduced_event_count": 4,
   "reduced_trace_sha256": "sha256:c7b3f3132e230e74734c442a798df614691491f9ca58b8eeee49d1555bd68f76",
