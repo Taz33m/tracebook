@@ -1,6 +1,7 @@
 include README.md
 include LICENSE
 include CHANGELOG.md
+include CITATION.cff
 include CODE_OF_CONDUCT.md
 include CONTRIBUTING.md
 include PROJECT_PLAN.md
@@ -18,8 +19,7 @@ prune graphify-out
 prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
-recursive-include integrations *.py *.md *.jsonl
-recursive-include integrations/flash_benchmark *.json
+recursive-include integrations *.py *.md *.json *.jsonl
 recursive-include integrations/orderbook_rs/src *.rs
 include integrations/orderbook_rs/Cargo.toml
 include integrations/orderbook_rs/Cargo.lock

@@ -24,7 +24,7 @@ failure to a deterministic JSONL reproducer.
 
 [Quick start](#quick-start) · [Real failure](#a-real-four-event-rust-failure) ·
 [Profiles](#portable-semantic-profiles) · [Qualification](#profile-qualification) · [Adapters](#engine-adapters) ·
-[CI](#continuous-integration) · [Architecture](#architecture)
+[CI](#continuous-integration) · [Architecture](#architecture) · [Research](#research-and-citation)
 
 ## Quick Start
 
@@ -279,6 +279,18 @@ removing it:
 
 These tools support correctness investigations. Tracebook does not claim that
 local Python timings predict production Rust or C++ latency.
+
+## Research And Citation
+
+The first public
+[conformance field note](https://github.com/Taz33m/tracebook/blob/main/docs/field-notes/001-failure-forensics.md)
+records the 15,739-to-four-event reduction, external semantic review, public-
+package qualification evidence, negative guided-generation result, and claim
+boundaries in one citable narrative.
+
+Use [`CITATION.cff`](https://github.com/Taz33m/tracebook/blob/main/CITATION.cff)
+for software citation metadata. Release-specific evidence remains bound to its
+profile, candidate revision, workload identity, and artifact hashes.
 
 ## Project Boundaries
 

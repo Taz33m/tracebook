@@ -1,0 +1,16 @@
+Taz33m is the creator and maintainer of Tracebook, an open-source toolkit for
+matching-engine conformance testing and reproducible failure analysis. The
+project focuses on deterministic order-lifecycle traces, semantic differential
+testing, delta debugging, profile-scoped qualification, and CI-ready regression
+artifacts across Python, Rust, and Go engines. Through Tracebook, Taz33m has
+worked with matching-engine maintainers to verify queue-priority contracts,
+document profile boundaries, and translate large correctness failures into
+small, inspectable reproductions. Recent work connected Flash's broad matching-
+engine benchmark to a four-event regression for a historical orderbook-rs FIFO
+defect, qualified independently authored engines through a public process
+protocol, and tested research-guided trace generation against held-out defects
+before deciding not to ship it. Taz33m's broader interest is building rigorous,
+accessible infrastructure at the intersection of market microstructure,
+distributed systems, and open-source quantitative finance. The goal is to make
+correctness evidence easier for engine authors to inspect, challenge,
+reproduce, and retain without turning scoped results into certification claims.

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 try:
@@ -94,6 +95,58 @@ def test_sdist_excludes_local_navigation_material():
         "prune .local-tools",
     ):
         assert directive in manifest
+
+
+def test_citation_metadata_tracks_the_public_release():
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "cff-version: 1.2.0" in citation
+    assert 'version: "0.5.0"' in citation
+    assert "date-released: 2026-07-19" in citation
+    assert '- name: "Taz33m"' in citation
+    assert "family-names:" not in citation
+    assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
+    assert "include CITATION.cff" in manifest
+
+
+def test_research_docs_keep_injected_and_historical_reducers_distinct():
+    release_guide = (ROOT / "docs" / "release.md").read_text(encoding="utf-8")
+    field_note = (ROOT / "docs" / "field-notes" / "001-failure-forensics.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "seed-42 faulty campaign" in release_guide
+    assert "five-event reduced trace" in release_guide
+    assert "reduced 15,739 messages to four events" in field_note
+    assert "integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter" in field_note
+    assert "integrations/orderbook_rs/target/release/tracebook-orderbook-rs" in field_note
+
+
+def test_historical_field_note_pins_the_exact_reduced_divergence():
+    field_note = (ROOT / "docs" / "field-notes" / "001-failure-forensics.md").read_text(
+        encoding="utf-8"
+    )
+    metadata_path = ROOT / "integrations" / "orderbook_rs" / "regressions" / "issue-88-failure.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    divergence = metadata["expected_reduced_divergence"]
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "--metadata" in field_note
+    assert "integrations/orderbook_rs/regressions/issue-88-failure.json" in field_note
+    assert metadata["artifact_type"] == "tracebook.conformance.failure"
+    assert metadata["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
+    assert metadata["failure_class"] == "queue-priority drift"
+    assert "paths" not in metadata
+    assert metadata["reduced_event_count"] == 4
+    assert metadata["reduced_trace_sha256"] == (
+        "sha256:c7b3f3132e230e74734c442a798df614691491f9ca58b8eeee49d1555bd68f76"
+    )
+    assert divergence["path"] == "$.observation.trades[0].sell_order_id"
+    assert divergence["reference"] == 9100000001
+    assert divergence["candidate"] == 9100000002
+    assert metadata_path.with_name("issue-88-reduced.jsonl").is_file()
+    assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
 
 
 def test_engine_qualification_form_captures_adoption_evidence():

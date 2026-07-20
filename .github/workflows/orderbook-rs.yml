@@ -261,7 +261,8 @@ jobs:
           FAILURE_DIR="$REPORT_ROOT/historical-issue-88-corpus/failure-7dd023c684cdb2d0fc0e"
           cmp "$FAILURE_DIR/reduced.jsonl" integrations/orderbook_rs/regressions/issue-88-reduced.jsonl
           tracebook-conformance reproduce \
-            "$FAILURE_DIR/reduced.jsonl" \
+            integrations/orderbook_rs/regressions/issue-88-reduced.jsonl \
+            --metadata integrations/orderbook_rs/regressions/issue-88-failure.json \
             --candidate-cmd "$HISTORICAL_ADAPTER" \
             --output "$REPORT_ROOT/historical-issue-88-reproduction.json" \
             --junit-output "$REPORT_ROOT/historical-issue-88-reproduction.xml"
@@ -280,9 +281,15 @@ jobs:
           failure_dir = root / "historical-issue-88-corpus" / "failure-7dd023c684cdb2d0fc0e"
           campaign = json.loads((failure_dir / "campaign.json").read_text())
           failure = json.loads((failure_dir / "failure.json").read_text())
+          committed_failure = json.loads(
+              Path("integrations/orderbook_rs/regressions/issue-88-failure.json").read_text()
+          )
           reproduction = json.loads((root / "historical-issue-88-reproduction.json").read_text())
           fixed = json.loads((root / "historical-issue-88-fixed.json").read_text())
 
+          assert committed_failure == {
+              key: value for key, value in failure.items() if key != "paths"
+          }
           assert campaign["campaign_id"] == "sha256:e8e158af0223b4e61dbb7efeab10cfd1b34b0d3b478b3e086c12bea008c0b4aa"
           assert campaign["semantic_coverage"]["coverage_ratio"] == 1.0
           assert failure["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
@@ -299,6 +306,9 @@ jobs:
 
           divergence = reproduction["conformance_report"]["divergence"]
           assert reproduction["reproduced"] is True
+          assert reproduction["failure_id"] == "failure-7dd023c684cdb2d0fc0e"
+          assert reproduction["expected"]["failure_class"] == "queue-priority drift"
+          assert reproduction["expected"]["divergence"] == divergence
           assert divergence["path"] == "$.observation.trades[0].sell_order_id"
           assert divergence["reference"] == 9100000001
           assert divergence["candidate"] == 9100000002
