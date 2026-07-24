@@ -29,16 +29,24 @@ failure to a deterministic JSONL reproducer.
 ## Quick Start
 
 Tracebook requires Python 3.10-3.13. Install the public package and materialize
-the hash-verified adversarial suite:
+the current hash-verified adversarial suite:
 
 ```bash
 python -m pip install --upgrade tracebook-sim
-tracebook-conformance sample ./tracebook-suite
+tracebook-conformance sample ./tracebook-suite-v2 --suite-version v2
 tracebook-conformance --help
 ```
 
-Those commands require only the published wheel. A candidate engine remains a
-separate process by design. Once it speaks the
+Suite v2 is the current default; the explicit option makes the copied contract
+unambiguous if a later release adds another suite. These commands do not
+require a source checkout. The 0.5.0 distribution still resolves NumPy and
+psutil for its simulator and profiling surfaces even though conformance does
+not import them; `--no-deps` is release evidence, not a supported installation
+mode. The
+[lightweight packaging decision](https://github.com/Taz33m/tracebook/blob/main/packaging/lightweight-conformance.md)
+defines the non-overlapping distribution split required before advertising a
+lightweight public install. A candidate engine remains a separate process by
+design. Once it speaks the
 [versioned NDJSON protocol](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md),
 run a deterministic campaign:
 
@@ -54,14 +62,23 @@ tracebook-conformance campaign \
   --junit-output .tracebook/conformance.xml
 ```
 
-Exit code `0` means every requested trace conformed. Exit code `1` means the
-corpus contains the original failure, reduced reproducer, semantic diff,
-coverage evidence, campaign metadata, and JUnit result.
+Exit code `0` means every requested trace conformed. Exit code `1` means a
+semantic difference was preserved with the original failure, reduced
+reproducer, semantic diff, coverage evidence, campaign metadata, and JUnit
+result. Exit code `2` is reserved for an invalid configuration, adapter
+protocol, process, or filesystem failure.
 
 For a working adapter before writing your own, use the
 [native orderbook-rs walkthrough](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs)
-or the smaller
+or the small
 [Python process example](https://github.com/Taz33m/tracebook/blob/main/examples/conformance_adapter.py).
+The Python example demonstrates protocol framing around Tracebook's own
+reference adapter; it is not an estimate of real engine-integration effort.
+Native integrations must faithfully translate lifecycle operations, numeric
+representations, ordered snapshots, and source IDs. The frozen
+[design-partner study](https://github.com/Taz33m/tracebook/blob/main/docs/qualification-design-partners.md)
+records adapter files ranging from 672 to 1,056 Rust lines and an 865-line Go
+adapter plus 130 lines of tests.
 Engine maintainers and independent evaluators can also open a structured
 [engine qualification report](https://github.com/Taz33m/tracebook/issues/new?template=engine_qualification.yml).
 Successful and blocked attempts are both useful: the report records time to
@@ -129,11 +146,12 @@ behavior, so seeds and campaign hashes remain reproducible.
 | `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicates, inactive requests, and multiple symbols |
 | `fifo-full-v1` | `fifo-limit-v1` plus market, IOC, and FOK instructions |
 | `fifo-partial-fill-v1` | Portable FIFO lifecycle plus the real partial-fill continuation probe |
-| Standard suite v1 | Eight adversarial fixtures covering FIFO, instructions, STP, tick grids, deep cancellation, multiple symbols, and pro-rata |
+| Bundled suite v2 (current default) | Nine adversarial fixtures covering FIFO, instructions, encounter-based STP, tick grids, deep cancellation, multiple symbols, and pro-rata |
 
 Campaigns use specified SplitMix64 trace seeds and candidate-independent
-generation. Reports distinguish semantic workload coverage from Python source
-coverage.
+generation. Immutable suite v1 remains available explicitly for reproducing its
+original eight-case contract. Reports distinguish semantic workload coverage
+from Python source coverage.
 
 [Read the profile, protocol, hashing, and minimizer contracts](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md).
 
@@ -154,8 +172,10 @@ tracebook-conformance qualify \
 
 The atomic bundle includes `qualification.json`, `qualification.xml`, selected
 fixed-suite results, campaign results, semantic coverage, and any minimized
-failure. `fifo-limit-v1` qualification does not run STP or pro-rata cases, so
-unsupported features stay explicit without becoming false failures.
+failure. Qualification selection contract v1 uses bundled suite v2 by default;
+these are separate version boundaries. `fifo-limit-v1` qualification does not
+run STP or pro-rata cases, so unsupported features stay explicit without
+becoming false failures.
 
 [Read the research-grounded roadmap and adoption experiment](https://github.com/Taz33m/tracebook/blob/main/docs/research-roadmap.md).
 
@@ -205,7 +225,7 @@ Every stopped campaign writes an atomic, content-addressed bundle:
 | `original.jsonl` | Complete generated history through the first divergence |
 | `reduced.jsonl` | Deterministic minimized reproducer |
 | `minimization.json` | Run budget, reduction evidence, and one-minimal status |
-| JUnit XML | Native pull-request annotation and test-report ingestion |
+| JUnit XML | Portable test-report projection; the sample workflow uploads it, and a separate CI reporter is required for pull-request annotations |
 
 Replay a stored expectation without regenerating anything:
 
@@ -217,8 +237,10 @@ tracebook-conformance reproduce \
 
 ## Continuous Integration
 
-This minimal job installs the public PyPI release. Replace only the candidate
-build and command:
+This minimal job installs the public PyPI release. It assumes that a faithful
+stdio adapter already exists and can be built in the candidate repository; the
+adapter is the substantive engine-specific integration work. Replace the
+placeholder build and candidate commands:
 
 ```yaml
 name: Matching engine conformance
@@ -249,6 +271,10 @@ The repository includes a
 [copy-paste workflow with artifact upload](https://github.com/Taz33m/tracebook/blob/main/examples/github-actions/conformance.yml)
 and a short
 [CI integration guide](https://github.com/Taz33m/tracebook/blob/main/docs/ci.md).
+`qualify` prints a concise human summary—profile, fixed and generated counts,
+semantic coverage, PASS/FAIL, and reduced-trace details—to the job log. The
+workflow uploads the lossless JSON and JUnit bundle for deeper review; it does
+not install a JUnit annotation reporter.
 
 ## Reference Semantics
 
@@ -304,10 +330,22 @@ Tracebook is not:
 
 [Read the product position and comparison with adjacent projects](https://github.com/Taz33m/tracebook/blob/main/docs/positioning.md).
 
+## Platform Support
+
+The release matrix runs Python 3.10-3.13 on Ubuntu. Atomic campaign and
+qualification bundles rely on descriptor-relative filesystem operations, so
+Ubuntu is currently the only release-tested platform for that evidence path.
+The implementation fails closed when those operations are unavailable; Windows
+qualification artifact publication is not currently supported. Manually
+measured macOS runs exist, but macOS is not a release-gated support target.
+Other library and CLI surfaces may work elsewhere without constituting a
+cross-platform support claim.
+
 ## Contributing
 
-Tracebook supports Python 3.10 through 3.13 and is alpha software. The real
-four-event `orderbook-rs` case study currently requires a source checkout.
+Tracebook supports Python 3.10 through 3.13 on the platform boundary above and
+is alpha software. The real four-event `orderbook-rs` case study currently
+requires a source checkout.
 
 ```bash
 git clone https://github.com/Taz33m/tracebook.git

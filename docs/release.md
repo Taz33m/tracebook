@@ -13,9 +13,11 @@
 
 ```bash
 python -m pip install -e ".[dev,dashboard]"
-python -m black --check src tests examples integrations install_deps.py test_system.py
-python -m flake8 src tests examples integrations install_deps.py test_system.py
-python -m bandit -q -r src integrations
+python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
+python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+python -m mypy src/tracebook experiments tools
+python -m bandit -q -r src integrations tools
+python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --warmup-seconds 0.01
@@ -26,6 +28,7 @@ tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/
 tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
 python -m build --sdist --wheel --outdir dist
 python -m twine check dist/*
+python tools/smoke_conformance_wheel.py dist/*.whl
 python -m pip check
 (
   cd integrations/orderbook_rs
@@ -37,7 +40,8 @@ python -m pip check
 
 ## Remote Verification
 
-- Push to a branch and wait for GitHub Actions on Python 3.10 through 3.13.
+- Push to a branch and wait for Ubuntu GitHub Actions on Python 3.10 through
+  3.13.
 - Confirm the native `orderbook-rs` integration passes its fixed trace, `7/9`
   suite profile, generated campaign, and intentional-drift negative control.
 - Confirm the pinned PythonMatchingEngine integration workflow passes.
@@ -54,9 +58,9 @@ Configure a PyPI Trusted Publisher for:
 - workflow: `release.yml`
 - environment: `pypi`
 
-Repository settings enforce pull requests and the Python 3.10-3.13 CI matrix on
-`main`. The `pypi` deployment environment accepts only `v*` tags; keep those
-protections aligned if workflow or check names change.
+Repository settings enforce pull requests and the Ubuntu/Python 3.10-3.13 CI
+matrix on `main`. The `pypi` deployment environment accepts only `v*` tags;
+keep those protections aligned if workflow or check names change.
 
 Publishing a GitHub release whose tag matches `v<package-version>` builds,
 validates, and publishes the wheel and sdist. The workflow rejects a mismatched

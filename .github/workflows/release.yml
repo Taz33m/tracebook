@@ -27,11 +27,11 @@ jobs:
 
       - name: Run release quality gate
         run: |
-          python -m black --check src tests examples integrations experiments install_deps.py test_system.py
-          python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
-          python -m mypy --python-version 3.13 src/tracebook experiments
-          python -m bandit -q -r src integrations
-          python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+          python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
+          python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+          python -m mypy --python-version 3.13 src/tracebook experiments tools
+          python -m bandit -q -r src integrations tools
+          python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
           python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
           python test_system.py
 
@@ -46,6 +46,9 @@ jobs:
         run: |
           python -m build --sdist --wheel --outdir dist
           python -m twine check dist/*
+
+      - name: Prove conformance wheel without simulation dependencies
+        run: python tools/smoke_conformance_wheel.py dist/*.whl
 
       - name: Reject private navigation material in sdist
         run: |

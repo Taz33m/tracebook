@@ -6,6 +6,32 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Fixed conformance CLI exit classification across single runs, suites,
+  minimization, campaigns, qualification, and reproduction. Semantic
+  disagreements remain exit `1`; malformed adapter output, timeouts, invalid
+  state hashes, snapshot failures, and shutdown failures now consistently exit
+  `2` as documented. Minimization and reproduction JUnit projections now also
+  fail instead of reporting green when their nested conformance run failed
+  operationally. A shutdown error no longer overwrites an earlier first
+  divergence; it is retained as auxiliary `close_error` evidence.
+- Added an isolated release smoke that builds a dependency-empty environment
+  and proves the wheel's conformance path completes 3/3 fixed cases, 25/25
+  generated traces, 5,000 events, and 10/10 capabilities without NumPy or
+  psutil. Documented the non-overlapping two-distribution design required
+  before advertising a lightweight public install.
+- Corrected public CI, security, suite-version, adapter-effort, API-stability,
+  and platform-support claims. JUnit is now described as an uploaded projection
+  unless a separate reporter consumes it, and qualification artifact
+  publication is no longer labeled operating-system independent.
+- Recorded the 2/3 upstream native-regression retention pilot and its provenance
+  limit: the accepted patches validate demand for focused native regressions,
+  while a raw Flash divergence is still required to validate Tracebook's own
+  localization, minimization, and translation path.
+- Reframed the adoption sequence around reviewable native evidence first,
+  optional out-of-tree qualification ownership, and independently retained
+  Tracebook-derived artifacts rather than stars, local adapters, or passing
+  repository-owned campaigns.
+
 ## 0.5.0 - 2026-07-19
 
 - Added a structured public engine-qualification intake that records time to

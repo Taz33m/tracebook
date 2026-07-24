@@ -16,6 +16,13 @@ User install:
 python -m pip install tracebook-sim
 ```
 
+In 0.5.0 this normal install still resolves NumPy and psutil for the simulator
+and profiling commands, although the conformance path does not import them.
+Installing with `--no-deps` is an isolated release check, not a supported user
+mode. See the [lightweight packaging decision](../packaging/lightweight-conformance.md)
+for the distribution split required before the project claims a lightweight
+conformance install.
+
 Contributor install:
 
 ```bash
@@ -108,7 +115,7 @@ fixed semantic surface.
 Copy and run the standard suite:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v2
+tracebook-conformance sample /tmp/tracebook-conformance-v2 --suite-version v2
 
 tracebook-conformance suite \
   /tmp/tracebook-conformance-v2 \
@@ -116,8 +123,8 @@ tracebook-conformance suite \
   --candidate python examples/conformance_adapter.py
 ```
 
-Pass `--suite-version v1` to `sample` when reproducing the original immutable
-eight-case suite. The default is the latest bundled version.
+Suite v2 is the current default. Pass `--suite-version v1` only when
+reproducing the original immutable eight-case suite and its historical hash.
 
 Compare one trace:
 

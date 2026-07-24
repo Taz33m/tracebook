@@ -27,6 +27,8 @@ jobs:
         run: make build
 
       - name: Compare matching semantics
+        # Prints profile, fixed/generated counts, coverage, PASS/FAIL, and any
+        # reduced-trace details to the job log.
         run: |
           tracebook-conformance qualify \
             --profile fifo-limit-v1 \
@@ -39,6 +41,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
+          # JUnit is preserved here as an artifact; add a test-report consumer
+          # separately if the repository wants pull-request annotations.
           name: matching-engine-conformance
           path: artifacts
           if-no-files-found: error
