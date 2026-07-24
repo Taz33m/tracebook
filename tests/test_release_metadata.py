@@ -46,6 +46,13 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 
 
+def test_distribution_platform_classifier_matches_the_release_gate():
+    classifiers = _pyproject()["project"]["classifiers"]
+
+    assert "Operating System :: POSIX :: Linux" in classifiers
+    assert "Operating System :: OS Independent" not in classifiers
+
+
 def test_contributor_requirements_delegate_to_package_extras():
     active_lines = [
         line.strip()
@@ -75,11 +82,29 @@ def test_dependency_groups_do_not_repeat_packages_internally():
 def test_release_gate_covers_research_and_integration_code():
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert "black --check src tests examples integrations experiments" in workflow
-    assert "flake8 src tests examples integrations experiments" in workflow
-    assert "mypy --python-version 3.13 src/tracebook experiments" in workflow
-    assert "bandit -q -r src integrations" in workflow
-    assert "compileall -q src tests examples integrations experiments" in workflow
+    assert "black --check src tests examples integrations experiments tools" in workflow
+    assert "flake8 src tests examples integrations experiments tools" in workflow
+    assert "mypy --python-version 3.13 src/tracebook experiments tools" in workflow
+    assert "bandit -q -r src integrations tools" in workflow
+    assert "compileall -q src tests examples integrations experiments tools" in workflow
+
+
+def test_release_gate_proves_conformance_without_simulation_dependencies():
+    ci_workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    smoke = (ROOT / "tools" / "smoke_conformance_wheel.py").read_text(encoding="utf-8")
+    decision = (ROOT / "packaging" / "lightweight-conformance.md").read_text(encoding="utf-8")
+
+    invocation = "python tools/smoke_conformance_wheel.py dist/*.whl"
+    assert invocation in ci_workflow
+    assert invocation in release_workflow
+    assert '"numpy", "psutil"' in smoke
+    assert '"--no-deps"' in smoke
+    assert '"--traces",\n                "25"' in smoke
+    assert '"--events-per-trace",\n                "200"' in smoke
+    assert "--no-deps` is not a supported" in decision
+    assert "Do not publish a second distribution" in decision
+    assert "`tracebook-sim` remains the compatibility name" in decision
 
 
 def test_sdist_excludes_local_navigation_material():
@@ -93,6 +118,8 @@ def test_sdist_excludes_local_navigation_material():
         "prune openwiki",
         "prune graphify-out",
         "prune .local-tools",
+        "recursive-include packaging *.md",
+        "recursive-include tools *.py",
     ):
         assert directive in manifest
 

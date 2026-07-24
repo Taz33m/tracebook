@@ -20,10 +20,11 @@ object per line.
 
 ## Quick Start
 
-Copy the bundled synthetic suite and run the example adapter:
+Copy bundled suite v2, the current default synthetic suite, and run the example
+adapter:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v2
+tracebook-conformance sample /tmp/tracebook-conformance-v2 --suite-version v2
 
 tracebook-conformance suite \
   /tmp/tracebook-conformance-v2 \
@@ -36,6 +37,13 @@ candidate command. The legacy `--candidate ./adapter --flag value` form remains
 available, but it must be last because every remaining argument belongs to the
 candidate process. A conformant suite exits `0`; a semantic divergence exits
 `1`; an invalid trace, manifest, command, or protocol exits `2`.
+
+The 17-line Python example wraps Tracebook's own reference adapter and
+demonstrates protocol framing only. It is not representative of native
+integration effort: candidate adapters also have to map lifecycle operations,
+numeric representations, trades, source IDs, and priority-ordered snapshots.
+See the measured [design-partner study](qualification-design-partners.md) and
+the maintained integrations linked above before estimating an onboarding.
 
 Run one normalized CSV, JSON, JSONL, or NDJSON trace:
 
@@ -65,6 +73,9 @@ deletion in the final round no longer reproduces that category. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
 made. Every fresh candidate process must report the same engine metadata as the
 initial failing run; a binary or adapter identity change aborts minimization.
+When reducing a semantic divergence, a later timeout, malformed response,
+snapshot failure, or other protocol divergence aborts with exit `2` instead of
+being treated as a harmless non-reproducing subset.
 
 Replay a corpus reproducer and verify its exact stored divergence:
 
@@ -80,7 +91,9 @@ When `failure.json` is beside the trace, `reproduce` loads its config and
 requires the same failure class, event, structural path, reference value, and
 candidate value. It exits `0` only for that exact reproduction and exits `1`
 when the trace conforms or fails differently. Without metadata it accepts any
-semantic divergence, which is useful for older minimized traces.
+semantic divergence, which is useful for older minimized traces. Adapter,
+protocol, snapshot, and shutdown failures never count as a reproduction and
+exit `2`.
 
 ## Profile Qualification
 
@@ -97,12 +110,14 @@ tracebook-conformance qualify \
   --output-dir .tracebook/qualification
 ```
 
-Qualification contract version 1 runs fixed suite cases selected only from the
-declared profile, then runs the generated campaign and requires complete
-candidate-independent semantic coverage. It does not fail a FIFO engine for
+Qualification selection contract version 1 runs fixed cases selected only from
+the declared profile, then runs the generated campaign and requires complete
+candidate-independent semantic coverage. It uses bundled suite v2 by default;
+the qualification selection version, bundled suite version, and manifest
+schema version are distinct boundaries. It does not fail a FIFO engine for
 pro-rata or self-trade-prevention behavior it did not claim.
 
-| Profile | Fixed qualification-v1 cases |
+| Profile | Fixed cases selected by qualification contract v1 |
 | --- | --- |
 | `fifo-limit-v1` | `fifo-lifecycle`, `tick-grid`, `deep-cancellation` |
 | `fifo-full-v1` | The limit cases plus `order-instructions` and `multi-symbol` |
@@ -216,7 +231,10 @@ still contains the reservation marker is incomplete and must be explicitly
 removed before retrying; this conservative rule also applies after handled
 candidate or write failures. Bundle publication fails closed before creating
 the output on platforms where Python lacks descriptor-relative directory
-operations; `run_campaign` generation and comparison remain available. A
+operations; `run_campaign` generation and comparison remain available. Ubuntu
+is currently the only release-tested platform for campaign and qualification
+artifact publication. Windows publication is unsupported; manually exercised
+macOS runs are not a release-gated support claim. A
 divergent `--output-dir` run also writes its compatibility layout:
 
 | Path | Contents |
@@ -462,7 +480,10 @@ original eight-case suite and its historical hash.
 
 Single-run reports use `artifact_type = "tracebook.conformance.report"` and
 include protocol/schema versions, trace SHA-256, exact config, engine metadata,
-the number of compared events, final state hash, and the first divergence.
+the number of compared events, final state hash, and the first divergence. If
+adapter shutdown also fails after that divergence, optional `close_error`
+evidence is attached without replacing the first drift; the command still exits
+`2`.
 
 Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
@@ -494,7 +515,11 @@ start at version `1`.
 `--junit-output`. JUnit is a projection of the canonical JSON: divergences are
 test failures, a successful minimization is a passing case, and an exact known
 failure reproduction is a passing case. Campaign JUnit properties include the
-semantic coverage ratio and counts. JSON remains the lossless contract.
+semantic coverage ratio and counts. JSON remains the lossless contract. JUnit
+does not annotate pull requests on its own; the CI environment must configure a
+compatible report consumer. `campaign` and `qualify` already print concise
+counts and coverage for human review in the job log; `qualify` adds PASS/FAIL,
+and both commands print reduced-failure details when a divergence exists.
 
 ## Boundaries
 

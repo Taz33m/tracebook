@@ -91,11 +91,14 @@ changed.
 
 The `geseq/orderbook` maintainer proposed a native amendment API after the
 profile discussion exposed that cancel plus resubmit would violate
-priority-preserving reduction. The resulting draft
-[`geseq/orderbook` PR #30](https://github.com/geseq/orderbook/pull/30) passes the
+priority-preserving reduction. The resulting bundled draft
+[`geseq/orderbook` PR #30](https://github.com/geseq/orderbook/pull/30) passed the
 public `tracebook-sim==0.5.0` qualification from a fresh clone: 3/3 fixed cases,
 25/25 generated traces, 5,000 events, 10/10 capabilities, and 28 candidate
-runs. Full measurements and limitations are in the
+runs. On 2026-07-24 it was superseded by the reviewable core-only
+[`geseq/orderbook` PR #31](https://github.com/geseq/orderbook/pull/31). The
+adapter and optional qualification workflow remain out of tree unless the
+maintainer later asks to own them. Full measurements and limitations are in the
 [design-partner study](qualification-design-partners.md).
 
 This result changes the next question, not the product surface. The 865-line Go
@@ -104,3 +107,32 @@ cannot distinguish shared friction from engine-specific translation. Tracebook
 will wait for a second independent onboarding and the upstream CI decision
 before extracting a Go SDK or changing the protocol. Guided generation remains
 research-only because the held-out experiment still failed its product gate.
+
+## 2026-07-24 Native-Regression Retention Result
+
+A retention-only pilot translated three already reduced Flash lifecycle reports
+into ordinary upstream-native fixes and tests:
+
+- StockSharp merged its two-file FIFO-priority repair in
+  [PR #684](https://github.com/StockSharp/StockSharp/pull/684);
+- `inv2004/orderbook-rs` approved and merged its one-file last-order panic repair
+  in [PR #3](https://github.com/inv2004/orderbook-rs/pull/3);
+- the OPEX partial-fill edit repair remains open and mergeable in
+  [PR #690](https://github.com/opexdev/core/pull/690).
+
+The first checkpoint is therefore 2/3 regressions retained by independent
+maintainers without requested semantic changes. Full measurements and upstream
+status are recorded in the public
+[experiment ledger](https://github.com/Taz33m/tracebook/issues/66).
+
+This is meaningful maintainer-behavior evidence, but its provenance limits the
+claim. Flash had already reduced all three reports before the pilot. The result
+shows that small native regressions are useful and reviewable; it does not show
+that Tracebook found the defects, shortened the forensic path, or can automate
+their translation.
+
+The next controlled experiment therefore starts from one raw, untriaged Flash
+divergence. Tracebook must localize and minimize it before producing the native
+test, with timing and failed attempts recorded. Until that gate passes, the
+project will carry adapters out of tree, offer maintainers focused native
+evidence first, and defer a regression exporter or generic adapter SDK.

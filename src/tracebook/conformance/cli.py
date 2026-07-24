@@ -21,6 +21,7 @@ from .campaign import (
 )
 from .compare import run_conformance
 from .external import AdapterProtocolError, ExternalProcessAdapterFactory
+from .exit_codes import exit_code_for_artifact
 from .junit import write_junit
 from .minimize import minimize_failing_trace
 from .model import ConformanceConfig, ConformanceError
@@ -263,7 +264,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             payload = single_report.to_dict()
             _emit_report(payload, args.output)
             _emit_junit(payload, args.junit_output)
-            return 0 if single_report.conformant else 1
+            return exit_code_for_artifact(payload)
         if args.command == "suite":
             suite_path = Path(args.suite)
             suite_manifest = suite_path / "manifest.json" if suite_path.is_dir() else suite_path
@@ -277,7 +278,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             suite_report = run_conformance_suite(loaded_suite, _candidate_factory(args))
             _emit_report(suite_report, args.output)
             _emit_junit(suite_report, args.junit_output)
-            return 0 if suite_report["conformant"] else 1
+            return exit_code_for_artifact(suite_report)
         if args.command == "minimize":
             _require_distinct_paths(
                 args.events,
@@ -297,7 +298,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             _emit_report(payload, args.output)
             _emit_junit(payload, args.junit_output)
             print(f"Minimized events written: {Path(args.events_output)}")
-            return 0
+            return exit_code_for_artifact(payload)
         if args.command == "campaign":
             _require_distinct_paths(args.output_dir, args.corpus_dir)
             _require_path_outside_directories(
@@ -347,7 +348,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"Campaign hash: {campaign_result.campaign_id}")
                 print(f"Failure id: {campaign_result.failure_id}")
                 print(f"Reduced trace: {reduced_path}")
-            return 0 if campaign_result.conformant else 1
+            return exit_code_for_artifact(payload)
         if args.command == "qualify":
             _require_path_outside_directories(args.junit_output, args.output_dir)
             with _QualificationOutputReservation(args.output_dir) as qualification_reservation:
@@ -385,7 +386,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"Failure class: {failure.failure_class}")
                 print(f"Reduced reproducer: {len(failure.minimization.events)} events")
                 print(f"Reduced trace: {report_path.parent / 'reduced.jsonl'}")
-            return 0 if qualification.qualified else 1
+            return exit_code_for_artifact(payload)
         if args.command == "reproduce":
             _require_distinct_paths(
                 args.events,
@@ -424,7 +425,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if reproduction_result.reproduced
                 else "Reproduction: mismatch"
             )
-            return 0 if reproduction_result.reproduced else 1
+            return exit_code_for_artifact(payload)
         parser.error(f"unknown command: {args.command}")
     except KeyboardInterrupt:
         print("Conformance operation interrupted.", file=sys.stderr)

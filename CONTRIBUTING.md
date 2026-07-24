@@ -1,6 +1,8 @@
 # Contributing
 
-Thanks for helping make `tracebook` better. This project is early alpha, so the best contributions are focused, tested, and honest about behavior.
+Thanks for helping make `tracebook` better. This matching-engine conformance,
+qualification, and failure-forensics toolkit is early alpha, so the best
+contributions are focused, tested, and honest about behavior.
 
 ## Development Setup
 
@@ -27,7 +29,7 @@ tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
-tracebook-conformance suite src/tracebook/conformance/fixtures/v1 --candidate python examples/conformance_adapter.py
+tracebook-conformance suite src/tracebook/conformance/fixtures/v2 --candidate python examples/conformance_adapter.py
 ```
 
 For packaging changes, also run:
@@ -56,6 +58,12 @@ include timeout/error tests. Protocol changes require an artifact schema test,
 cross-process coverage, a changelog entry, and an explicit versioning decision.
 New standard-suite cases must be synthetic, document the semantic edge they
 cover, and update the manifest hash intentionally.
+
+The small Python process example wraps Tracebook's own reference adapter and is
+only a framing smoke test. A real candidate integration must document its
+engine-specific lifecycle, numeric, trade-ID, and snapshot translations,
+including measured adapter size and time to first evidence. Do not describe the
+workflow's build and command substitutions as the full integration effort.
 
 Maintained third-party integrations belong under `integrations/`. Pin the exact
 upstream revision, link its license and primary repository, keep its dependencies

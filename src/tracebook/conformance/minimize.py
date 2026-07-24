@@ -53,6 +53,22 @@ class MinimizationResult:
         }
 
 
+def _reject_protocol_failure_during_semantic_minimization(
+    report: ConformanceReport,
+    target_category: str,
+    run_number: int,
+) -> None:
+    """Do not mistake an operational trial failure for a removable semantic subset."""
+    divergence = report.divergence
+    if target_category != "protocol" and divergence is not None and report.operational_failure:
+        kind = "adapter_close_error" if divergence.close_error is not None else divergence.kind
+        message = divergence.close_error or divergence.message
+        raise ConformanceError(
+            "candidate protocol failure during semantic minimization "
+            f"run {run_number}: {kind}: {message}"
+        )
+
+
 def minimize_failing_trace(
     events: Iterable[MarketEvent],
     candidate_factory: AdapterFactory,
@@ -76,6 +92,7 @@ def minimize_failing_trace(
         raise ConformanceError("candidate engine metadata changed during minimization")
 
     target = initial.divergence.category
+    _reject_protocol_failure_during_semantic_minimization(initial, target, runs)
     prefix_length = initial.divergence.event_index
     current = original[:prefix_length] if prefix_length > 0 else original
     current_report = (
@@ -106,6 +123,7 @@ def minimize_failing_trace(
             runs += 1
             if report.candidate_engine != candidate_engine:
                 raise ConformanceError("candidate engine metadata changed during minimization")
+            _reject_protocol_failure_during_semantic_minimization(report, target, runs)
             if (
                 not report.conformant
                 and report.divergence is not None
@@ -131,6 +149,7 @@ def minimize_failing_trace(
         runs += 1
         if empty_report.candidate_engine != candidate_engine:
             raise ConformanceError("candidate engine metadata changed during minimization")
+        _reject_protocol_failure_during_semantic_minimization(empty_report, target, runs)
         if (
             not empty_report.conformant
             and empty_report.divergence is not None

@@ -19,6 +19,8 @@ prune graphify-out
 prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
+recursive-include packaging *.md
+recursive-include tools *.py
 recursive-include integrations *.py *.md *.json *.jsonl
 recursive-include integrations/orderbook_rs/src *.rs
 include integrations/orderbook_rs/Cargo.toml

@@ -56,15 +56,29 @@ of the snapshot observation surface, replacement representation, and possible
 upstream CI adoption remains pending. That distinction is part of the evidence,
 not a reason to label the upstream contract settled.
 
-The first maintainer-directed public-package qualification is now proposed in
-[`geseq/orderbook` PR #30](https://github.com/geseq/orderbook/pull/30). The
-maintainer selected a native amendment API after the profile review exposed that
-cancel plus create could not preserve reduction priority. From a fresh clone,
-the 0.5.0 public command passed 3/3 fixed cases, 25/25 generated traces, 5,000
-events, and 10/10 capabilities. The draft also proposes keeping JSON/JUnit
-qualification in the candidate repository's CI. Review and retention remain
-pending, so this is evidence of a serious onboarding attempt rather than a claim
-of independent adoption.
+The first maintainer-directed public-package qualification was exercised in
+[`geseq/orderbook` draft PR #30](https://github.com/geseq/orderbook/pull/30).
+The maintainer selected a native amendment API after the profile review exposed
+that cancel plus create could not preserve reduction priority. From a fresh
+clone, the 0.5.0 public command passed 3/3 fixed cases, 25/25 generated traces,
+5,000 events, and 10/10 capabilities. The bundled draft was later closed in
+favor of the reviewable, core-only
+[`geseq/orderbook` PR #31](https://github.com/geseq/orderbook/pull/31); the
+865-line adapter and optional CI workflow remain out of tree. Review and
+retention remain pending, so this is evidence of a serious onboarding attempt
+rather than a claim of independent adoption.
+
+The first native-regression retention pilot reached three additional engines on
+2026-07-20. StockSharp merged a focused FIFO-priority repair and regression in
+[PR #684](https://github.com/StockSharp/StockSharp/pull/684), and
+`inv2004/orderbook-rs` approved and merged its last-order panic repair and
+regression in [PR #3](https://github.com/inv2004/orderbook-rs/pull/3). The
+equivalent OPEX lifecycle repair remains open in
+[PR #690](https://github.com/opexdev/core/pull/690). The public
+[experiment ledger](https://github.com/Taz33m/tracebook/issues/66) records the
+2/3 retention result and its key limitation: Flash had already reduced all
+three source reports, so this validates maintainer demand for small native
+regressions, not Tracebook's discovery or minimization value.
 
 ## Current Product Hypothesis
 
@@ -74,6 +88,14 @@ profile-scoped compatibility artifact in one invocation. Qualification version
 1 combines relevant immutable suite cases, a deterministic generated campaign,
 semantic coverage, JSON, JUnit, and any minimized failure without testing
 features outside the profile the engine claims.
+
+The retention pilot sharpens the adoption path. Tracebook should earn upstream
+ownership by first delivering a reviewable semantic result: a localized
+divergence, a minimized trace, or a focused native regression. Tracebook can
+carry the adapter and scheduled qualification out of tree until the engine
+maintainer independently chooses to retain the tool or workflow. A passing
+artifact produced only by this repository remains technical evidence, not
+adoption.
 
 ## How The Roadmap Is Chosen
 
@@ -95,20 +117,27 @@ experiments rather than presumed roadmap wins.
 
 ## Next Milestones
 
-1. Run a time-boxed adoption sprint with independently maintained engines.
-   Complete the `geseq/orderbook` draft review, continue the `gocronx/matcher`
-   review loop, and recruit at least one additional author or contributor.
-   Record successful and blocked attempts through the public engine-qualification
-   report rather than counting repository-local integrations as adoption.
-2. Observe at least two external onboarding attempts before building an adapter
+1. Complete one raw Flash-to-Tracebook forensic handoff. The source case must be
+   untriaged when received so the experiment can measure localization,
+   minimization, translation into a native regression, and maintainer retention
+   honestly. The retention-only pilot does not satisfy this gate.
+2. Complete review of the core-only `geseq/orderbook` PR #31. The
+   maintainer-requested amendment/snapshot engine change is now separate from
+   the optional 865-line adapter and CI workflow. Keep that integration out of
+   tree, then record whether the maintainer wants shadow qualification, a later
+   optional workflow, or neither.
+3. Complete the targeted OPEX review loop, but stop repeated hypothetical
+   integration follow-ups to inactive or silent repositories. New outreach
+   should begin with a tested native artifact and one narrow semantic question.
+4. Observe at least two external onboarding attempts before building an adapter
    scaffold. The 865-line Go adapter is the first concrete signal that protocol
    framing, canonical hashing, state translation, and decimal handling may
    dominate the work. Extract only pieces repeated by a second author while
    leaving engine-specific semantics explicit.
-3. Keep guided exploration research-only. The first frozen held-out comparison
+5. Keep guided exploration research-only. The first frozen held-out comparison
    improved one injected defect and regressed on the historical defect plus a
    second injected defect, so it failed the product gate.
-4. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
+6. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
    only after qualification evidence identifies a repeated external need.
 
 ## Next Release Gate
@@ -124,10 +153,13 @@ cutting it, require:
 - evidence that any new adapter helper removes repeated friction rather than
   merely reducing Tracebook's own integration code.
 
-The north-star measure is the number of externally maintained engine CI jobs
-that run Tracebook and retain its evidence. Downloads, clones, stars, local
-adapters, and passing campaign counts are awareness or technical signals, not
-adoption by themselves.
+The north-star measure is the number of independently maintained candidate
+repositories that retain Tracebook-derived evidence. A recurring CI job is the
+strongest form; a native regression counts only when a raw failure actually
+passed through Tracebook localization or minimization. Downloads, clones, stars,
+local adapters, passing campaigns, and regressions translated from already
+reduced third-party reports are awareness or technical signals, not adoption by
+themselves.
 
 ## Decision Rules
 
