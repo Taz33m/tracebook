@@ -103,6 +103,7 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "--profile fifo-full-v1" in workflow
     assert "--events-per-trace 100" in workflow
     assert "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9" in workflow
+    assert "sha256:c04a07cbdb9931232162ef1a05740221311f3b2fa21b9b552093a2706a12c488" in workflow
     assert "--test-fault=drop-first-trade" in workflow
     assert 'assert report["divergence"]["event_index"] == 3' in workflow
     assert "failure-bc8b19d3e0e3441a98db" in workflow
@@ -133,7 +134,7 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "awaiting an upstream" in readme
     assert "stable public inspection contract" in readme
     assert "tracebook-conformance qualify" in workflow
-    assert "sha256:45472685dcda853b202f1f973814fc2c91193b6ac0813dac2900ca2c273579c3" in workflow
+    assert "sha256:1636620f5f0f6b65fd425a6021424e9c7678bec5215555556c70a929c5e0b144" in workflow
     assert "actions/upload-artifact@v7" in workflow
 
 
