@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://pypi.org/project/tracebook-sim/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tracebook-sim?label=PyPI" /></a>
-  <a href="https://pypi.org/project/tracebook-sim/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/tracebook-sim" /></a>
+  <a href="https://pypi.org/project/tracebook-conformance/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tracebook-conformance?label=PyPI" /></a>
+  <a href="https://pypi.org/project/tracebook-conformance/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/tracebook-conformance" /></a>
   <a href="https://github.com/Taz33m/tracebook/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
 </p>
 
@@ -28,25 +28,37 @@ failure to a deterministic JSONL reproducer.
 
 ## Quick Start
 
-Tracebook requires Python 3.10-3.13. Install the public package and materialize
-the current hash-verified adversarial suite:
+Tracebook requires Python 3.10-3.13. Install the dependency-light conformance
+distribution and materialize the current hash-verified adversarial suite:
+
+If this environment already contains `tracebook-sim` 0.5.x, remove that
+legacy package owner **before installing either 0.6.0 distribution**:
 
 ```bash
-python -m pip install --upgrade tracebook-sim
+python -m pip uninstall -y tracebook-sim
+```
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
 tracebook-conformance sample ./tracebook-suite-v2 --suite-version v2
 tracebook-conformance --help
 ```
 
 Suite v2 is the current default; the explicit option makes the copied contract
 unambiguous if a later release adds another suite. These commands do not
-require a source checkout. The 0.5.0 distribution still resolves NumPy and
-psutil for its simulator and profiling surfaces even though conformance does
-not import them; `--no-deps` is release evidence, not a supported installation
-mode. The
-[lightweight packaging decision](https://github.com/Taz33m/tracebook/blob/main/packaging/lightweight-conformance.md)
-defines the non-overlapping distribution split required before advertising a
-lightweight public install. A candidate engine remains a separate process by
-design. Once it speaks the
+require a source checkout, NumPy, or psutil. Install
+`tracebook-sim==0.6.0` instead when you need the simulator, benchmark,
+profiling, visualization, replay, or corpus commands. Users migrating that
+distribution from 0.5.x must use the uninstall-first handoff above:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+The
+[package-boundary decision](https://github.com/Taz33m/tracebook/blob/main/packaging/lightweight-conformance.md)
+documents the one-time ownership handoff and recovery command. A candidate
+engine remains a separate process by design. Once it speaks the
 [versioned NDJSON protocol](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md),
 run a deterministic campaign:
 
@@ -255,7 +267,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install "tracebook-sim==0.5.0"
+      - run: python -m pip install "tracebook-conformance==0.6.0"
       - run: make build
       - run: |
           tracebook-conformance qualify \
@@ -352,7 +364,8 @@ git clone https://github.com/Taz33m/tracebook.git
 cd tracebook
 python -m venv venv
 source venv/bin/activate
-python -m pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[analysis,capture,dashboard]"
 make quality
 ```
 

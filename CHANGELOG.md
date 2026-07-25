@@ -14,11 +14,22 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   fail instead of reporting green when their nested conformance run failed
   operationally. A shutdown error no longer overwrites an earlier first
   divergence; it is retained as auxiliary `close_error` evidence.
-- Added an isolated release smoke that builds a dependency-empty environment
-  and proves the wheel's conformance path completes 3/3 fixed cases, 25/25
-  generated traces, 5,000 events, and 10/10 capabilities without NumPy or
-  psutil. Documented the non-overlapping two-distribution design required
-  before advertising a lightweight public install.
+- Split the 0.6.0 install surface into non-overlapping distributions.
+  `tracebook-conformance` now owns the `tracebook` package, fixtures, typing
+  marker, and qualification command with no mandatory runtime dependencies.
+  The package-less `tracebook-sim` compatibility facade depends on that exact
+  version plus NumPy and psutil and retains the seven simulator/workbench
+  commands and their optional extras.
+- Added dual-wheel ownership, metadata, resolver-driven clean-install,
+  uninstall, sdist-rebuild, and isolated qualification gates. The final
+  migration proof uses the SHA-256-pinned public 0.5.0 wheel, and reproducible
+  release wheels make partial-publication retries safe. A normal conformance
+  install now proves 3/3 fixed cases, 25/25 generated traces, 5,000 events, and
+  10/10 capabilities without NumPy or psutil.
+- Documented the required one-time migration from `tracebook-sim` 0.5.x:
+  uninstall the legacy distribution before installing either 0.6.0 package.
+  A direct in-place upgrade can otherwise let the old wheel's uninstall record
+  remove files newly owned by `tracebook-conformance`.
 - Corrected public CI, security, suite-version, adapter-effort, API-stability,
   and platform-support claims. JUnit is now described as an uploaded projection
   unless a separate reporter consumes it, and qualification artifact

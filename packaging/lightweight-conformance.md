@@ -4,65 +4,118 @@ Decision date: 2026-07-24.
 
 ## Decision
 
-Do not claim a lightweight public installation mode until the distribution
-ownership split described below ships. The existing `tracebook-sim`
-distribution continues to require NumPy and psutil so a fresh installation
-continues to support its simulation, benchmark, and profiling commands.
+Version 0.6.0 uses two coordinated distributions with no overlapping installed
+files:
 
-The release gate runs `tools/smoke_conformance_wheel.py` in an isolated virtual
-environment. It deliberately installs the wheel without dependencies and proves
-that qualification itself completes 3/3 fixed cases, 25/25 generated traces,
-5,000 events, and 10/10 semantic capabilities with neither NumPy nor psutil
-present. This is architectural evidence only; `--no-deps` is not a supported
-end-user installation mode.
+1. `tracebook-conformance` owns the `tracebook` Python package, bundled
+   fixtures, `py.typed`, and the `tracebook-conformance` console script. It has
+   no mandatory runtime dependencies, so a normal installation does not resolve
+   NumPy or psutil.
+2. `tracebook-sim` is a package-less compatibility facade. It depends on the
+   exact matching `tracebook-conformance` version plus NumPy and psutil, and
+   owns the seven simulation, benchmark, profiling, visualization, replay, and
+   corpus console scripts.
 
-## Why an extra is not the answer
+The implementation remains one source tree and existing `tracebook.*` imports
+do not change. Only one distribution owns that tree. The facade does not copy,
+vendor, or install any Python packages.
 
-Python package extras add dependencies to a distribution's required
-dependencies; they cannot remove NumPy and psutil from `tracebook-sim`.
-Consequently, an empty `conformance` extra would be misleading. Moving the two
-dependencies into a conventional `simulation` extra would make a fresh
-`pip install tracebook-sim` leave the existing simulator commands unusable.
+## Install contracts
+
+Uninstall the legacy owner before installing either 0.6.0 distribution when an
+environment contains the monolithic `tracebook-sim` 0.5.x wheel:
+
+```bash
+python -m pip uninstall -y tracebook-sim
+```
+
+For matching-engine qualification:
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
+```
+
+For the full simulator and workbench command surface:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+The simulator dependency is pinned exactly because its console scripts invoke
+modules owned by the conformance distribution from the same source revision.
+Publishing either half at a different version would create an untested
+combination.
+
+## One-time migration from 0.5.x
+
+`tracebook-sim` 0.5.x owned the entire `tracebook` package and every console
+script. During a direct in-place upgrade, pip may install the new conformance
+dependency and then uninstall 0.5.x. The old wheel's uninstall record can
+delete files that the newly installed conformance wheel now owns. Distribution
+metadata may then say 0.6.0 is installed even though the shared import package
+has been removed.
+
+After uninstalling the legacy owner, install the required 0.6.0 surface:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+For a conformance-only migration, replace the second command with:
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
+```
+
+If a direct upgrade has already left the environment damaged, repair the
+package owner without resolving the simulator stack again:
+
+```bash
+python -m pip install --force-reinstall --no-deps "tracebook-conformance==0.6.0"
+python -m pip check
+```
+
+This is a one-release ownership handoff, not a continuing install-order
+requirement. Fresh 0.6.0 environments have disjoint wheel records.
+
+## Why an extra cannot provide the boundary
+
+Python package extras add dependencies; they cannot remove mandatory
+dependencies. Keeping NumPy and psutil mandatory would leave qualification
+heavy. Moving them into a conventional optional extra would make an ordinary
+`pip install tracebook-sim` expose simulator commands whose imports fail.
 
 [PEP 771](https://peps.python.org/pep-0771/) proposes default extras and an
 explicit minimal-install syntax, but it remained a draft on the decision date.
-Depending on it would not provide a broadly supported pip contract.
+The public contract therefore uses distribution ownership that works with
+released pip versions.
 
-## Rejected interim distribution
+## Release and verification invariants
 
-Do not publish a second distribution that installs the existing `tracebook`
-package tree or the existing `tracebook-conformance` console script alongside
-`tracebook-sim`. The two distributions would own the same installed files.
-Install order could silently replace files, and uninstalling either distribution
-could damage the other. Vendoring a second renamed copy would avoid file
-ownership overlap but would create two independently importable copies of the
-conformance implementation and its process-global types.
+The two artifacts are built from the same source revision and version.
+`tracebook-conformance` must be published first, and `tracebook-sim` only after
+that exact dependency is available. CI and the release workflow prove:
 
-## Target release architecture
+- the conformance wheel contains the `tracebook` package and only the
+  `tracebook-conformance` entry point;
+- the simulator wheel contains no Python package and only the seven
+  compatibility entry points;
+- the two wheel RECORDs have no overlapping paths;
+- a normal conformance-only install contains neither NumPy nor psutil and
+  completes 3/3 fixed cases, 25/25 generated traces, 5,000 events, and 10/10
+  semantic capabilities;
+- a fresh simulator install makes every previously published simulator command
+  available, resolves NumPy and psutil normally, passes `pip check`, and loads
+  all seven command modules;
+- removing the simulator facade leaves conformance functional;
+- the documented uninstall-first 0.5.x migration leaves one healthy package
+  owner, with the final release gate using the SHA-256-pinned public 0.5.0
+  wheel rather than only a synthetic ownership model;
+- each sdist safely rebuilds a wheel whose complete logical contents agree with
+  the directly built wheel; and
+- commit-derived timestamps plus pinned build backends make release wheels
+  byte-for-byte reproducible across a partial-publication retry.
 
-Use a coordinated two-distribution release:
-
-1. `tracebook-conformance` owns the `tracebook` Python package, bundled
-   conformance fixtures, typing marker, and `tracebook-conformance` console
-   script. Its mandatory runtime dependency list excludes NumPy and psutil.
-2. `tracebook-sim` remains the compatibility name for simulator users. It
-   depends on the exact matching `tracebook-conformance` release plus NumPy and
-   psutil, and owns the simulation, benchmark, profiling, visualization, replay,
-   and corpus console scripts.
-3. The conformance distribution is published first. The matching simulator
-   distribution is published only after the conformance artifact is available.
-4. Both artifacts come from the same source revision and version. Existing
-   `tracebook.*` import paths remain unchanged; source files are not copied or
-   installed by both distributions.
-
-This migration is ready to ship only when CI proves all of the following:
-
-- installing only `tracebook-conformance` resolves no NumPy or psutil package;
-- the full qualification smoke passes from the installed conformance wheel;
-- installing `tracebook-sim` in an empty environment still makes every
-  previously published simulator command usable;
-- installing and uninstalling the two distributions in either order leaves no
-  shared-file damage;
-- release automation builds, validates, and publishes both distributions in the
-  required order; and
-- sdist and wheel metadata agree on dependency and file ownership.
+`--no-deps` remains useful only in the explicit recovery command above and in
+artifact-level verification where dependencies are installed separately. It is
+not the supported way to obtain lightweight conformance.

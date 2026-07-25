@@ -41,9 +41,22 @@ This is a product safety boundary, not legal advice.
 Offline preparation, verification, and benchmarking use the core package. The
 network client is optional:
 
+If this environment contains `tracebook-sim` 0.5.x, remove that legacy package
+owner before installing 0.6.0:
+
 ```bash
-python -m pip install "tracebook-sim[capture]"
+python -m pip uninstall -y tracebook-sim
 ```
+
+```bash
+python -m pip install "tracebook-sim[capture]==0.6.0"
+```
+
+The uninstall-first order matters because the legacy distribution owns package
+paths that move to `tracebook-conformance`.
+
+See the [package-boundary decision](../packaging/lightweight-conformance.md)
+for the one-time migration and recovery command.
 
 The extra uses the maintained `websockets.asyncio` client. Capture never
 accepts Coinbase credentials and connects only to the documented public

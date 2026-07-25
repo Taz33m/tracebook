@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Prove that the built conformance path runs without simulation dependencies.
-
-This is a release-time proof, not a user installation recipe. The published
-``tracebook-sim`` distribution still declares NumPy and psutil as required
-dependencies until the package-ownership split in
-``packaging/lightweight-conformance.md`` is complete.
-"""
+"""Prove that the public conformance wheel is independently installable."""
 
 from __future__ import annotations
 
@@ -22,9 +16,18 @@ from typing import Sequence
 def _run(command: Sequence[str]) -> None:
     rendered = subprocess.list2cmdline(command)
     print(f"+ {rendered}", flush=True)
+    environment = os.environ.copy()
+    for variable in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONUSERBASE",
+        "__PYVENV_LAUNCHER__",
+    ):
+        environment.pop(variable, None)
+    environment["PYTHONNOUSERSITE"] = "1"
     # Every command is an argument vector assembled by this release script; no
     # shell is involved.
-    subprocess.run(command, check=True)  # nosec B603
+    subprocess.run(command, check=True, env=environment)  # nosec B603
 
 
 def _environment_python(environment: Path) -> Path:
@@ -48,8 +51,35 @@ for package in ("numpy", "psutil"):
         raise SystemExit(f"{package} unexpectedly installed in isolated environment")
 
 import tracebook.conformance
+import importlib.metadata
+
+assert importlib.metadata.version("tracebook-conformance") == tracebook.__version__
 """
     _run([str(python), "-c", probe])
+
+
+def _assert_script_ownership(environment: Path) -> None:
+    if not _environment_script(environment, "tracebook-conformance").is_file():
+        raise RuntimeError("conformance environment is missing tracebook-conformance")
+    simulator_commands = (
+        "tracebook-sim",
+        "tracebook-benchmark",
+        "tracebook-dashboard",
+        "tracebook-web",
+        "tracebook-replay",
+        "tracebook-coinbase",
+        "tracebook-corpus",
+    )
+    unexpected = [
+        command
+        for command in simulator_commands
+        if _environment_script(environment, command).exists()
+    ]
+    if unexpected:
+        raise RuntimeError(
+            "conformance-only install unexpectedly owns simulator commands: "
+            + ", ".join(unexpected)
+        )
 
 
 def _assert_qualification(report_path: Path) -> None:
@@ -110,9 +140,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         python = _environment_python(environment)
         conformance = _environment_script(environment, "tracebook-conformance")
 
-        # Deliberately bypass the current distribution metadata so this check can
-        # prove the conformance import/runtime boundary before the public package
-        # split changes that metadata.
         _run(
             [
                 str(python),
@@ -120,11 +147,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "pip",
                 "--disable-pip-version-check",
                 "install",
-                "--no-deps",
                 str(wheel),
             ]
         )
         _assert_lightweight_environment(python)
+        _assert_script_ownership(environment)
         _run(
             [
                 str(conformance),

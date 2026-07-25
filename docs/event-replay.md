@@ -10,10 +10,23 @@ only when the source provides explicit, documented assumptions.
 
 ## Install And Run
 
+If this environment contains `tracebook-sim` 0.5.x, remove that legacy package
+owner before installing 0.6.0:
+
 ```bash
-python -m pip install tracebook-sim
+python -m pip uninstall -y tracebook-sim
+```
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
 tracebook-replay examples/data/sample_events.jsonl --output replay-summary.json
 ```
+
+The uninstall-first order matters because the old distribution owns package
+paths that move to `tracebook-conformance`.
+
+See the [package-boundary decision](../packaging/lightweight-conformance.md)
+for the one-time migration and recovery command.
 
 Use `--algorithm pro_rata`, `--tick-size 0.0001`,
 `--self-trade-policy CANCEL_INCOMING`, or `--lenient` as needed. Strict mode is

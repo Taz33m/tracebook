@@ -10,31 +10,50 @@ This guide collects the commands a reviewer, contributor, or benchmark author is
 
 ## Setup
 
-User install:
+If this environment already contains `tracebook-sim` 0.5.x, remove that
+legacy package owner before installing either 0.6.0 distribution:
 
 ```bash
-python -m pip install tracebook-sim
+python -m pip uninstall -y tracebook-sim
 ```
 
-In 0.5.0 this normal install still resolves NumPy and psutil for the simulator
-and profiling commands, although the conformance path does not import them.
-Installing with `--no-deps` is an isolated release check, not a supported user
-mode. See the [lightweight packaging decision](../packaging/lightweight-conformance.md)
-for the distribution split required before the project claims a lightweight
-conformance install.
+Conformance and core-library install:
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
+```
+
+This ordinary install has no mandatory runtime dependencies and does not
+resolve NumPy or psutil. Install the compatibility facade for simulator and
+workbench commands:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+For the one-time full-surface migration from `tracebook-sim` 0.5.x, continue
+after the uninstall above with:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+See the [package-boundary decision](../packaging/lightweight-conformance.md)
+for the ownership rationale and recovery command.
 
 Contributor install:
 
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 ```
 
 Add `capture` when live public Coinbase WebSocket input is needed:
 
 ```bash
-pip install -e ".[dev,dashboard,capture]"
+python -m pip install -e "./packaging/tracebook-sim[capture,dashboard]"
 ```
 
 Alternative contributor setup:
@@ -49,11 +68,12 @@ make setup
 | --- | --- |
 | `python -m pytest --cov=tracebook --cov-fail-under=75` | Run tests and enforce the coverage baseline |
 | `python test_system.py` | Run integration smoke checks |
-| `python -m black --check src tests examples install_deps.py test_system.py` | Check formatting |
-| `python -m flake8 src tests examples install_deps.py test_system.py` | Run lint checks |
-| `python -m compileall -q src tests examples install_deps.py test_system.py` | Check source compilation |
-| `python -m build --sdist --wheel --outdir dist` | Build package artifacts |
-| `python -m twine check dist/*` | Validate distribution metadata and README rendering |
+| `python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py` | Check formatting |
+| `python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py` | Run lint checks |
+| `python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py` | Check source compilation |
+| `make build` | Build and validate both distribution wheels and sdists |
+| `make verify-distribution-split` | Prove version, dependency, command, file-ownership, uninstall, and migration contracts |
+| `python tools/smoke_conformance_wheel.py dist/conformance/*.whl` | Prove normal conformance-only installation and qualification without NumPy or psutil |
 | `python -m pip check` | Validate installed dependency consistency |
 
 ## Simulation CLI
