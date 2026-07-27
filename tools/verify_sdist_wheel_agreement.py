@@ -189,9 +189,15 @@ def rebuild_wheel_from_sdist(sdist: Path, work_directory: Path) -> Path:
 
 def _wheel_member_bytes(artifact: WheelArtifact) -> dict[str, bytes]:
     with zipfile.ZipFile(artifact.path) as archive:
-        return {
-            member_path: archive.read(member_path) for member_path in sorted(artifact.record_paths)
-        }
+        members = tuple(info for info in archive.infolist() if not info.is_dir())
+        member_paths = tuple(info.filename for info in members)
+        duplicate_paths = sorted(path for path in set(member_paths) if member_paths.count(path) > 1)
+        if duplicate_paths:
+            raise VerificationError(
+                f"{artifact.path.name} contains duplicate wheel archive members: "
+                f"{duplicate_paths!r}"
+            )
+        return {info.filename: archive.read(info) for info in members}
 
 
 def verify_wheel_agreement(
@@ -201,6 +207,12 @@ def verify_wheel_agreement(
     label: str,
 ) -> None:
     """Compare public metadata, payload, and every logical wheel member byte."""
+
+    if original.path.name != rebuilt.path.name:
+        raise VerificationError(
+            f"{label} sdist-rebuilt wheel filename differs from the original wheel; "
+            f"original={original.path.name!r}, rebuilt={rebuilt.path.name!r}"
+        )
 
     metadata_fields = (
         ("distribution", original.distribution, rebuilt.distribution),

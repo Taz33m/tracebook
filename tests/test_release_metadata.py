@@ -157,6 +157,8 @@ def test_release_gate_proves_conformance_without_simulation_dependencies():
     assert "--resolver-runtime-checks" in release_workflow
     assert "--legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl" in (release_workflow)
     assert "d190e1c2af83e5d853b0734b4d9627b1a8f6707e0fbab391015d2d94437cd4da" in (release_workflow)
+    assert release_workflow.count("python -m pip --isolated download") == 2
+    assert release_workflow.count("--index-url https://pypi.org/simple") == 2
     assert "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" in release_workflow
     assert "wheel is not reproducible" in release_workflow
     assert '"numpy", "psutil"' in smoke

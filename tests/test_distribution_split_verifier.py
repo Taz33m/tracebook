@@ -1,4 +1,5 @@
 import hashlib
+import os
 import zipfile
 from pathlib import Path
 
@@ -173,6 +174,21 @@ def test_split_rejects_missing_or_extra_mandatory_facade_dependency(tmp_path):
         verify_artifact_pair(conformance, simulator)
 
 
+def test_split_rejects_duplicate_mandatory_facade_dependency(tmp_path):
+    conformance, simulator = _valid_pair(
+        tmp_path,
+        sim_requirements=(
+            f"{CONFORMANCE_DISTRIBUTION}=={EXPECTED_VERSION}",
+            "numpy>=2.2.6",
+            "numpy>=2.2.6",
+            "psutil>=7.2.2",
+        ),
+    )
+
+    with pytest.raises(VerificationError, match="duplicate mandatory dependency names"):
+        verify_artifact_pair(conformance, simulator)
+
+
 def test_runtime_checks_clean_uninstalls_and_uninstall_first_migration(tmp_path, monkeypatch):
     conformance, simulator = _valid_pair(tmp_path)
     verify_artifact_pair(conformance, simulator)
@@ -190,7 +206,24 @@ def test_runtime_checks_clean_uninstalls_and_uninstall_first_migration(tmp_path,
     )
     monkeypatch.setenv("PYTHONPATH", str(leaked_path))
 
+    inherited_environments = []
+    original_run = verifier.subprocess.run
+
+    def observe_subprocess_environment(*args, **kwargs):
+        inherited_environments.append(kwargs.get("env"))
+        return original_run(*args, **kwargs)
+
+    monkeypatch.setattr(verifier.subprocess, "run", observe_subprocess_environment)
     verify_runtime_installation(conformance, simulator)
+
+    sanitized_environments = [
+        environment
+        for environment in inherited_environments
+        if environment is not None and environment.get("PYTHONNOUSERSITE") == "1"
+    ]
+    assert os.environ["PYTHONPATH"] == str(leaked_path)
+    assert sanitized_environments
+    assert all("PYTHONPATH" not in environment for environment in sanitized_environments)
 
 
 def test_resolver_check_uses_dependencies_and_safe_facade_probes(tmp_path):

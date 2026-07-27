@@ -125,8 +125,9 @@ jobs:
       - name: Verify distribution ownership and clean-install contracts
         run: |
           mkdir -p dist/legacy
-          python -m pip download \
+          python -m pip --isolated download \
             --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
             --no-deps \
             --only-binary=:all: \
             --dest dist/legacy \
@@ -239,8 +240,9 @@ jobs:
           PACKAGE_VERSION="${RELEASE_TAG#v}"
           mkdir -p /tmp/tracebook-conformance-index-proof
           for attempt in {1..12}; do
-            if python -m pip download \
+            if python -m pip --isolated download \
               --disable-pip-version-check \
+              --index-url https://pypi.org/simple \
               --no-deps \
               --only-binary=:all: \
               --dest /tmp/tracebook-conformance-index-proof \

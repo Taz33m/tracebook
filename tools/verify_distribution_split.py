@@ -244,7 +244,16 @@ def verify_artifact_pair(
         )
 
     simulator_mandatory = _mandatory_requirements(simulator.requirements)
-    dependency_names = {_requirement_name(item) for item in simulator_mandatory}
+    dependency_name_sequence = tuple(_requirement_name(item) for item in simulator_mandatory)
+    duplicate_dependency_names = sorted(
+        name for name in set(dependency_name_sequence) if dependency_name_sequence.count(name) > 1
+    )
+    if duplicate_dependency_names:
+        raise VerificationError(
+            "tracebook-sim contains duplicate mandatory dependency names: "
+            f"{duplicate_dependency_names!r}"
+        )
+    dependency_names = set(dependency_name_sequence)
     if dependency_names != SIM_RUNTIME_DEPENDENCIES:
         raise VerificationError(
             "tracebook-sim mandatory dependency names must be exactly "

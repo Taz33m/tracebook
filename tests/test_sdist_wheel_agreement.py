@@ -170,6 +170,50 @@ def test_agreement_rejects_unselected_dist_info_metadata_drift(tmp_path):
         verify_wheel_agreement(original, rebuilt, label="test")
 
 
+def test_agreement_rejects_duplicate_wheel_archive_members(tmp_path):
+    original = inspect_wheel(
+        _fixture_wheel(
+            tmp_path / "original",
+            commands=CONFORMANCE_COMMANDS,
+            payload={"tracebook/__init__.py": b"payload\n"},
+        )
+    )
+    rebuilt_path = _fixture_wheel(
+        tmp_path / "rebuilt",
+        commands=CONFORMANCE_COMMANDS,
+        payload={"tracebook/__init__.py": b"payload\n"},
+    )
+    with pytest.warns(UserWarning, match="Duplicate name"):
+        with zipfile.ZipFile(rebuilt_path, "a") as archive:
+            archive.writestr("tracebook/__init__.py", b"duplicate\n")
+    rebuilt = inspect_wheel(rebuilt_path)
+
+    with pytest.raises(VerificationError, match="duplicate wheel archive members"):
+        verify_wheel_agreement(original, rebuilt, label="test")
+
+
+def test_agreement_rejects_wheel_filename_or_tag_drift(tmp_path):
+    original = inspect_wheel(
+        _fixture_wheel(
+            tmp_path / "original",
+            commands=CONFORMANCE_COMMANDS,
+            payload={"tracebook/__init__.py": b"payload\n"},
+        )
+    )
+    rebuilt_path = _fixture_wheel(
+        tmp_path / "rebuilt",
+        commands=CONFORMANCE_COMMANDS,
+        payload={"tracebook/__init__.py": b"payload\n"},
+    )
+    rebuilt_path = rebuilt_path.rename(
+        rebuilt_path.with_name(f"tracebook_conformance-{EXPECTED_VERSION}-1-py3-none-any.whl")
+    )
+    rebuilt = inspect_wheel(rebuilt_path)
+
+    with pytest.raises(VerificationError, match="wheel filename differs"):
+        verify_wheel_agreement(original, rebuilt, label="test")
+
+
 @pytest.mark.parametrize(
     ("rebuilt_payload", "message"),
     (
