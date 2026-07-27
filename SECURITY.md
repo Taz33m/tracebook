@@ -10,8 +10,8 @@ connectivity, custody, account management, or trading advice.
 
 | Version | Supported |
 | --- | --- |
-| `0.5.x` | Yes |
-| `< 0.5` | No |
+| `0.6.x` | Yes |
+| `< 0.6` | No |
 
 Security fixes also target the latest commit on `main`.
 

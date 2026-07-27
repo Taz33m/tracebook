@@ -6,7 +6,10 @@
 for matching engines. It runs canonical order-event traces against its
 inspectable Python reference engine and external engines, localizes semantic
 drift, reduces failures, and keeps correctness and performance artifacts
-reproducible. It is distributed as `tracebook-sim` and imported as `tracebook`.
+reproducible. Beginning with 0.6.0, the dependency-light `tracebook-conformance`
+distribution owns the `tracebook` import package and qualification command.
+`tracebook-sim` is a package-less compatibility facade that adds the simulator
+commands and their NumPy/psutil dependencies at the exact matching version.
 
 The project optimizes for deterministic behavior and auditability before raw
 speed. Its optional public capture is research tooling, not a production feed
@@ -96,6 +99,11 @@ carry the adapter and scheduled qualification out of tree until the engine
 maintainer independently chooses to retain the tool or workflow. A passing
 artifact produced only by this repository remains technical evidence, not
 adoption.
+
+The 0.6.0 distribution split removes installation weight from that path without
+broadening it. Tracebook discovers, localizes, and reduces; maintainers review
+small native regressions. Adapter or CI ownership is offered only after the
+maintainer has seen concrete semantic value.
 
 ## How The Roadmap Is Chosen
 

@@ -9,7 +9,8 @@ contributions are focused, tested, and honest about behavior.
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 ```
 
 ## Local Checks
@@ -17,11 +18,11 @@ pip install -e ".[dev,dashboard]"
 Run these before opening a pull request:
 
 ```bash
-python -m black --check src tests examples integrations experiments install_deps.py test_system.py
-python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
-python -m mypy src/tracebook experiments
-python -m bandit -q -r src integrations
-python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
+python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+python -m mypy src/tracebook experiments tools
+python -m bandit -q -r src integrations tools
+python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json
@@ -35,8 +36,21 @@ tracebook-conformance suite src/tracebook/conformance/fixtures/v2 --candidate py
 For packaging changes, also run:
 
 ```bash
-python -m build --sdist --wheel --outdir dist
-python -m twine check dist/*
+python -m build --sdist --wheel --outdir dist/conformance .
+python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+python -m twine check dist/conformance/* dist/simulator/*
+python tools/verify_distribution_split.py \
+  --expected-version 0.6.0 \
+  --conformance-wheel dist/conformance/*.whl \
+  --sim-wheel dist/simulator/*.whl \
+  --resolver-runtime-checks
+python tools/verify_sdist_wheel_agreement.py \
+  --conformance-wheel dist/conformance/*.whl \
+  --conformance-sdist dist/conformance/*.tar.gz \
+  --sim-wheel dist/simulator/*.whl \
+  --sim-sdist dist/simulator/*.tar.gz \
+  --expected-version 0.6.0
+python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 ```
 
 Normalized feed adapters should emit `tracebook.MarketEvent` values and keep

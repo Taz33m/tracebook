@@ -1,4 +1,4 @@
-.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput corpus-verify profile dashboard demo replay-demo format format-check lint typecheck security compile build quality docs clean clean-all monitor help
+.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput corpus-verify profile dashboard demo replay-demo format format-check lint typecheck security compile build verify-distribution-split quality docs clean clean-all monitor help
 
 # Python and virtual environment
 PYTHON := python3
@@ -6,20 +6,24 @@ VENV := venv
 PIP := $(VENV)/bin/pip
 PYTHON_VENV := $(VENV)/bin/python
 
-# Setup virtual environment and install the package with development extras
+# Setup a development environment with the implementation owner and compatibility facade
 setup:
 	$(PYTHON) -m venv $(VENV)
-	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
+	$(PIP) install --upgrade pip "setuptools==83.0.0" "wheel==0.47.0"
+	$(PIP) install -e ".[dev]"
+	$(PIP) install -e "./packaging/tracebook-sim[dashboard,analysis,capture]"
 	@echo "Setup complete! Activate with: source $(VENV)/bin/activate"
 
-# Install the package for local use
+# Install both public distributions for local use
 install:
 	$(PIP) install -e .
+	$(PIP) install -e ./packaging/tracebook-sim
 
 # Install development dependencies
 install-dev:
-	$(PIP) install -e ".[dev,dashboard,analysis,capture]"
+	$(PIP) install --upgrade "setuptools==83.0.0" "wheel==0.47.0"
+	$(PIP) install -e ".[dev]"
+	$(PIP) install -e "./packaging/tracebook-sim[dashboard,analysis,capture]"
 
 # Run all tests
 test:
@@ -64,28 +68,42 @@ replay-demo:
 
 # Code formatting with black
 format:
-	$(PYTHON_VENV) -m black src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
 
 # Check formatting without modifying files
 format-check:
-	$(PYTHON_VENV) -m black --check src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black --check src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
 
 # Lint code with flake8
 lint:
-	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
 
 typecheck:
-	$(PYTHON_VENV) -m mypy src/tracebook experiments
+	$(PYTHON_VENV) -m mypy src/tracebook experiments tools
 
 security:
-	$(PYTHON_VENV) -m bandit -q -r src integrations
+	$(PYTHON_VENV) -m bandit -q -r src integrations tools
 
 compile:
-	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
 
 build:
-	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist
-	$(PYTHON_VENV) -m twine check dist/*
+	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/conformance .
+	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+	$(PYTHON_VENV) -m twine check dist/conformance/* dist/simulator/*
+	$(PYTHON_VENV) tools/verify_sdist_wheel_agreement.py \
+		--conformance-wheel dist/conformance/*.whl \
+		--conformance-sdist dist/conformance/*.tar.gz \
+		--sim-wheel dist/simulator/*.whl \
+		--sim-sdist dist/simulator/*.tar.gz \
+		--expected-version 0.6.0
+
+# Prove wheel ownership, clean installs, migration, and uninstall safety
+verify-distribution-split: build
+	$(PYTHON_VENV) tools/verify_distribution_split.py \
+		--expected-version 0.6.0 \
+		--conformance-wheel dist/conformance/*.whl \
+		--sim-wheel dist/simulator/*.whl
 
 # Run the core quality gates used by CI
 quality: format-check lint typecheck security compile test
@@ -103,8 +121,11 @@ clean:
 	rm -rf .coverage
 	rm -rf htmlcov/
 	rm -rf build/
+	rm -rf packaging/tracebook-sim/build/
 	rm -rf dist/
 	rm -rf *.egg-info/
+	rm -rf src/*.egg-info/
+	rm -rf packaging/tracebook-sim/*.egg-info/
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
 
@@ -138,7 +159,8 @@ help:
 	@echo "  typecheck       - Type-check the package"
 	@echo "  security        - Run Bandit security checks"
 	@echo "  compile         - Compile source and tests"
-	@echo "  build           - Build and validate wheel/sdist"
+	@echo "  build            - Build and validate both public distributions"
+	@echo "  verify-distribution-split - Check ownership and clean-install contracts"
 	@echo "  quality         - Run all code quality checks"
 	@echo "  docs            - Generate documentation"
 	@echo "  clean           - Clean generated files"

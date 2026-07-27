@@ -1090,11 +1090,17 @@ def capture_coinbase_corpus(
 
 def _distribution_versions() -> Dict[str, Optional[str]]:
     versions: Dict[str, Optional[str]] = {}
-    for package in ("tracebook-sim", "numpy", "psutil", "websockets"):
+    for package in (
+        "tracebook-conformance",
+        "tracebook-sim",
+        "numpy",
+        "psutil",
+        "websockets",
+    ):
         try:
             versions[package] = metadata.version(package)
         except metadata.PackageNotFoundError:
-            versions[package] = __version__ if package == "tracebook-sim" else None
+            versions[package] = __version__ if package == "tracebook-conformance" else None
     return versions
 
 

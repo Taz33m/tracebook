@@ -27,10 +27,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package
+      - name: Install conformance implementation and simulator facade
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dashboard]"
+          python -m pip install --upgrade pip "setuptools==83.0.0" "wheel==0.47.0"
+          python -m pip install -e ".[dev]"
+          python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 
       - name: Run format check
         run: python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
@@ -59,18 +60,41 @@ jobs:
       - name: Run benchmark smoke
         run: tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/ci-smoke.json
 
-      - name: Build package artifacts
-        run: python -m build --sdist --wheel --outdir dist
-
-      - name: Validate package metadata
-        run: python -m twine check dist/*
-
-      - name: Smoke installed wheel and console scripts
+      - name: Build both distribution artifacts
         run: |
-          python -m pip uninstall -y tracebook-sim
-          python -m pip install --no-deps dist/*.whl
+          python -m build --sdist --wheel --outdir dist/conformance .
+          python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+
+      - name: Validate both distributions
+        run: python -m twine check dist/conformance/* dist/simulator/*
+
+      - name: Rebuild wheels from sdists and verify artifact agreement
+        if: matrix.python-version == '3.13'
+        run: |
+          python tools/verify_sdist_wheel_agreement.py \
+            --conformance-wheel dist/conformance/*.whl \
+            --conformance-sdist dist/conformance/*.tar.gz \
+            --sim-wheel dist/simulator/*.whl \
+            --sim-sdist dist/simulator/*.tar.gz \
+            --expected-version 0.6.0
+
+      - name: Verify distribution ownership and clean-install contracts
+        if: matrix.python-version == '3.13'
+        run: |
+          python tools/verify_distribution_split.py \
+            --expected-version 0.6.0 \
+            --conformance-wheel dist/conformance/*.whl \
+            --sim-wheel dist/simulator/*.whl \
+            --resolver-runtime-checks
+
+      - name: Smoke the installed wheel pair and console scripts
+        run: |
+          python -m pip uninstall -y tracebook-sim tracebook-conformance
+          python -m pip install --no-deps \
+            dist/conformance/*.whl \
+            dist/simulator/*.whl
           cd /tmp
-          python -c "import importlib.metadata as m, tracebook; assert tracebook.__version__ == m.version('tracebook-sim')"
+          python -c "import importlib.metadata as m, tracebook; assert tracebook.__version__ == m.version('tracebook-conformance') == m.version('tracebook-sim')"
           tracebook-sim --version
           tracebook-benchmark --version
           tracebook-dashboard --version
@@ -105,7 +129,7 @@ jobs:
 
       - name: Prove conformance wheel without simulation dependencies
         if: matrix.python-version == '3.13'
-        run: python tools/smoke_conformance_wheel.py dist/*.whl
+        run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 
       - name: Check installed dependencies
         run: python -m pip check

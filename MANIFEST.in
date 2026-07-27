@@ -20,6 +20,8 @@ prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
 recursive-include packaging *.md
+include packaging/tracebook-sim/pyproject.toml
+include packaging/tracebook-sim/LICENSE
 recursive-include tools *.py
 recursive-include integrations *.py *.md *.json *.jsonl
 recursive-include integrations/orderbook_rs/src *.rs
