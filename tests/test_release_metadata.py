@@ -228,14 +228,19 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
 
 def test_citation_metadata_tracks_the_public_release():
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "cff-version: 1.2.0" in citation
-    assert 'version: "0.5.0"' in citation
-    assert "date-released: 2026-07-19" in citation
+    assert 'version: "0.6.0"' in citation
+    assert "date-released: 2026-07-27" in citation
     assert '- name: "Taz33m"' in citation
     assert "family-names:" not in citation
     assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
+    assert 'url: "https://pypi.org/project/tracebook-conformance/0.6.0/"' in citation
+    assert "| `0.6.x` | Yes |" in security
+    assert "| `< 0.6` | No |" in security
+    assert "| `0.5.x` | Yes |" not in security
     assert "include CITATION.cff" in manifest
 
 

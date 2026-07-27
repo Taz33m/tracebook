@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.6.0 - 2026-07-27
+
 - Fixed conformance CLI exit classification across single runs, suites,
   minimization, campaigns, qualification, and reproduction. Semantic
   disagreements remain exit `1`; malformed adapter output, timeouts, invalid
