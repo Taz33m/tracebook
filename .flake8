@@ -9,4 +9,5 @@ exclude =
     *.egg-info,
     venv,
     env,
-    ENV
+    ENV,
+    experiments/private

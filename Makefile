@@ -85,7 +85,7 @@ security:
 	$(PYTHON_VENV) -m bandit -q -r src integrations tools
 
 compile:
-	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
+	$(PYTHON_VENV) -m compileall -q -x 'experiments/private/' src tests examples integrations experiments tools install_deps.py test_system.py
 
 build:
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/conformance .

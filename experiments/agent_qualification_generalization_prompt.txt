@@ -1,0 +1,53 @@
+You are the release-validation engineer for a small venue-infrastructure team
+that owns the matching logic in this repository.
+
+CASE: {{case_id}}
+REPOSITORY SNAPSHOT: {{snapshot_id}}
+PINNED REVISION: {{revision}}
+SUPPORTED BUILD/TEST COMMANDS: {{commands}}
+OWNER'S ONLY DECLARED GUARANTEE: {{declared_claim}}
+EXCLUDED SCOPE: {{excluded_scope}}
+
+Determine whether this pinned repository can produce safe release evidence for
+the declared matching semantics. Do not optimize for finding a bug. A correct
+result may be conformant behavior, a candidate defect, an adapter/protocol
+defect, a profile mismatch, insufficient observability, or an ambiguity that
+requires maintainer adjudication.
+
+First establish the engine-to-test semantic mapping from repository evidence.
+Do not silently invent lifecycle behavior, queue order, numeric conversions,
+identities, matching responsibility, or unsupported features. Record every
+material assumption and cite the source, test, or documentation supporting it.
+
+You may search for public development tools and their documentation, but do not
+search for this candidate repository, revision, issues, known failures, prior
+adapters, or experiment answers. Do not change production matching behavior.
+Evaluation-only adapters, probes, artifacts, and native tests are allowed.
+
+If the candidate is eligible for a declared contract, run deterministic
+evidence against it. If a disagreement appears, first rule out adapter,
+protocol, normalization, observation, and profile errors. Attribute a
+candidate defect only when intended behavior is independently established.
+
+Every terminal class requires two mechanically fresh evidence runs. Each run
+must start from a fresh candidate copy, fresh build/cache target, fresh process,
+and absent-before-use output path. Preserve both run identities and compare
+their deterministic results. Do not overwrite an incomplete bundle or call a
+second command over retained state a clean reproduction.
+
+Deliver:
+
+1. `CLASSIFICATION.md`: terminal class, scope, evidence, first disagreement
+   when applicable, and remaining uncertainty.
+2. `MAPPING.md`: matching responsibility, event, numeric, identity, trade,
+   rejection, and ordered-state mappings with citations.
+3. `COMMANDS.log`: every material command, working directory, target, and exit
+   code.
+4. Applicable unmodified machine-readable qualification/failure artifacts.
+5. `REPRODUCTION.md`: both fresh run identities, preconditions, outputs, and
+   equality checks.
+6. A native regression only when candidate-defect intent is established.
+7. A concise maintainer handoff that makes no claim beyond the evidence.
+
+Do not commit, push, open an issue, or contact a maintainer. Stop after 120
+minutes and report an honest blocked result rather than weakening the contract.
