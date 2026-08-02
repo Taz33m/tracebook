@@ -232,6 +232,54 @@ def test_provider_shells_receive_fresh_paths(tmp_path, monkeypatch):
     assert values["FRESH_TARGET"] == str(tmp_path / "cargo-target")
 
 
+def test_claude_binding_probes_an_explicit_first_party_route(tmp_path, monkeypatch):
+    binary = tmp_path / "claude"
+    binary.write_text("claude")
+    observed = {}
+
+    monkeypatch.setattr(execution, "_provider_binary", lambda provider: binary)
+    monkeypatch.setattr(execution.helpers, "_binary_version", lambda *args: "2.1.220")
+
+    def run(command, **kwargs):
+        observed["command"] = command
+        return execution.subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "loggedIn": True,
+                    "authMethod": "claude.ai",
+                    "apiProvider": "firstParty",
+                    "subscriptionType": "max",
+                }
+            ),
+        )
+
+    monkeypatch.setattr(execution.subprocess, "run", run)
+
+    binding = execution._provider_binding("claude")
+
+    command = observed["command"]
+    assert command[1:4] == ("--setting-sources", "", "--settings")
+    assert json.loads(command[4])["env"] == execution.CLAUDE_FIRST_PARTY_ENV
+    assert command[5:] == ("auth", "status")
+    assert binding["auth_route"]["apiProvider"] == "firstParty"
+
+
+def test_claude_run_settings_disable_third_party_routes(tmp_path):
+    workspace = tmp_path / "workspace"
+    scratch = tmp_path / "scratch"
+    plugin_root = tmp_path / "plugin"
+    workspace.mkdir()
+    scratch.mkdir()
+    plugin_root.mkdir()
+
+    settings = execution._claude_settings(workspace, scratch, plugin_root)
+
+    for name, value in execution.CLAUDE_FIRST_PARTY_ENV.items():
+        assert settings["env"][name] == value
+
+
 def test_shakedown_requires_first_party_claude_route(monkeypatch):
     def binding(provider):
         if provider == "claude":

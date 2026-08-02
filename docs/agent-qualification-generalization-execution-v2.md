@@ -20,6 +20,11 @@ Before the execution layer may be frozen, the harness must:
 4. leave provider authorization outside the immutable freeze so authorization
    can be recorded later without changing experimental inputs.
 
+The Claude binding probe and every Claude run explicitly disable the
+Bedrock, Vertex, and Foundry routing flags in their isolated settings. The
+harness still refuses to freeze unless `claude auth status` identifies an
+authenticated `firstParty` route.
+
 The synthetic canary contains no candidate source, Tracebook guidance, gold
 data, or measured prompt material.
 

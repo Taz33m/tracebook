@@ -60,6 +60,11 @@ SYNTHETIC_MARKER = "NATIVE_SKILL_PROBE_V2_20260801_7F31C9"
 DEFAULT_TIMEOUT_SECONDS = 120 * 60
 EXPECTED_MODELS = {"codex": "gpt-5.6-sol", "claude": "claude-opus-4-8"}
 PROVIDERS = tuple(EXPECTED_MODELS)
+CLAUDE_FIRST_PARTY_ENV = {
+    "CLAUDE_CODE_USE_BEDROCK": "0",
+    "CLAUDE_CODE_USE_VERTEX": "0",
+    "CLAUDE_CODE_USE_FOUNDRY": "0",
+}
 
 _PLUGIN_MANIFEST = {
     "author": {"name": "Tracebook evaluator"},
@@ -165,8 +170,21 @@ def _provider_binding(provider: str) -> dict[str, Any]:
         "requested_model": EXPECTED_MODELS[provider],
     }
     if provider == "claude":
+        route_settings = json.dumps(
+            {"env": CLAUDE_FIRST_PARTY_ENV},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         completed = subprocess.run(
-            (str(binary), "auth", "status"),
+            (
+                str(binary),
+                "--setting-sources",
+                "",
+                "--settings",
+                route_settings,
+                "auth",
+                "status",
+            ),
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -254,6 +272,7 @@ def _codex_shell_environment(scratch: Path) -> dict[str, str]:
 
 def _claude_settings(workspace: Path, scratch: Path, plugin_root: Path) -> dict[str, Any]:
     settings = delivery._claude_treatment_settings(workspace, scratch, plugin_root)
+    settings["env"].update(CLAUDE_FIRST_PARTY_ENV)
     settings["env"].update(_toolchain_environment())
     settings["env"].update(_fresh_environment(scratch))
     return settings
