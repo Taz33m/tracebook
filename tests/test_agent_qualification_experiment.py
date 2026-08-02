@@ -227,13 +227,21 @@ def test_claude_permissions_delegate_paths_to_fail_closed_sandbox(tmp_path):
     assert str(workspace) in settings["sandbox"]["filesystem"]["allowWrite"]
     assert str(workspace / ".git") in settings["sandbox"]["filesystem"]["denyWrite"]
     assert str(Path.home()) in settings["sandbox"]["filesystem"]["denyRead"]
-    assert str(Path("/usr/local/Cellar")) in settings["sandbox"]["filesystem"]["allowRead"]
-    assert settings["env"]["PATH"].startswith(
-        str(Path("/usr/local/opt/dotnet@8/bin/dotnet").resolve().parent)
-    )
-    assert settings["env"]["DOTNET_ROOT"] == str(
-        Path("/usr/local/opt/dotnet@8/bin/dotnet").resolve().parent.parent / "libexec"
-    )
+    for candidate in (
+        Path("/usr/local/bin/dotnet"),
+        Path("/usr/local/share/dotnet"),
+        Path("/usr/local/opt"),
+        Path("/usr/local/Cellar"),
+    ):
+        assert (str(candidate) in settings["sandbox"]["filesystem"]["allowRead"]) is (
+            candidate.exists()
+        )
+    _, dotnet_launcher_dir, dotnet_root = agent_qualification._dotnet_layout()
+    if dotnet_launcher_dir is None:
+        assert "DOTNET_ROOT" not in settings["env"]
+    else:
+        assert settings["env"]["PATH"].startswith(str(dotnet_launcher_dir))
+        assert settings["env"]["DOTNET_ROOT"] == str(dotnet_root)
     assert settings["env"]["NuGetAudit"] == "false"
 
 
@@ -264,10 +272,13 @@ def test_codex_command_uses_pure_permission_profile(tmp_path):
     assert '":root"="deny"' in permission_override
     assert '":workspace_roots"={"."="write",".git"="read"}' in permission_override
     assert f'{scratch}"="write"' in permission_override
-    assert '"/usr/local/bin/dotnet"="read"' in permission_override
-    assert '"/usr/local/share/dotnet"="read"' in permission_override
-    assert '"/usr/local/opt"="read"' in permission_override
-    assert '"/usr/local/Cellar"="read"' in permission_override
+    for candidate in (
+        Path("/usr/local/bin/dotnet"),
+        Path("/usr/local/share/dotnet"),
+        Path("/usr/local/opt"),
+        Path("/usr/local/Cellar"),
+    ):
+        assert (f'"{candidate}"="read"' in permission_override) is candidate.exists()
     assert 'mode="limited"' in permission_override
     assert "allow_upstream_proxy=false" in permission_override
     assert "allow_local_binding=true" not in permission_override
@@ -277,12 +288,12 @@ def test_codex_command_uses_pure_permission_profile(tmp_path):
     assert any(item.startswith("shell_environment_policy.set=") for item in command)
     assert "--search" in command
     shell_environment = agent_qualification._codex_shell_environment(scratch)
-    assert shell_environment["PATH"].startswith(
-        str(Path("/usr/local/opt/dotnet@8/bin/dotnet").resolve().parent)
-    )
-    assert shell_environment["DOTNET_ROOT"] == str(
-        Path("/usr/local/opt/dotnet@8/bin/dotnet").resolve().parent.parent / "libexec"
-    )
+    _, dotnet_launcher_dir, dotnet_root = agent_qualification._dotnet_layout()
+    if dotnet_launcher_dir is None:
+        assert "DOTNET_ROOT" not in shell_environment
+    else:
+        assert shell_environment["PATH"].startswith(str(dotnet_launcher_dir))
+        assert shell_environment["DOTNET_ROOT"] == str(dotnet_root)
 
 
 def test_clean_environment_removes_secret_shaped_names(tmp_path, monkeypatch):

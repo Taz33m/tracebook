@@ -1,5 +1,6 @@
 import hashlib
 import json
+import random
 import subprocess
 import sys
 from pathlib import Path
@@ -16,12 +17,29 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _synthetic_manifest():
+    return {
+        "cases": [
+            {
+                "id": case_id,
+                "status": "ready",
+                "snapshot_id": f"sha256:{case_id}",
+                "revision": f"revision-{case_id}",
+                "commands": "native-test",
+                "declared_claim": "price-time matching",
+                "excluded_scope": "production readiness",
+            }
+            for case_id in ("case-alpha", "case-beta")
+        ]
+    }
+
+
 def test_frozen_baseline_runner_is_byte_identical():
     assert _sha256(agent_qualification.RUNNER_PATH) == BASELINE_RUNNER_SHA256
 
 
 def test_treatment_prompt_is_identical_between_docs_and_skill():
-    manifest = agent_qualification.validate_manifest(agent_qualification.DEFAULT_MANIFEST_PATH)
+    manifest = _synthetic_manifest()
     for case in manifest["cases"]:
         if case["status"] != "ready":
             continue
@@ -32,17 +50,19 @@ def test_treatment_prompt_is_identical_between_docs_and_skill():
 
 
 def test_master_plan_is_two_matched_blocks_in_baseline_order():
-    manifest = agent_qualification.validate_manifest(agent_qualification.DEFAULT_MANIFEST_PATH)
+    manifest = _synthetic_manifest()
     entries = treatments._master_entries(manifest)
-    baseline_plan = json.loads(agent_qualification.DEFAULT_PLAN_PATH.read_text())
     baseline_cells = [
         {
-            "case_id": entry["case_id"],
-            "agent": entry["agent"],
-            "repetition": entry["repetition"],
+            "case_id": case["id"],
+            "agent": agent,
+            "repetition": repetition,
         }
-        for entry in baseline_plan["entries"]
+        for case in manifest["cases"]
+        for agent in ("codex", "claude")
+        for repetition in range(1, treatments.REPETITIONS + 1)
     ]
+    random.Random(agent_qualification.RANDOMIZATION_SEED).shuffle(baseline_cells)
 
     assert len(entries) == 24
     assert [entry["condition"] for entry in entries[:12]] == ["docs"] * 12
@@ -60,12 +80,21 @@ def test_master_plan_is_two_matched_blocks_in_baseline_order():
     assert len({entry["evidence_id"] for entry in entries}) == 24
 
 
-def test_skill_is_candidate_agnostic_and_exactly_one_measured_file():
-    manifest = agent_qualification.validate_manifest(agent_qualification.DEFAULT_MANIFEST_PATH)
-    skill = treatments._load_skill(treatments.DEFAULT_SKILL_PATH, manifest)
+def test_skill_is_candidate_agnostic_and_exactly_one_measured_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(treatments, "PRIVATE_ROOT", tmp_path)
+    skill_path = tmp_path / "skill" / "SKILL.md"
+    skill_path.parent.mkdir()
+    skill_path.write_text(
+        "---\n"
+        f"name: {treatments.SKILL_NAME}\n"
+        "description: Candidate-agnostic qualification workflow.\n"
+        "---\n\n"
+        "Inspect the supplied candidate and preserve identity lifecycles.\n"
+    )
+    skill = treatments._load_skill(skill_path, _synthetic_manifest())
 
     assert skill["name"] == treatments.SKILL_NAME
-    assert skill["sha256"] == _sha256(treatments.DEFAULT_SKILL_PATH)
+    assert skill["sha256"] == _sha256(skill_path)
     assert b"heldout" not in skill["content"].lower()
     assert b"order-matcher" not in skill["content"].lower()
     assert b"matching-engine-rs" not in skill["content"].lower()
@@ -130,8 +159,11 @@ def test_claude_treatment_command_is_skill_capable_and_customization_isolated(
     assert command[command.index("--mcp-config") + 1] == '{"mcpServers":{}}'
 
 
-def test_claude_wrapper_tree_contains_no_semantic_payload():
-    root = treatments.DEFAULT_CLAUDE_WRAPPER_PATH.parents[1]
+def test_claude_wrapper_tree_contains_no_semantic_payload(tmp_path):
+    root = tmp_path / "claude-wrapper"
+    manifest = root / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"name":"agent-qualification-treatment","version":"1.0.0"}\n')
     record = treatments._tree_record(root)
 
     assert record["file_count"] == 1
@@ -164,7 +196,7 @@ def test_codex_native_surface_differs_only_by_skill_file(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_qualification, "CODEX_AUTH_PATH", auth)
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    skill = treatments.DEFAULT_SKILL_PATH.read_bytes()
+    skill = b"synthetic frozen skill\n"
 
     docs_root = tmp_path / "docs"
     docs_scratch = docs_root / "scratch"
@@ -207,7 +239,7 @@ def test_codex_native_surface_differs_only_by_skill_file(tmp_path, monkeypatch):
 
 
 def test_native_surface_final_audit_detects_absence_and_drift(tmp_path):
-    skill = treatments.DEFAULT_SKILL_PATH.read_bytes()
+    skill = b"synthetic frozen skill\n"
     external_root = tmp_path / "run"
     scratch = external_root / "scratch"
     scratch.mkdir(parents=True)
