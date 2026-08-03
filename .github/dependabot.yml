@@ -8,6 +8,10 @@ updates:
       github-actions:
         patterns:
           - "*"
+    ignore:
+      # This action's ref is the Rust toolchain selector. Dependabot treats it
+      # as an action release and can invent nonexistent toolchain versions.
+      - dependency-name: "dtolnay/rust-toolchain"
   - package-ecosystem: "pip"
     directory: "/"
     schedule:

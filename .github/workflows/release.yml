@@ -22,7 +22,7 @@ jobs:
           test "$SOURCE_DATE_EPOCH" -gt 0
           echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -219,7 +219,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
