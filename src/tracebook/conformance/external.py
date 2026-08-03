@@ -20,6 +20,7 @@ from .model import (
     ConformanceError,
     EngineMetadata,
     Observation,
+    PinnedCandidateIdentity,
 )
 
 _END_OF_STREAM = object()
@@ -38,6 +39,7 @@ class ExternalProcessAdapter:
         config: ConformanceConfig,
         timeout_seconds: float = 5.0,
         cwd: Optional[str | Path] = None,
+        expected_identity: Optional[PinnedCandidateIdentity] = None,
     ) -> None:
         if isinstance(command, (str, bytes)) or not command:
             raise ConformanceError("candidate command must be a non-empty argument list")
@@ -113,6 +115,11 @@ class ExternalProcessAdapter:
             if ready.get("protocol_version") != PROTOCOL_VERSION:
                 raise AdapterProtocolError("ready message reported the wrong protocol version")
             self.metadata = EngineMetadata.from_dict(ready.get("engine", {}))
+            if expected_identity is not None:
+                try:
+                    expected_identity.validate(self.metadata)
+                except ConformanceError as exc:
+                    raise AdapterProtocolError(str(exc)) from exc
         except Exception:
             self._broken = True
             self._shutdown()
@@ -288,10 +295,12 @@ class ExternalProcessAdapterFactory:
         command: Sequence[str],
         timeout_seconds: float = 5.0,
         cwd: Optional[str | Path] = None,
+        expected_identity: Optional[PinnedCandidateIdentity] = None,
     ) -> None:
         self.command = tuple(command)
         self.timeout_seconds = timeout_seconds
         self.cwd = cwd
+        self.expected_identity = expected_identity
 
     def __call__(self, config: ConformanceConfig) -> ExternalProcessAdapter:
         return ExternalProcessAdapter(
@@ -299,4 +308,5 @@ class ExternalProcessAdapterFactory:
             config,
             timeout_seconds=self.timeout_seconds,
             cwd=self.cwd,
+            expected_identity=self.expected_identity,
         )

@@ -132,6 +132,27 @@ automatically minimized failure. Use this command for a first integration or a
 profile-level CI claim; use `suite` when intentionally comparing every broader
 fixed semantic surface.
 
+Prepare and verify a release-grade two-run evidence pair:
+
+```bash
+tracebook-conformance evidence-init /path/to/candidate \
+  --workspace .tracebook/release-evidence \
+  --candidate-name owner/repository \
+  --candidate-revision REVISION
+
+# Run the canonical qualification from evidence-plan.json in both generated
+# roots, with all three --candidate-* identity flags, then:
+tracebook-conformance evidence-verify \
+  .tracebook/release-evidence/evidence-plan.json
+```
+
+`evidence-init` refuses an existing workspace and creates independent candidate,
+adapter, build, cache, and qualification paths for `run-1` and `run-2`.
+`evidence-verify` writes `evidence-manifest.json` only after both canonical
+bundles are qualified, byte-identical, and bound to the unchanged pinned
+candidate. See [Captured Two-Run Evidence](conformance.md#captured-two-run-evidence)
+for the exact qualification command and trust boundary.
+
 Copy and run the standard suite:
 
 ```bash

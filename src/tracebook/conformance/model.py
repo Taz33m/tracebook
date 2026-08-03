@@ -169,6 +169,8 @@ class EngineMetadata:
     name: str
     version: str
     language: str
+    revision: Optional[str] = None
+    snapshot_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         for field_name in ("name", "version", "language"):
@@ -176,9 +178,20 @@ class EngineMetadata:
             if not isinstance(value, str) or not value.strip():
                 raise ConformanceError(f"engine {field_name} must be a non-empty string")
             object.__setattr__(self, field_name, value.strip())
+        for field_name in ("revision", "snapshot_id"):
+            value = getattr(self, field_name)
+            if value is not None:
+                if not isinstance(value, str) or not value.strip():
+                    raise ConformanceError(f"engine {field_name} must be null or non-empty")
+                object.__setattr__(self, field_name, value.strip())
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "version": self.version, "language": self.language}
+        payload = {"name": self.name, "version": self.version, "language": self.language}
+        if self.revision is not None:
+            payload["revision"] = self.revision
+        if self.snapshot_id is not None:
+            payload["snapshot_id"] = self.snapshot_id
+        return payload
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "EngineMetadata":
@@ -188,7 +201,54 @@ class EngineMetadata:
             name=data.get("name", ""),
             version=data.get("version", ""),
             language=data.get("language", ""),
+            revision=data.get("revision"),
+            snapshot_id=data.get("snapshot_id"),
         )
+
+
+@dataclass(frozen=True)
+class PinnedCandidateIdentity:
+    """Task-pinned candidate identity required by release-evidence workflows."""
+
+    name: str
+    revision: str
+    snapshot_id: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("name", "revision", "snapshot_id"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ConformanceError(f"candidate {field_name} must be a non-empty string")
+            object.__setattr__(self, field_name, value.strip())
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "revision": self.revision,
+            "snapshot_id": self.snapshot_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "PinnedCandidateIdentity":
+        if not isinstance(data, Mapping):
+            raise ConformanceError("candidate identity must be an object")
+        return cls(
+            name=data.get("name", ""),
+            revision=data.get("revision", ""),
+            snapshot_id=data.get("snapshot_id", ""),
+        )
+
+    def validate(self, metadata: EngineMetadata) -> None:
+        if not isinstance(metadata, EngineMetadata):
+            raise ConformanceError("candidate metadata must be EngineMetadata")
+        for field_name in ("name", "revision", "snapshot_id"):
+            expected = getattr(self, field_name)
+            observed = getattr(metadata, field_name)
+            if observed != expected:
+                raise ConformanceError(
+                    f"candidate {field_name} does not match task-pinned identity: "
+                    f"expected {expected!r}, observed {observed!r}"
+                )
 
 
 @dataclass(frozen=True)
