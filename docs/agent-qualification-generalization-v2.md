@@ -1,9 +1,13 @@
 # Agentic Qualification Generalization Evaluation
 
 **Protocol:** `agent-qualification-generalization-v2`  
-**Freeze date:** pending executable freeze  
-**Status:** design frozen only after `freeze.json` validates; provider execution
-requires case-specific authorization
+**Historical status:** frozen before measured execution; all 24 preregistered
+runs received valid pre-score verdicts on 2026-08-02 and aggregate semantic
+grading completed on 2026-08-03
+
+This document preserves the preregistered design. The aggregate outcome and
+claim boundaries are reported separately in the
+[v2 results note](agent-qualification-generalization-v2-results.md).
 
 ## Question
 
