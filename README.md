@@ -189,6 +189,15 @@ these are separate version boundaries. `fifo-limit-v1` qualification does not
 run STP or pro-rata cases, so unsupported features stay explicit without
 becoming false failures.
 
+For release evidence, do not rely on one successful workspace. Start a captured
+pair with `tracebook-conformance evidence-init`, run the canonical qualification
+once in each generated clean root with the plan's pinned candidate name,
+revision, and snapshot, then run `tracebook-conformance evidence-verify`. The
+verifier emits a compact `evidence-manifest.json` only when both source trees
+remain unchanged and both qualification bundles agree on terminal result,
+candidate metadata, deterministic IDs, counts, coverage, and every artifact
+byte. See the [captured evidence workflow](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md#captured-two-run-evidence).
+
 [Read the research-grounded roadmap and adoption experiment](https://github.com/Taz33m/tracebook/blob/main/docs/research-roadmap.md).
 
 ## Architecture

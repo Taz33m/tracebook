@@ -30,6 +30,11 @@
   normalization, or hashing requires an explicit protocol/schema version
   decision. `suite_hash` binds case configuration and fixture identity; an
   intentional suite edit must update it.
+- Protocol-v1 engine metadata may add the optional `revision` and `snapshot_id`
+  identity fields. Ordinary adapters may omit them; a command using the three
+  task-pinned `--candidate-*` flags requires an exact match before any event is
+  sent. Evidence plan schema v1 and evidence manifest schema v1 are public
+  artifacts for the canonical captured two-run qualification workflow.
 - Campaign artifact schema version 1 is public. Campaign generator version 2,
   the built-in versioned profile definitions, seed derivation, and trace hashes
   are reproducibility contracts. An intentional generation change requires a
