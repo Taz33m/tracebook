@@ -16,36 +16,132 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - name: Pin reproducible build timestamp to the release commit
+        run: |
+          SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+          test "$SOURCE_DATE_EPOCH" -gt 0
+          echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
-      - name: Install package and release tooling
+      - name: Install conformance implementation, simulator facade, and release tooling
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dashboard]"
+          python -m pip install --upgrade pip "setuptools==83.0.0" "wheel==0.47.0"
+          python -m pip install -e ".[dev]"
+          python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 
       - name: Run release quality gate
         run: |
-          python -m black --check src tests examples integrations experiments install_deps.py test_system.py
-          python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
-          python -m mypy --python-version 3.13 src/tracebook experiments
-          python -m bandit -q -r src integrations
-          python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+          python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
+          python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+          python -m mypy --python-version 3.13 src/tracebook experiments tools
+          python -m bandit -q -r src integrations tools
+          python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
           python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
           python test_system.py
 
-      - name: Verify release tag matches package version
+      - name: Verify release tag and public metadata match package version
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           PACKAGE_VERSION=$(python -c "exec(open('src/tracebook/_version.py').read()); print(__version__)")
           test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+          python - "$PACKAGE_VERSION" <<'PY'
+          import pathlib
+          import re
+          import sys
 
-      - name: Build and validate distributions
+          version = sys.argv[1]
+          citation = pathlib.Path("CITATION.cff").read_text(encoding="utf-8")
+          security = pathlib.Path("SECURITY.md").read_text(encoding="utf-8")
+          citation_version = re.search(r'^version: "([^"]+)"$', citation, re.MULTILINE)
+          if citation_version is None or citation_version.group(1) != version:
+              raise SystemExit(
+                  f"CITATION.cff must identify the release version {version}"
+              )
+          expected_url = f'url: "https://pypi.org/project/tracebook-conformance/{version}/"'
+          if expected_url not in citation:
+              raise SystemExit(f"CITATION.cff must contain {expected_url}")
+          major, minor, _patch = version.split(".", 2)
+          supported_line = f"| `{major}.{minor}.x` | Yes |"
+          if supported_line not in security:
+              raise SystemExit(f"SECURITY.md must contain {supported_line}")
+          PY
+
+      - name: Build both distributions
         run: |
-          python -m build --sdist --wheel --outdir dist
-          python -m twine check dist/*
+          python -m build --sdist --wheel --outdir dist/conformance .
+          python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+
+      - name: Rebuild and verify wheel byte-for-byte reproducibility
+        run: |
+          python -m build --wheel --outdir reproducibility/conformance .
+          python -m build --wheel --outdir reproducibility/simulator packaging/tracebook-sim
+          python - <<'PY'
+          import hashlib
+          import pathlib
+
+          def hashes(directory):
+              return {
+                  path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in sorted(directory.glob("*.whl"))
+              }
+
+          for distribution in ("conformance", "simulator"):
+              first_directory = pathlib.Path("dist") / distribution
+              second_directory = pathlib.Path("reproducibility") / distribution
+              first = hashes(first_directory)
+              second = hashes(second_directory)
+              if len(first) != 1 or len(second) != 1:
+                  raise SystemExit(
+                      f"expected one wheel in each {distribution} build; "
+                      f"found first={first}, second={second}"
+                  )
+              if first != second:
+                  names = sorted(set(first) | set(second))
+                  differences = {
+                      name: {"first": first.get(name), "second": second.get(name)}
+                      for name in names
+                      if first.get(name) != second.get(name)
+                  }
+                  raise SystemExit(
+                      f"{distribution} wheel is not reproducible: {differences}"
+                  )
+              print(f"{distribution} wheel is byte-for-byte reproducible: {first}")
+          PY
+          python -m twine check dist/conformance/* dist/simulator/*
+
+      - name: Rebuild wheels from sdists and verify artifact agreement
+        run: |
+          python tools/verify_sdist_wheel_agreement.py \
+            --conformance-wheel dist/conformance/*.whl \
+            --conformance-sdist dist/conformance/*.tar.gz \
+            --sim-wheel dist/simulator/*.whl \
+            --sim-sdist dist/simulator/*.tar.gz \
+            --expected-version 0.6.0
+
+      - name: Verify distribution ownership and clean-install contracts
+        run: |
+          mkdir -p dist/legacy
+          python -m pip --isolated download \
+            --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
+            --no-deps \
+            --only-binary=:all: \
+            --dest dist/legacy \
+            "tracebook-sim==0.5.0"
+          python tools/verify_distribution_split.py \
+            --expected-version 0.6.0 \
+            --conformance-wheel dist/conformance/*.whl \
+            --sim-wheel dist/simulator/*.whl \
+            --legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl \
+            --legacy-wheel-sha256 d190e1c2af83e5d853b0734b4d9627b1a8f6707e0fbab391015d2d94437cd4da \
+            --resolver-runtime-checks
+
+      - name: Prove conformance wheel without simulation dependencies
+        run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 
       - name: Reject private navigation material in sdist
         run: |
@@ -53,7 +149,6 @@ jobs:
           import pathlib
           import tarfile
 
-          archive = next(pathlib.Path("dist").glob("*.tar.gz"))
           forbidden = {
               "AGENTS.md",
               "CLAUDE.md",
@@ -61,28 +156,62 @@ jobs:
               "docs/graphify.md",
           }
           forbidden_prefixes = ("openwiki/", "graphify-out/", ".local-tools/")
-          with tarfile.open(archive, "r:gz") as source:
-              packaged = {
-                  "/".join(pathlib.PurePosixPath(name).parts[1:])
-                  for name in source.getnames()
-              }
-          leaked = sorted(
-              path
-              for path in packaged
-              if path in forbidden or path.startswith(forbidden_prefixes)
-          )
-          if leaked:
-              raise SystemExit(f"private navigation material in sdist: {leaked}")
+          archives = sorted(pathlib.Path("dist").glob("*/*.tar.gz"))
+          if len(archives) != 2:
+              raise SystemExit(f"expected two sdists, found: {archives}")
+          for archive in archives:
+              with tarfile.open(archive, "r:gz") as source:
+                  packaged = {
+                      "/".join(pathlib.PurePosixPath(name).parts[1:])
+                      for name in source.getnames()
+                  }
+              leaked = sorted(
+                  path
+                  for path in packaged
+                  if path in forbidden or path.startswith(forbidden_prefixes)
+              )
+              if leaked:
+                  raise SystemExit(
+                      f"private navigation material in {archive.name}: {leaked}"
+                  )
           PY
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload conformance distributions
+        uses: actions/upload-artifact@v7
         with:
-          name: python-distributions
-          path: dist/
+          name: tracebook-conformance-distributions
+          path: dist/conformance/
           if-no-files-found: error
 
-  publish:
+      - name: Upload simulator facade distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: tracebook-sim-distributions
+          path: dist/simulator/
+          if-no-files-found: error
+
+  publish-conformance:
     needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/tracebook-conformance/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: tracebook-conformance-distributions
+          path: dist/conformance/
+
+      - name: Publish conformance distribution first
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/conformance/
+          skip-existing: true
+
+  publish-simulator:
+    needs: publish-conformance
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -90,9 +219,62 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
       - uses: actions/download-artifact@v8
         with:
-          name: python-distributions
-          path: dist/
+          name: tracebook-sim-distributions
+          path: dist/simulator/
 
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/download-artifact@v8
+        with:
+          name: tracebook-conformance-distributions
+          path: dist/conformance/
+
+      - name: Verify the exact conformance wheel is available from PyPI
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PACKAGE_VERSION="${RELEASE_TAG#v}"
+          mkdir -p /tmp/tracebook-conformance-index-proof
+          for attempt in {1..12}; do
+            if python -m pip --isolated download \
+              --disable-pip-version-check \
+              --index-url https://pypi.org/simple \
+              --no-deps \
+              --only-binary=:all: \
+              --dest /tmp/tracebook-conformance-index-proof \
+              "tracebook-conformance==$PACKAGE_VERSION"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "tracebook-conformance==$PACKAGE_VERSION is not available; refusing to publish tracebook-sim" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          python - \
+            dist/conformance/*.whl \
+            /tmp/tracebook-conformance-index-proof/*.whl <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+
+          expected_path, published_path = map(pathlib.Path, sys.argv[1:])
+          expected = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+          published = hashlib.sha256(published_path.read_bytes()).hexdigest()
+          if published != expected:
+              raise SystemExit(
+                  "published conformance wheel differs from the built release artifact; "
+                  "refusing to publish tracebook-sim"
+              )
+          print(f"Verified published conformance wheel sha256:{published}")
+          PY
+
+      - name: Publish simulator facade after dependency availability
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/simulator/
+          skip-existing: true

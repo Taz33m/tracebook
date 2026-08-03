@@ -20,10 +20,11 @@ object per line.
 
 ## Quick Start
 
-Copy the bundled synthetic suite and run the example adapter:
+Copy bundled suite v2, the current default synthetic suite, and run the example
+adapter:
 
 ```bash
-tracebook-conformance sample /tmp/tracebook-conformance-v2
+tracebook-conformance sample /tmp/tracebook-conformance-v2 --suite-version v2
 
 tracebook-conformance suite \
   /tmp/tracebook-conformance-v2 \
@@ -36,6 +37,13 @@ candidate command. The legacy `--candidate ./adapter --flag value` form remains
 available, but it must be last because every remaining argument belongs to the
 candidate process. A conformant suite exits `0`; a semantic divergence exits
 `1`; an invalid trace, manifest, command, or protocol exits `2`.
+
+The 17-line Python example wraps Tracebook's own reference adapter and
+demonstrates protocol framing only. It is not representative of native
+integration effort: candidate adapters also have to map lifecycle operations,
+numeric representations, trades, source IDs, and priority-ordered snapshots.
+See the measured [design-partner study](qualification-design-partners.md) and
+the maintained integrations linked above before estimating an onboarding.
 
 Run one normalized CSV, JSON, JSONL, or NDJSON trace:
 
@@ -65,6 +73,9 @@ deletion in the final round no longer reproduces that category. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
 made. Every fresh candidate process must report the same engine metadata as the
 initial failing run; a binary or adapter identity change aborts minimization.
+When reducing a semantic divergence, a later timeout, malformed response,
+snapshot failure, or other protocol divergence aborts with exit `2` instead of
+being treated as a harmless non-reproducing subset.
 
 Replay a corpus reproducer and verify its exact stored divergence:
 
@@ -80,7 +91,9 @@ When `failure.json` is beside the trace, `reproduce` loads its config and
 requires the same failure class, event, structural path, reference value, and
 candidate value. It exits `0` only for that exact reproduction and exits `1`
 when the trace conforms or fails differently. Without metadata it accepts any
-semantic divergence, which is useful for older minimized traces.
+semantic divergence, which is useful for older minimized traces. Adapter,
+protocol, snapshot, and shutdown failures never count as a reproduction and
+exit `2`.
 
 ## Profile Qualification
 
@@ -97,12 +110,14 @@ tracebook-conformance qualify \
   --output-dir .tracebook/qualification
 ```
 
-Qualification contract version 1 runs fixed suite cases selected only from the
-declared profile, then runs the generated campaign and requires complete
-candidate-independent semantic coverage. It does not fail a FIFO engine for
+Qualification selection contract version 1 runs fixed cases selected only from
+the declared profile, then runs the generated campaign and requires complete
+candidate-independent semantic coverage. It uses bundled suite v2 by default;
+the qualification selection version, bundled suite version, and manifest
+schema version are distinct boundaries. It does not fail a FIFO engine for
 pro-rata or self-trade-prevention behavior it did not claim.
 
-| Profile | Fixed qualification-v1 cases |
+| Profile | Fixed cases selected by qualification contract v1 |
 | --- | --- |
 | `fifo-limit-v1` | `fifo-lifecycle`, `tick-grid`, `deep-cancellation` |
 | `fifo-full-v1` | The limit cases plus `order-instructions` and `multi-symbol` |
@@ -119,6 +134,64 @@ Qualification is strong, reproducible evidence for one versioned profile. It is
 not exchange certification and does not imply support for unselected suite
 cases. Selection version 1 is part of the artifact identity and will not change
 silently.
+
+## Captured Two-Run Evidence
+
+Use the evidence workflow when a qualification result will support a release,
+benchmark, or external claim. It pins the candidate before adapter readiness and
+requires the same canonical qualification from two prepared roots.
+
+```bash
+REVISION=$(git -C /path/to/candidate rev-parse HEAD)
+WORKSPACE=$PWD/.tracebook/release-evidence
+
+tracebook-conformance evidence-init /path/to/candidate \
+  --workspace "$WORKSPACE" \
+  --candidate-name owner/repository \
+  --candidate-revision "$REVISION"
+```
+
+`evidence-init` strips `.git` from the captured source identity, copies that
+exact tree into `runs/run-1/candidate` and `runs/run-2/candidate`, and creates a
+separate empty `adapter`, `build`, and `cache` directory for each run. It writes
+`evidence-plan.json` last and refuses an existing or source-nested workspace.
+Use each run's paths for that run's adapter and build; do not share generated
+files between the two runs.
+
+The command prints the candidate snapshot ID. The adapter's `ready` frame must
+report that ID and the task-pinned name and revision. Run the plan's canonical
+contract in each root, changing only the run number and adapter command:
+
+```bash
+SNAPSHOT=$(python -c \
+  'import json,sys; print(json.load(open(sys.argv[1]))["candidate"]["snapshot_id"])' \
+  "$WORKSPACE/evidence-plan.json")
+
+tracebook-conformance qualify \
+  --profile fifo-limit-v1 --suite-version v2 \
+  --seed 42 --traces 25 --events-per-trace 200 --max-minimize-runs 100 \
+  --candidate-name owner/repository \
+  --candidate-revision "$REVISION" \
+  --candidate-snapshot "$SNAPSHOT" \
+  --candidate-cmd "$WORKSPACE/runs/run-1/adapter/launch" \
+  --output-dir "$WORKSPACE/runs/run-1/qualification"
+```
+
+Repeat for `run-2`, using only its candidate, adapter, build, cache, and
+qualification paths. Then verify the pair:
+
+```bash
+tracebook-conformance evidence-verify "$WORKSPACE/evidence-plan.json"
+```
+
+Verification fails closed if either captured tree changed; either bundle is
+missing, noncanonical, incomplete, or unqualified; candidate identity differs;
+or terminal result, deterministic IDs, counts, semantic coverage, or artifact
+bytes differ between runs. Success writes one exclusive
+`evidence-manifest.json` at the workspace root. The workflow prepares and checks
+the filesystem contract, but it does not sandbox a compiler or prove that an
+adapter avoided undeclared external caches; CI or a disposable host remains the
+strongest execution boundary.
 
 ## Differential Campaigns
 
@@ -216,7 +289,10 @@ still contains the reservation marker is incomplete and must be explicitly
 removed before retrying; this conservative rule also applies after handled
 candidate or write failures. Bundle publication fails closed before creating
 the output on platforms where Python lacks descriptor-relative directory
-operations; `run_campaign` generation and comparison remain available. A
+operations; `run_campaign` generation and comparison remain available. Ubuntu
+is currently the only release-tested platform for campaign and qualification
+artifact publication. Windows publication is unsupported; manually exercised
+macOS runs are not a release-gated support claim. A
 divergent `--output-dir` run also writes its compatibility layout:
 
 | Path | Contents |
@@ -328,8 +404,14 @@ Host to candidate, once:
 Candidate to host:
 
 ```json
-{"type":"ready","protocol":"tracebook.conformance","protocol_version":1,"engine":{"name":"my-engine","version":"1.4.2","language":"Rust"}}
+{"type":"ready","protocol":"tracebook.conformance","protocol_version":1,"engine":{"name":"owner/repository","version":"1.4.2","language":"Rust","revision":"8f31c2a","snapshot_id":"sha256:..."}}
 ```
+
+`revision` and `snapshot_id` are optional for ordinary comparisons. When
+`--candidate-name`, `--candidate-revision`, and `--candidate-snapshot` are
+supplied, all three flags are required together and the `ready` metadata must
+match before Tracebook sends the first event. Captured two-run evidence always
+uses the pinned form.
 
 Host to candidate for each event:
 
@@ -411,7 +493,13 @@ from tracebook.conformance import EngineMetadata, serve_stdio
 
 class MyAdapter:
     def __init__(self, config):
-        self.metadata = EngineMetadata("my-engine", "1.0", "Python")
+        self.metadata = EngineMetadata(
+            "owner/repository",
+            "1.0",
+            "Python",
+            revision="8f31c2a",
+            snapshot_id="sha256:...",
+        )
         self.config = config
 
     def apply(self, event, index):
@@ -428,6 +516,10 @@ class MyAdapter:
 
 raise SystemExit(serve_stdio(MyAdapter))
 ```
+
+The last two fields are needed only when the invoking command pins candidate
+identity. In a captured evidence run, populate them from the immutable task or
+`evidence-plan.json`, not by inspecting the host after the adapter starts.
 
 [`examples/conformance_adapter.py`](../examples/conformance_adapter.py) is a
 runnable reference. Non-Python adapters implement the same frames directly.
@@ -462,7 +554,10 @@ original eight-case suite and its historical hash.
 
 Single-run reports use `artifact_type = "tracebook.conformance.report"` and
 include protocol/schema versions, trace SHA-256, exact config, engine metadata,
-the number of compared events, final state hash, and the first divergence.
+the number of compared events, final state hash, and the first divergence. If
+adapter shutdown also fails after that divergence, optional `close_error`
+evidence is attached without replacing the first drift; the command still exits
+`2`.
 
 Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
@@ -494,7 +589,11 @@ start at version `1`.
 `--junit-output`. JUnit is a projection of the canonical JSON: divergences are
 test failures, a successful minimization is a passing case, and an exact known
 failure reproduction is a passing case. Campaign JUnit properties include the
-semantic coverage ratio and counts. JSON remains the lossless contract.
+semantic coverage ratio and counts. JSON remains the lossless contract. JUnit
+does not annotate pull requests on its own; the CI environment must configure a
+compatible report consumer. `campaign` and `qualify` already print concise
+counts and coverage for human review in the job log; `qualify` adds PASS/FAIL,
+and both commands print reduced-failure details when a divergence exists.
 
 ## Boundaries
 

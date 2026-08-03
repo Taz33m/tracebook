@@ -293,7 +293,11 @@ Its core Rust gate is:
 - run: cargo build --release --locked
 ```
 
-When adapting another Rust engine, retain `wire.rs`, replace the native calls in
-`adapter.rs`, update engine metadata and the compatibility matrix, then keep the
-fixed trace, generated campaign, and negative control as three separate gates.
+When adapting another Rust engine, depend on the shared
+[`tracebook_conformance_protocol`](../rust_protocol/README.md) crate for
+protocol v1 framing, validation, canonical hashing, and the stdio server loop.
+Implement the engine-specific `EngineAdapter` translation in `adapter.rs`,
+update engine metadata and the compatibility matrix, then keep the fixed trace,
+generated campaign, and negative control as three separate gates. The former
+local `wire.rs` was removed when this shared crate became authoritative.
 Candidate stdout is reserved for protocol frames; diagnostics belong on stderr.

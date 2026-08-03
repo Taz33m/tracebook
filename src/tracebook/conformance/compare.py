@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterable, Optional
 
 from ..events import MarketEvent
@@ -35,9 +35,10 @@ class Divergence:
     reference: Any
     candidate: Any
     snapshot_error: Optional[str] = None
+    close_error: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "event_index": self.event_index,
             "category": self.category,
             "kind": self.kind,
@@ -48,6 +49,9 @@ class Divergence:
             "candidate": self.candidate,
             "snapshot_error": self.snapshot_error,
         }
+        if self.close_error is not None:
+            payload["close_error"] = self.close_error
+        return payload
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,15 @@ class ConformanceReport:
     conformant: bool
     final_state_hash: Optional[str]
     divergence: Optional[Divergence]
+
+    @property
+    def operational_failure(self) -> bool:
+        """Whether the comparison encountered an adapter/protocol failure."""
+        return self.divergence is not None and (
+            self.divergence.category == "protocol"
+            or self.divergence.snapshot_error is not None
+            or self.divergence.close_error is not None
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -178,10 +191,15 @@ def _localize_state_divergence(
             raise ConformanceError("candidate snapshot must return BookState")
     except Exception as exc:
         return Divergence(
-            **{
-                **divergence.__dict__,
-                "snapshot_error": f"candidate snapshot failed: {exc}",
-            }
+            event_index=divergence.event_index,
+            category="protocol",
+            kind="adapter_error",
+            path="$.state",
+            message=f"candidate snapshot failed: {exc}",
+            event=divergence.event,
+            reference="valid candidate snapshot",
+            candidate=None,
+            snapshot_error=f"candidate snapshot failed: {exc}",
         )
 
     candidate_digest = candidate_state.digest()
@@ -340,18 +358,28 @@ def run_conformance(
             close_error = exc
         reference.close()
 
-    if close_error is not None and divergence is None:
-        last_event = normalized_events[-1] if normalized_events else None
-        divergence = Divergence(
-            event_index=len(normalized_events),
-            category="protocol",
-            kind="adapter_close_error",
-            path="$",
-            message=f"candidate close failed: {close_error}",
-            event=last_event.to_dict() if last_event is not None else None,
-            reference="clean adapter shutdown",
-            candidate=None,
-        )
+    if close_error is not None:
+        if divergence is None:
+            last_event = (
+                normalized_events[compared_events - 1]
+                if compared_events and normalized_events
+                else None
+            )
+            divergence = Divergence(
+                event_index=compared_events,
+                category="protocol",
+                kind="adapter_close_error",
+                path="$",
+                message=f"candidate close failed: {close_error}",
+                event=last_event.to_dict() if last_event is not None else None,
+                reference="clean adapter shutdown",
+                candidate=None,
+            )
+        else:
+            divergence = replace(
+                divergence,
+                close_error=f"candidate close failed: {close_error}",
+            )
 
     return ConformanceReport(
         config=config,

@@ -156,7 +156,7 @@ def test_checked_synthetic_corpus_reproduces_exactly():
     assert verification == {
         "schema_version": 1,
         "verified": True,
-        "corpus_id": "sha256:1e70da00e2383fd79beca5b30771ec98566b39f05137253ece059ffa4d1f8e89",
+        "corpus_id": "sha256:e11f598c96e7564ecdb50fee97d834a38e5d15a7fd22ea10c94ab07b2cd64197",
         "files_verified": 4,
         "events_verified": 8,
         "snapshot_sequence": 100,
@@ -237,7 +237,7 @@ def test_benchmark_report_and_environment_aware_comparison(tmp_path):
     baseline = benchmark_coinbase_corpus(corpus, iterations=2, warmups=0)
     candidate = copy.deepcopy(baseline)
     candidate["environment"]["python"] = "different"
-    candidate["environment"]["dependency_versions"]["tracebook-sim"] = "candidate"
+    candidate["environment"]["dependency_versions"]["tracebook-conformance"] = "candidate"
     for phase in candidate["phases"].values():
         phase["median_ns"] *= 0.5
         phase["events_per_second_median"] *= 2.0
@@ -249,7 +249,7 @@ def test_benchmark_report_and_environment_aware_comparison(tmp_path):
     assert comparison["environment_match"] is False
     assert comparison["manifest_match"] is True
     assert comparison["environment_differences"] == ["python"]
-    assert comparison["software_differences"] == ["tracebook-sim"]
+    assert comparison["software_differences"] == ["tracebook-conformance"]
     assert comparison["phases"]["replay_only"]["speedup_baseline_over_candidate"] == 2.0
     assert comparison["phases"]["replay_only"]["throughput_change_percent"] == 100.0
 

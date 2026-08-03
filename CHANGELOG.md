@@ -6,6 +6,51 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added a captured two-run qualification workflow. Candidate adapters can now
+  report optional revision and snapshot metadata, candidate-facing commands can
+  enforce a task-pinned identity before the first event, and `evidence-init` /
+  `evidence-verify` prepare clean roots and emit a grading-ready manifest only
+  for unchanged, complete, canonical, byte-identical qualification bundles.
+
+## 0.6.0 - 2026-07-27
+
+- Fixed conformance CLI exit classification across single runs, suites,
+  minimization, campaigns, qualification, and reproduction. Semantic
+  disagreements remain exit `1`; malformed adapter output, timeouts, invalid
+  state hashes, snapshot failures, and shutdown failures now consistently exit
+  `2` as documented. Minimization and reproduction JUnit projections now also
+  fail instead of reporting green when their nested conformance run failed
+  operationally. A shutdown error no longer overwrites an earlier first
+  divergence; it is retained as auxiliary `close_error` evidence.
+- Split the 0.6.0 install surface into non-overlapping distributions.
+  `tracebook-conformance` now owns the `tracebook` package, fixtures, typing
+  marker, and qualification command with no mandatory runtime dependencies.
+  The package-less `tracebook-sim` compatibility facade depends on that exact
+  version plus NumPy and psutil and retains the seven simulator/workbench
+  commands and their optional extras.
+- Added dual-wheel ownership, metadata, resolver-driven clean-install,
+  uninstall, sdist-rebuild, and isolated qualification gates. The final
+  migration proof uses the SHA-256-pinned public 0.5.0 wheel, and reproducible
+  release wheels make partial-publication retries safe. A normal conformance
+  install now proves 3/3 fixed cases, 25/25 generated traces, 5,000 events, and
+  10/10 capabilities without NumPy or psutil.
+- Documented the required one-time migration from `tracebook-sim` 0.5.x:
+  uninstall the legacy distribution before installing either 0.6.0 package.
+  A direct in-place upgrade can otherwise let the old wheel's uninstall record
+  remove files newly owned by `tracebook-conformance`.
+- Corrected public CI, security, suite-version, adapter-effort, API-stability,
+  and platform-support claims. JUnit is now described as an uploaded projection
+  unless a separate reporter consumes it, and qualification artifact
+  publication is no longer labeled operating-system independent.
+- Recorded the 2/3 upstream native-regression retention pilot and its provenance
+  limit: the accepted patches validate demand for focused native regressions,
+  while a raw Flash divergence is still required to validate Tracebook's own
+  localization, minimization, and translation path.
+- Reframed the adoption sequence around reviewable native evidence first,
+  optional out-of-tree qualification ownership, and independently retained
+  Tracebook-derived artifacts rather than stars, local adapters, or passing
+  repository-owned campaigns.
+
 ## 0.5.0 - 2026-07-19
 
 - Added a structured public engine-qualification intake that records time to

@@ -52,7 +52,7 @@ def _dependency_versions() -> Dict[str, Optional[str]]:
     packages = ["numpy", "psutil", "dash", "plotly"]
     versions: Dict[str, Optional[str]] = {}
     try:
-        versions["tracebook"] = metadata.version("tracebook-sim")
+        versions["tracebook"] = metadata.version("tracebook-conformance")
     except metadata.PackageNotFoundError:
         versions["tracebook"] = __version__
     for package in packages:

@@ -11,10 +11,31 @@ For a pull-request gate, copy
 
 Use Python 3.10 through 3.13.
 
-Install the published distribution:
+If this environment already contains `tracebook-sim` 0.5.x, remove that
+legacy package owner before installing either 0.6.0 distribution:
 
 ```bash
-python -m pip install tracebook-sim
+python -m pip uninstall -y tracebook-sim
+```
+
+Install matching-engine qualification and the core Python API:
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
+```
+
+Install the simulator/workbench facade when you also need its commands and
+NumPy/psutil-backed surfaces:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+The uninstall-first step prevents the legacy wheel from later removing files
+now owned by `tracebook-conformance`. Complete the full-surface migration with:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
 ```
 
 For a contributor checkout:
@@ -22,7 +43,8 @@ For a contributor checkout:
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 ```
 
 For the full contributor environment, use:

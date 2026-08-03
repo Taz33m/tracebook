@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Taz33m/tracebook/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://pypi.org/project/tracebook-sim/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tracebook-sim?label=PyPI" /></a>
-  <a href="https://pypi.org/project/tracebook-sim/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/tracebook-sim" /></a>
+  <a href="https://pypi.org/project/tracebook-conformance/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tracebook-conformance?label=PyPI" /></a>
+  <a href="https://pypi.org/project/tracebook-conformance/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/tracebook-conformance" /></a>
   <a href="https://github.com/Taz33m/tracebook/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
 </p>
 
@@ -28,17 +28,37 @@ failure to a deterministic JSONL reproducer.
 
 ## Quick Start
 
-Tracebook requires Python 3.10-3.13. Install the public package and materialize
-the hash-verified adversarial suite:
+Tracebook requires Python 3.10-3.13. Install the dependency-light conformance
+distribution and materialize the current hash-verified adversarial suite:
+
+If this environment already contains `tracebook-sim` 0.5.x, remove that
+legacy package owner **before installing either 0.6.0 distribution**:
 
 ```bash
-python -m pip install --upgrade tracebook-sim
-tracebook-conformance sample ./tracebook-suite
+python -m pip uninstall -y tracebook-sim
+```
+
+```bash
+python -m pip install "tracebook-conformance==0.6.0"
+tracebook-conformance sample ./tracebook-suite-v2 --suite-version v2
 tracebook-conformance --help
 ```
 
-Those commands require only the published wheel. A candidate engine remains a
-separate process by design. Once it speaks the
+Suite v2 is the current default; the explicit option makes the copied contract
+unambiguous if a later release adds another suite. These commands do not
+require a source checkout, NumPy, or psutil. Install
+`tracebook-sim==0.6.0` instead when you need the simulator, benchmark,
+profiling, visualization, replay, or corpus commands. Users migrating that
+distribution from 0.5.x must use the uninstall-first handoff above:
+
+```bash
+python -m pip install "tracebook-sim==0.6.0"
+```
+
+The
+[package-boundary decision](https://github.com/Taz33m/tracebook/blob/main/packaging/lightweight-conformance.md)
+documents the one-time ownership handoff and recovery command. A candidate
+engine remains a separate process by design. Once it speaks the
 [versioned NDJSON protocol](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md),
 run a deterministic campaign:
 
@@ -54,14 +74,23 @@ tracebook-conformance campaign \
   --junit-output .tracebook/conformance.xml
 ```
 
-Exit code `0` means every requested trace conformed. Exit code `1` means the
-corpus contains the original failure, reduced reproducer, semantic diff,
-coverage evidence, campaign metadata, and JUnit result.
+Exit code `0` means every requested trace conformed. Exit code `1` means a
+semantic difference was preserved with the original failure, reduced
+reproducer, semantic diff, coverage evidence, campaign metadata, and JUnit
+result. Exit code `2` is reserved for an invalid configuration, adapter
+protocol, process, or filesystem failure.
 
 For a working adapter before writing your own, use the
 [native orderbook-rs walkthrough](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs)
-or the smaller
+or the small
 [Python process example](https://github.com/Taz33m/tracebook/blob/main/examples/conformance_adapter.py).
+The Python example demonstrates protocol framing around Tracebook's own
+reference adapter; it is not an estimate of real engine-integration effort.
+Native integrations must faithfully translate lifecycle operations, numeric
+representations, ordered snapshots, and source IDs. The frozen
+[design-partner study](https://github.com/Taz33m/tracebook/blob/main/docs/qualification-design-partners.md)
+records adapter files ranging from 672 to 1,056 Rust lines and an 865-line Go
+adapter plus 130 lines of tests.
 Engine maintainers and independent evaluators can also open a structured
 [engine qualification report](https://github.com/Taz33m/tracebook/issues/new?template=engine_qualification.yml).
 Successful and blocked attempts are both useful: the report records time to
@@ -129,11 +158,12 @@ behavior, so seeds and campaign hashes remain reproducible.
 | `fifo-limit-v1` | FIFO limit orders, partial fills, cancel, reduce, replace, clear, duplicates, inactive requests, and multiple symbols |
 | `fifo-full-v1` | `fifo-limit-v1` plus market, IOC, and FOK instructions |
 | `fifo-partial-fill-v1` | Portable FIFO lifecycle plus the real partial-fill continuation probe |
-| Standard suite v1 | Eight adversarial fixtures covering FIFO, instructions, STP, tick grids, deep cancellation, multiple symbols, and pro-rata |
+| Bundled suite v2 (current default) | Nine adversarial fixtures covering FIFO, instructions, encounter-based STP, tick grids, deep cancellation, multiple symbols, and pro-rata |
 
 Campaigns use specified SplitMix64 trace seeds and candidate-independent
-generation. Reports distinguish semantic workload coverage from Python source
-coverage.
+generation. Immutable suite v1 remains available explicitly for reproducing its
+original eight-case contract. Reports distinguish semantic workload coverage
+from Python source coverage.
 
 [Read the profile, protocol, hashing, and minimizer contracts](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md).
 
@@ -154,8 +184,19 @@ tracebook-conformance qualify \
 
 The atomic bundle includes `qualification.json`, `qualification.xml`, selected
 fixed-suite results, campaign results, semantic coverage, and any minimized
-failure. `fifo-limit-v1` qualification does not run STP or pro-rata cases, so
-unsupported features stay explicit without becoming false failures.
+failure. Qualification selection contract v1 uses bundled suite v2 by default;
+these are separate version boundaries. `fifo-limit-v1` qualification does not
+run STP or pro-rata cases, so unsupported features stay explicit without
+becoming false failures.
+
+For release evidence, do not rely on one successful workspace. Start a captured
+pair with `tracebook-conformance evidence-init`, run the canonical qualification
+once in each generated clean root with the plan's pinned candidate name,
+revision, and snapshot, then run `tracebook-conformance evidence-verify`. The
+verifier emits a compact `evidence-manifest.json` only when both source trees
+remain unchanged and both qualification bundles agree on terminal result,
+candidate metadata, deterministic IDs, counts, coverage, and every artifact
+byte. See the [captured evidence workflow](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md#captured-two-run-evidence).
 
 [Read the research-grounded roadmap and adoption experiment](https://github.com/Taz33m/tracebook/blob/main/docs/research-roadmap.md).
 
@@ -205,7 +246,7 @@ Every stopped campaign writes an atomic, content-addressed bundle:
 | `original.jsonl` | Complete generated history through the first divergence |
 | `reduced.jsonl` | Deterministic minimized reproducer |
 | `minimization.json` | Run budget, reduction evidence, and one-minimal status |
-| JUnit XML | Native pull-request annotation and test-report ingestion |
+| JUnit XML | Portable test-report projection; the sample workflow uploads it, and a separate CI reporter is required for pull-request annotations |
 
 Replay a stored expectation without regenerating anything:
 
@@ -217,8 +258,10 @@ tracebook-conformance reproduce \
 
 ## Continuous Integration
 
-This minimal job installs the public PyPI release. Replace only the candidate
-build and command:
+This minimal job installs the public PyPI release. It assumes that a faithful
+stdio adapter already exists and can be built in the candidate repository; the
+adapter is the substantive engine-specific integration work. Replace the
+placeholder build and candidate commands:
 
 ```yaml
 name: Matching engine conformance
@@ -233,7 +276,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install "tracebook-sim==0.5.0"
+      - run: python -m pip install "tracebook-conformance==0.6.0"
       - run: make build
       - run: |
           tracebook-conformance qualify \
@@ -249,6 +292,10 @@ The repository includes a
 [copy-paste workflow with artifact upload](https://github.com/Taz33m/tracebook/blob/main/examples/github-actions/conformance.yml)
 and a short
 [CI integration guide](https://github.com/Taz33m/tracebook/blob/main/docs/ci.md).
+`qualify` prints a concise human summary—profile, fixed and generated counts,
+semantic coverage, PASS/FAIL, and reduced-trace details—to the job log. The
+workflow uploads the lossless JSON and JUnit bundle for deeper review; it does
+not install a JUnit annotation reporter.
 
 ## Reference Semantics
 
@@ -304,17 +351,30 @@ Tracebook is not:
 
 [Read the product position and comparison with adjacent projects](https://github.com/Taz33m/tracebook/blob/main/docs/positioning.md).
 
+## Platform Support
+
+The release matrix runs Python 3.10-3.13 on Ubuntu. Atomic campaign and
+qualification bundles rely on descriptor-relative filesystem operations, so
+Ubuntu is currently the only release-tested platform for that evidence path.
+The implementation fails closed when those operations are unavailable; Windows
+qualification artifact publication is not currently supported. Manually
+measured macOS runs exist, but macOS is not a release-gated support target.
+Other library and CLI surfaces may work elsewhere without constituting a
+cross-platform support claim.
+
 ## Contributing
 
-Tracebook supports Python 3.10 through 3.13 and is alpha software. The real
-four-event `orderbook-rs` case study currently requires a source checkout.
+Tracebook supports Python 3.10 through 3.13 on the platform boundary above and
+is alpha software. The real four-event `orderbook-rs` case study currently
+requires a source checkout.
 
 ```bash
 git clone https://github.com/Taz33m/tracebook.git
 cd tracebook
 python -m venv venv
 source venv/bin/activate
-python -m pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[analysis,capture,dashboard]"
 make quality
 ```
 
