@@ -6,6 +6,12 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added a captured two-run qualification workflow. Candidate adapters can now
+  report optional revision and snapshot metadata, candidate-facing commands can
+  enforce a task-pinned identity before the first event, and `evidence-init` /
+  `evidence-verify` prepare clean roots and emit a grading-ready manifest only
+  for unchanged, complete, canonical, byte-identical qualification bundles.
+
 ## 0.6.0 - 2026-07-27
 
 - Fixed conformance CLI exit classification across single runs, suites,

@@ -20,11 +20,12 @@ from .campaign import (
     write_campaign_corpus,
 )
 from .compare import run_conformance
+from .evidence import prepare_evidence_workspace, write_evidence_manifest
 from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .exit_codes import exit_code_for_artifact
 from .junit import write_junit
 from .minimize import minimize_failing_trace
-from .model import ConformanceConfig, ConformanceError
+from .model import ConformanceConfig, ConformanceError, PinnedCandidateIdentity
 from .qualification import _QualificationOutputReservation, run_qualification
 from .reproduce import (
     discover_failure_metadata,
@@ -54,6 +55,18 @@ def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
 
 def _add_candidate_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument(
+        "--candidate-name",
+        help="Task-pinned candidate name expected in the ready frame.",
+    )
+    parser.add_argument(
+        "--candidate-revision",
+        help="Task-pinned revision expected in the ready frame.",
+    )
+    parser.add_argument(
+        "--candidate-snapshot",
+        help="Task-pinned snapshot ID expected in the ready frame.",
+    )
     candidate = parser.add_mutually_exclusive_group(required=True)
     candidate.add_argument(
         "--candidate-cmd",
@@ -163,6 +176,23 @@ def _build_parser() -> argparse.ArgumentParser:
     reproduce.add_argument("--junit-output")
     _add_config_arguments(reproduce)
     _add_candidate_arguments(reproduce)
+
+    evidence_init = commands.add_parser(
+        "evidence-init",
+        help="Create two clean roots for a captured qualification pair.",
+    )
+    evidence_init.add_argument("candidate_source")
+    evidence_init.add_argument("--workspace", required=True)
+    evidence_init.add_argument("--candidate-name", required=True)
+    evidence_init.add_argument("--candidate-revision", required=True)
+    evidence_init.add_argument("--expected-snapshot")
+
+    evidence_verify = commands.add_parser(
+        "evidence-verify",
+        help="Verify two captured qualification bundles and write one manifest.",
+    )
+    evidence_verify.add_argument("plan")
+    evidence_verify.add_argument("--output")
     return parser
 
 
@@ -174,7 +204,32 @@ def _candidate_factory(args) -> ExternalProcessAdapterFactory:
         command = command[1:]
     if not command:
         raise ConformanceError("--candidate requires a command")
-    return ExternalProcessAdapterFactory(command, timeout_seconds=args.timeout)
+    identity_values = (
+        args.candidate_name,
+        args.candidate_revision,
+        args.candidate_snapshot,
+    )
+    if any(value is not None for value in identity_values) and not all(
+        value is not None for value in identity_values
+    ):
+        raise ConformanceError(
+            "--candidate-name, --candidate-revision, and --candidate-snapshot "
+            "must be provided together"
+        )
+    expected_identity = (
+        PinnedCandidateIdentity(
+            name=args.candidate_name,
+            revision=args.candidate_revision,
+            snapshot_id=args.candidate_snapshot,
+        )
+        if all(value is not None for value in identity_values)
+        else None
+    )
+    return ExternalProcessAdapterFactory(
+        command,
+        timeout_seconds=args.timeout,
+        expected_identity=expected_identity,
+    )
 
 
 def _config(args) -> ConformanceConfig:
@@ -252,6 +307,31 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Conformance suite copied to: {suite.root}")
             print(f"Suite id: {suite.suite_id}")
             print(f"Cases: {len(suite.cases)}")
+            return 0
+        if args.command == "evidence-init":
+            plan_path = prepare_evidence_workspace(
+                args.candidate_source,
+                args.workspace,
+                candidate_name=args.candidate_name,
+                candidate_revision=args.candidate_revision,
+                expected_snapshot=args.expected_snapshot,
+            )
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            print(f"Evidence plan written: {plan_path}")
+            print(f"Candidate snapshot: {plan['candidate']['snapshot_id']}")
+            for run in plan["runs"]:
+                print(
+                    f"{run['run_id']}: candidate={run['candidate_root']} "
+                    f"qualification={run['qualification_dir']}"
+                )
+            return 0
+        if args.command == "evidence-verify":
+            manifest_path = write_evidence_manifest(args.plan, args.output)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            print(f"Evidence manifest written: {manifest_path}")
+            print(f"Manifest: {manifest['manifest_id']}")
+            print(f"Qualification: {manifest['runs'][0]['qualification_id']}")
+            print("Evidence pair: PASS")
             return 0
         if args.command == "run":
             _require_distinct_paths(args.events, args.output, args.junit_output)
