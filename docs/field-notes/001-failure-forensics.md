@@ -92,10 +92,11 @@ Each qualification combines three profile-relevant fixed cases, 25 generated
 traces of 200 events, 10 semantic capabilities, JSON, and JUnit output.
 
 The Go integration against `geseq/orderbook` passed all 5,000 generated events
-from the public Tracebook 0.5.0 command. Its upstream
-[draft PR #30](https://github.com/geseq/orderbook/pull/30) remains a proposal
-until the maintainer reviews it and chooses whether to retain the CI job.
-Repository-local success is not labeled adoption.
+from the public Tracebook 0.5.0 command. The bundled
+[draft PR #30](https://github.com/geseq/orderbook/pull/30) was closed as
+superseded; ready [PR #31](https://github.com/geseq/orderbook/pull/31) contains
+only the maintainer-proposed native engine/API unit. The adapter and CI workflow
+remain out of tree, so repository-local success is not labeled adoption.
 
 ## What Did Not Ship
 

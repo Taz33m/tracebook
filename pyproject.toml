@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=82.0.1", "wheel"]
+requires = ["setuptools==83.0.0", "wheel==0.47.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tracebook-sim"
+name = "tracebook-conformance"
 dynamic = ["version"]
 description = "Matching-engine conformance testing, reproducible failure reduction, and honest local benchmarks"
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -28,7 +28,7 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Intended Audience :: Financial and Insurance Industry",
-  "Operating System :: OS Independent",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -39,29 +39,9 @@ classifiers = [
   "Topic :: Scientific/Engineering",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = [
-  "numpy>=2.2.6",
-  "psutil>=7.2.2",
-]
+dependencies = []
 
 [project.optional-dependencies]
-analysis = [
-  "h5py>=3.16.0",
-  "matplotlib>=3.10.9",
-  "pandas>=2.3.3",
-  "plotly>=6.8.0",
-  "pyarrow>=24.0.0",
-  "seaborn>=0.13.2",
-  "tables>=3.10.1",
-]
-capture = [
-  "websockets>=16.1",
-]
-dashboard = [
-  "dash>=4.3.0",
-  "pandas>=2.3.3",
-  "plotly>=6.8.0",
-]
 dev = [
   "bandit>=1.9.4",
   "build>=1.5.0",
@@ -72,18 +52,13 @@ dev = [
   "pytest>=9.1.1",
   "pytest-benchmark>=5.2.3",
   "pytest-cov>=7.1.0",
+  "setuptools==83.0.0",
   "tomli>=2.4.0; python_version < '3.11'",
   "twine>=6.1.0",
+  "wheel==0.47.0",
 ]
 
 [project.scripts]
-tracebook-sim = "tracebook.simulation.simulation_engine:main"
-tracebook-benchmark = "tracebook.benchmarks.runner:main"
-tracebook-dashboard = "tracebook.visualization.dashboard:main"
-tracebook-web = "tracebook.visualization.web_server:main"
-tracebook-replay = "tracebook.events.cli:main"
-tracebook-coinbase = "tracebook.events.coinbase_cli:main"
-tracebook-corpus = "tracebook.corpus.cli:main"
 tracebook-conformance = "tracebook.conformance.cli:main"
 
 [project.urls]

@@ -27,25 +27,26 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package
+      - name: Install conformance implementation and simulator facade
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dashboard]"
+          python -m pip install --upgrade pip "setuptools==83.0.0" "wheel==0.47.0"
+          python -m pip install -e ".[dev]"
+          python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 
       - name: Run format check
-        run: python -m black --check src tests examples integrations experiments install_deps.py test_system.py
+        run: python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
 
       - name: Run lint
-        run: python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
+        run: python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
 
       - name: Run type check
-        run: python -m mypy --python-version "${{ matrix.python-version }}" src/tracebook experiments
+        run: python -m mypy --python-version "${{ matrix.python-version }}" src/tracebook experiments tools
 
       - name: Run security static analysis
-        run: python -m bandit -q -r src integrations
+        run: python -m bandit -q -r src integrations tools
 
       - name: Run compile check
-        run: python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+        run: python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
 
       - name: Run pytest with coverage gate
         run: python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
@@ -59,18 +60,41 @@ jobs:
       - name: Run benchmark smoke
         run: tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/ci-smoke.json
 
-      - name: Build package artifacts
-        run: python -m build --sdist --wheel --outdir dist
-
-      - name: Validate package metadata
-        run: python -m twine check dist/*
-
-      - name: Smoke installed wheel and console scripts
+      - name: Build both distribution artifacts
         run: |
-          python -m pip uninstall -y tracebook-sim
-          python -m pip install --no-deps dist/*.whl
+          python -m build --sdist --wheel --outdir dist/conformance .
+          python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+
+      - name: Validate both distributions
+        run: python -m twine check dist/conformance/* dist/simulator/*
+
+      - name: Rebuild wheels from sdists and verify artifact agreement
+        if: matrix.python-version == '3.13'
+        run: |
+          python tools/verify_sdist_wheel_agreement.py \
+            --conformance-wheel dist/conformance/*.whl \
+            --conformance-sdist dist/conformance/*.tar.gz \
+            --sim-wheel dist/simulator/*.whl \
+            --sim-sdist dist/simulator/*.tar.gz \
+            --expected-version 0.6.0
+
+      - name: Verify distribution ownership and clean-install contracts
+        if: matrix.python-version == '3.13'
+        run: |
+          python tools/verify_distribution_split.py \
+            --expected-version 0.6.0 \
+            --conformance-wheel dist/conformance/*.whl \
+            --sim-wheel dist/simulator/*.whl \
+            --resolver-runtime-checks
+
+      - name: Smoke the installed wheel pair and console scripts
+        run: |
+          python -m pip uninstall -y tracebook-sim tracebook-conformance
+          python -m pip install --no-deps \
+            dist/conformance/*.whl \
+            dist/simulator/*.whl
           cd /tmp
-          python -c "import importlib.metadata as m, tracebook; assert tracebook.__version__ == m.version('tracebook-sim')"
+          python -c "import importlib.metadata as m, tracebook; assert tracebook.__version__ == m.version('tracebook-conformance') == m.version('tracebook-sim')"
           tracebook-sim --version
           tracebook-benchmark --version
           tracebook-dashboard --version
@@ -102,6 +126,10 @@ jobs:
           python -c "import json; assert json.load(open('/tmp/corpus-verify.json'))['verified'] is True"
           python -c "import json; assert json.load(open('/tmp/conformance-suite.json'))['conformant'] is True"
           python -c "import json; p=json.load(open('/tmp/tracebook-conformance-campaign/campaign.json')); assert p['conformant'] is True and p['generated_events'] == 75 and p['generator_version'] == 2; assert p['campaign_id'] == 'sha256:e091b14fe9774b2715e5544eef78115f34e8bbbd83d5c13936bafb4d44ba0965'; assert p['semantic_coverage']['coverage_ratio'] == 1.0; assert [t['trace_sha256'] for t in p['traces']] == ['sha256:488c68887f5655b927a0b623e2d814afc07c5fd6090cefee0376025bacb5cdd7', 'sha256:0e299394becb4a533b63149e381eb39701c4e6931e3d797fcafa422ee63a6942', 'sha256:cc221ad5ec4a012995d7815c7d2c0f31f91e8d559b0d37eda8dce5877c4c19ab']"
+
+      - name: Prove conformance wheel without simulation dependencies
+        if: matrix.python-version == '3.13'
+        run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 
       - name: Check installed dependencies
         run: python -m pip check

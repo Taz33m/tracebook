@@ -1,13 +1,16 @@
 # Contributing
 
-Thanks for helping make `tracebook` better. This project is early alpha, so the best contributions are focused, tested, and honest about behavior.
+Thanks for helping make `tracebook` better. This matching-engine conformance,
+qualification, and failure-forensics toolkit is early alpha, so the best
+contributions are focused, tested, and honest about behavior.
 
 ## Development Setup
 
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[dev]"
+python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 ```
 
 ## Local Checks
@@ -15,11 +18,11 @@ pip install -e ".[dev,dashboard]"
 Run these before opening a pull request:
 
 ```bash
-python -m black --check src tests examples integrations experiments install_deps.py test_system.py
-python -m flake8 src tests examples integrations experiments install_deps.py test_system.py
-python -m mypy src/tracebook experiments
-python -m bandit -q -r src integrations
-python -m compileall -q src tests examples integrations experiments install_deps.py test_system.py
+python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
+python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+python -m mypy src/tracebook experiments tools
+python -m bandit -q -r src integrations tools
+python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
 python test_system.py
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/local-smoke.json
@@ -27,14 +30,27 @@ tracebook-dashboard --demo-simulation --help
 tracebook-replay examples/data/sample_events.jsonl --output /tmp/tracebook-replay.json
 tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/coinbase_btcusd_full.jsonl --tick-size 0.01 --output /tmp/tracebook-coinbase.json
 tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
-tracebook-conformance suite src/tracebook/conformance/fixtures/v1 --candidate python examples/conformance_adapter.py
+tracebook-conformance suite src/tracebook/conformance/fixtures/v2 --candidate python examples/conformance_adapter.py
 ```
 
 For packaging changes, also run:
 
 ```bash
-python -m build --sdist --wheel --outdir dist
-python -m twine check dist/*
+python -m build --sdist --wheel --outdir dist/conformance .
+python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+python -m twine check dist/conformance/* dist/simulator/*
+python tools/verify_distribution_split.py \
+  --expected-version 0.6.0 \
+  --conformance-wheel dist/conformance/*.whl \
+  --sim-wheel dist/simulator/*.whl \
+  --resolver-runtime-checks
+python tools/verify_sdist_wheel_agreement.py \
+  --conformance-wheel dist/conformance/*.whl \
+  --conformance-sdist dist/conformance/*.tar.gz \
+  --sim-wheel dist/simulator/*.whl \
+  --sim-sdist dist/simulator/*.tar.gz \
+  --expected-version 0.6.0
+python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 ```
 
 Normalized feed adapters should emit `tracebook.MarketEvent` values and keep
@@ -56,6 +72,12 @@ include timeout/error tests. Protocol changes require an artifact schema test,
 cross-process coverage, a changelog entry, and an explicit versioning decision.
 New standard-suite cases must be synthetic, document the semantic edge they
 cover, and update the manifest hash intentionally.
+
+The small Python process example wraps Tracebook's own reference adapter and is
+only a framing smoke test. A real candidate integration must document its
+engine-specific lifecycle, numeric, trade-ID, and snapshot translations,
+including measured adapter size and time to first evidence. Do not describe the
+workflow's build and command substitutions as the full integration effort.
 
 Maintained third-party integrations belong under `integrations/`. Pin the exact
 upstream revision, link its license and primary repository, keep its dependencies

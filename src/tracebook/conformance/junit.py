@@ -9,6 +9,7 @@ from typing import Any, Mapping
 # ElementTree is only a serializer here; no XML input is parsed.
 from xml.etree import ElementTree  # nosec B405
 
+from .exit_codes import OPERATIONAL_FAILURE, exit_code_for_artifact
 from .model import ConformanceError
 
 
@@ -45,6 +46,14 @@ def _report_case(payload: Mapping[str, Any]) -> tuple[str, bool, Mapping[str, An
     divergence = payload.get("divergence")
     name = str(trace.get("name") or trace.get("sha256") or "trace")
     return name, not bool(payload.get("conformant")), divergence
+
+
+def _nested_report_divergence(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    report = payload.get("conformance_report")
+    if not isinstance(report, Mapping):
+        return None
+    divergence = report.get("divergence")
+    return divergence if isinstance(divergence, Mapping) else None
 
 
 def render_junit(payload: Mapping[str, Any]) -> str:
@@ -143,16 +152,26 @@ def render_junit(payload: Mapping[str, Any]) -> str:
         tests += 1
         failures += int(coverage_failed)
     elif artifact_type == "tracebook.conformance.minimization":
-        _add_case(suite, "trace-minimization", False)
+        operational_failure = exit_code_for_artifact(payload) == OPERATIONAL_FAILURE
+        _add_case(
+            suite,
+            "trace-minimization",
+            operational_failure,
+            _nested_report_divergence(payload),
+        )
         tests = 1
+        failures = int(operational_failure)
     elif artifact_type == "tracebook.conformance.reproduction":
-        failed = not bool(payload.get("reproduced"))
-        details = {
-            "category": "reproduction_mismatch",
-            "message": "stored failure did not reproduce exactly",
-            "expected": payload.get("expected"),
-            "observed": payload.get("observed"),
-        }
+        operational_failure = exit_code_for_artifact(payload) == OPERATIONAL_FAILURE
+        failed = operational_failure or not bool(payload.get("reproduced"))
+        details = _nested_report_divergence(payload)
+        if not operational_failure:
+            details = {
+                "category": "reproduction_mismatch",
+                "message": "stored failure did not reproduce exactly",
+                "expected": payload.get("expected"),
+                "observed": payload.get("observed"),
+            }
         _add_case(suite, str(payload.get("failure_id") or "reproducer"), failed, details)
         tests = 1
         failures = int(failed)

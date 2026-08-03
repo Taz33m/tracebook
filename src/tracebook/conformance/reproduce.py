@@ -110,7 +110,7 @@ def run_reproduction(
     failure_class = classify_failure(events, report)
     divergence = report.divergence.to_dict() if report.divergence else None
     if expected is None:
-        reproduced = divergence is not None
+        reproduced = divergence is not None and not report.operational_failure
     else:
         expected_class = expected.get("failure_class")
         expected_divergence = expected.get("expected_reduced_divergence")

@@ -1,3 +1,5 @@
-# Keep dependency bounds in pyproject.toml. This file is only a convenience
-# entry point for contributors who expect `pip install -r requirements.txt`.
--e .[dev,dashboard,analysis,capture]
+# Keep dependency bounds in the two pyproject.toml files. This convenience
+# entry point installs the root implementation owner first and then the
+# package-less simulator compatibility facade.
+-e .[dev]
+-e ./packaging/tracebook-sim[dashboard,analysis,capture]
