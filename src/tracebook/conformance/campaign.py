@@ -26,6 +26,7 @@ from .model import (
     ConformanceError,
     EngineMetadata,
     canonical_decimal,
+    canonical_event_jsonl_line,
     trace_sha256,
 )
 from .protocol import AdapterFactory
@@ -845,17 +846,9 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _write_events(path: Path, events: Sequence[MarketEvent]) -> None:
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("wb") as handle:
         for event in events:
-            handle.write(
-                json.dumps(
-                    event.to_dict(),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                )
-                + "\n"
-            )
+            handle.write(canonical_event_jsonl_line(event))
 
 
 _RESERVATION_MARKER = ".tracebook-campaign-reservation"

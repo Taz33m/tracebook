@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import sys
@@ -5,6 +6,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import pytest
+import tracebook.conformance.campaign as campaign_module
 from hypothesis import given, settings, strategies as st
 
 from tracebook import OrderBook, OrderSide
@@ -32,12 +34,14 @@ from tracebook.conformance import (
     run_conformance_suite,
     serve_stdio,
 )
+from tracebook.conformance.cli import _write_events as write_cli_events
 from tracebook.conformance.cli import main
 from tracebook.conformance.classification import (
     FailureSignature,
     preserves_failure_signature,
 )
 from tracebook.conformance.exit_codes import exit_code_for_artifact
+from tracebook.conformance.model import trace_sha256
 from tracebook.events import MarketEvent, load_market_events
 
 ROOT = Path(__file__).parents[1]
@@ -316,6 +320,21 @@ def test_delta_debugging_reduces_to_a_one_event_reproducer():
     assert budget_limited.one_minimal is False
     assert budget_limited.budget_exhausted is True
     assert budget_limited.report.trace_hash == budget_limited.to_dict()["minimized_trace_sha256"]
+
+
+def test_event_artifacts_use_the_hashed_canonical_jsonl_bytes(tmp_path):
+    events = (_event(symbol="Σ"),)
+    cli_output = tmp_path / "cli.jsonl"
+    campaign_output = tmp_path / "campaign.jsonl"
+
+    write_cli_events(events, str(cli_output))
+    campaign_module._write_events(campaign_output, events)
+
+    encoded = cli_output.read_bytes()
+    assert campaign_output.read_bytes() == encoded
+    assert "Σ".encode("utf-8") in encoded
+    assert b"\\u03a3" not in encoded
+    assert trace_sha256(events) == "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def test_minimizer_preserves_queue_priority_failure_class():
