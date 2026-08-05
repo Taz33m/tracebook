@@ -546,6 +546,11 @@ same-owner maker that the sweep never reaches. The suite currently covers:
 Suite reports preserve every case report rather than stopping after the first
 failed case, making them suitable for CI artifacts.
 
+Suite loading reads each event file once, verifies that exact byte payload, and
+retains the parsed events immutably for execution. Later fixture mutation,
+replacement, or deletion cannot make a suite report a hash for different
+executed events.
+
 Bundled suites are immutable once published. `sample` copies v2 by default;
 use `tracebook-conformance sample ./suite --suite-version v1` to reproduce the
 original eight-case suite and its historical hash.

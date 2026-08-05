@@ -437,6 +437,46 @@ def test_bundled_suite_is_hash_locked_copyable_and_fully_conformant(tmp_path):
         copy_bundled_conformance_suite(tmp_path / "unknown", suite_version="v3")
 
 
+def test_loaded_suite_executes_the_verified_events_after_fixture_changes(tmp_path):
+    copied = copy_bundled_conformance_suite(tmp_path / "suite")
+    first_case = copied.cases[0]
+    verified_events = first_case.load_events()
+
+    detached_events = first_case.load_events()
+    detached_events.clear()
+    first_case.events_path.write_text("not valid JSONL\n", encoding="utf-8")
+
+    assert first_case.load_events() == verified_events
+    report = run_conformance_suite(copied, ReferenceEngineAdapter)
+    assert report["conformant"] is True
+    assert report["cases"][0]["report"]["trace"]["event_count"] == len(verified_events)
+    assert report["cases"][0]["events_sha256"] == first_case.events_sha256
+
+
+def test_suite_candidate_cannot_mutate_a_later_verified_case(tmp_path):
+    copied = copy_bundled_conformance_suite(tmp_path / "suite")
+    later_case = copied.cases[1]
+    verified_events = later_case.load_events()
+
+    class MutatingFactory:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, config):
+            self.calls += 1
+            if self.calls == 1:
+                later_case.events_path.unlink()
+            return ReferenceEngineAdapter(config)
+
+    factory = MutatingFactory()
+    report = run_conformance_suite(copied, factory)
+
+    assert factory.calls == len(copied.cases)
+    assert later_case.load_events() == verified_events
+    assert not later_case.events_path.exists()
+    assert report["conformant"] is True
+
+
 def test_cancel_resting_only_removes_self_orders_reached_by_the_sweep():
     events = load_market_events(LATEST_SUITE / "stp-cancel-resting-deep.jsonl")
     adapter = ReferenceEngineAdapter(
