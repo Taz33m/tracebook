@@ -31,6 +31,7 @@ from tracebook.conformance import (
     serve_stdio,
 )
 from tracebook.conformance.cli import main
+from tracebook.conformance.exit_codes import exit_code_for_artifact
 from tracebook.events import MarketEvent, load_market_events
 
 ROOT = Path(__file__).parents[1]
@@ -309,6 +310,38 @@ def test_external_stdio_adapter_runs_incrementally_and_verifies_final_snapshot()
     assert report.compared_events == len(events)
 
 
+class _CloseTrackingReferenceAdapter(ReferenceEngineAdapter):
+    def __init__(self, config, *, fail_on_apply=False, fail_on_close=False):
+        super().__init__(config)
+        self.close_calls = 0
+        self.fail_on_apply = fail_on_apply
+        self.fail_on_close = fail_on_close
+
+    def apply(self, event, index):
+        if self.fail_on_apply:
+            raise RuntimeError("apply failed")
+        return super().apply(event, index)
+
+    def close(self):
+        self.close_calls += 1
+        super().close()
+        if self.fail_on_close:
+            raise RuntimeError("close failed")
+
+
+def _tracking_factory(created, *, fail_on_apply=False, fail_on_close=False):
+    def factory(config):
+        adapter = _CloseTrackingReferenceAdapter(
+            config,
+            fail_on_apply=fail_on_apply,
+            fail_on_close=fail_on_close,
+        )
+        created.append(adapter)
+        return adapter
+
+    return factory
+
+
 def test_stdio_server_protocol_transcript_is_complete():
     event = _event(order_id=10)
     config = ConformanceConfig()
@@ -325,8 +358,9 @@ def test_stdio_server_protocol_transcript_is_complete():
     ]
     source = io.StringIO("".join(json.dumps(message) + "\n" for message in messages))
     sink = io.StringIO()
+    created = []
 
-    assert serve_stdio(ReferenceEngineAdapter, source, sink) == 0
+    assert serve_stdio(_tracking_factory(created), source, sink) == 0
     responses = [json.loads(line) for line in sink.getvalue().splitlines()]
 
     assert [response["type"] for response in responses] == [
@@ -337,6 +371,104 @@ def test_stdio_server_protocol_transcript_is_complete():
     ]
     assert responses[1]["resting_order_count"] == 1
     assert responses[2]["state"]["books"][0]["bids"][0]["order_id"] == 10
+    assert created[0].close_calls == 1
+
+
+def test_stdio_server_reports_close_failure_before_complete():
+    messages = [
+        {
+            "type": "hello",
+            "protocol": PROTOCOL_NAME,
+            "protocol_version": PROTOCOL_VERSION,
+            "config": ConformanceConfig().to_dict(),
+        },
+        {"type": "finish", "event_count": 0},
+    ]
+    source = io.StringIO("".join(json.dumps(message) + "\n" for message in messages))
+    sink = io.StringIO()
+    created = []
+
+    assert serve_stdio(_tracking_factory(created, fail_on_close=True), source, sink) == 2
+    responses = [json.loads(line) for line in sink.getvalue().splitlines()]
+
+    assert [response["type"] for response in responses] == ["ready", "error"]
+    assert responses[-1]["code"] == "ADAPTER_ERROR"
+    assert responses[-1]["message"] == "close failed"
+    assert created[0].close_calls == 1
+
+
+def test_stdio_server_preserves_protocol_error_when_close_also_fails(capsys):
+    messages = [
+        {
+            "type": "hello",
+            "protocol": PROTOCOL_NAME,
+            "protocol_version": PROTOCOL_VERSION,
+            "config": ConformanceConfig().to_dict(),
+        },
+        {"type": "unsupported"},
+    ]
+    source = io.StringIO("".join(json.dumps(message) + "\n" for message in messages))
+    sink = io.StringIO()
+    created = []
+
+    assert serve_stdio(_tracking_factory(created, fail_on_close=True), source, sink) == 2
+    responses = [json.loads(line) for line in sink.getvalue().splitlines()]
+
+    assert [response["type"] for response in responses] == ["ready", "error"]
+    assert responses[-1]["code"] == "PROTOCOL_ERROR"
+    assert created[0].close_calls == 1
+    assert "Adapter close error: close failed" in capsys.readouterr().err
+
+
+def test_stdio_server_closes_once_after_adapter_error():
+    event = _event(order_id=10)
+    messages = [
+        {
+            "type": "hello",
+            "protocol": PROTOCOL_NAME,
+            "protocol_version": PROTOCOL_VERSION,
+            "config": ConformanceConfig().to_dict(),
+        },
+        {"type": "event", "index": 1, "event": event.to_dict()},
+    ]
+    source = io.StringIO("".join(json.dumps(message) + "\n" for message in messages))
+    sink = io.StringIO()
+    created = []
+
+    assert serve_stdio(_tracking_factory(created, fail_on_apply=True), source, sink) == 2
+    responses = [json.loads(line) for line in sink.getvalue().splitlines()]
+
+    assert [response["type"] for response in responses] == ["ready", "error"]
+    assert responses[-1]["code"] == "ADAPTER_ERROR"
+    assert created[0].close_calls == 1
+
+
+def test_external_adapter_classifies_stdio_close_failure_as_operational(tmp_path):
+    adapter_script = tmp_path / "close_failure_adapter.py"
+    adapter_script.write_text(
+        "import sys\n"
+        f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
+        "from tracebook.conformance import ReferenceEngineAdapter, serve_stdio\n"
+        "class CloseFailureAdapter(ReferenceEngineAdapter):\n"
+        "    def close(self):\n"
+        "        super().close()\n"
+        "        raise RuntimeError('close failed')\n"
+        "raise SystemExit(serve_stdio(CloseFailureAdapter))\n",
+        encoding="utf-8",
+    )
+
+    report = run_conformance(
+        [],
+        lambda config: ExternalProcessAdapter(
+            [sys.executable, str(adapter_script)], config, timeout_seconds=2
+        ),
+    )
+
+    assert report.conformant is False
+    assert report.divergence is not None
+    assert report.divergence.kind == "adapter_close_error"
+    assert report.operational_failure is True
+    assert exit_code_for_artifact(report.to_dict()) == 2
 
 
 def test_stdio_server_returns_a_protocol_error_frame():
