@@ -1,4 +1,4 @@
-.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput corpus-verify profile dashboard demo replay-demo format format-check lint typecheck security compile build verify-distribution-split quality docs clean clean-all monitor help
+.PHONY: setup install install-dev test test-coverage benchmark benchmark-latency benchmark-throughput corpus-verify profile dashboard demo replay-demo format format-check lint typecheck security compile build verify-distribution-split quality clean clean-all monitor help
 
 # Python and virtual environment
 PYTHON := python3
@@ -68,15 +68,15 @@ replay-demo:
 
 # Code formatting with black
 format:
-	$(PYTHON_VENV) -m black src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black src/ tests/ examples/ integrations/ experiments/ tools/
 
 # Check formatting without modifying files
 format-check:
-	$(PYTHON_VENV) -m black --check src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m black --check src/ tests/ examples/ integrations/ experiments/ tools/
 
 # Lint code with flake8
 lint:
-	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ tools/ install_deps.py test_system.py
+	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ tools/
 
 typecheck:
 	$(PYTHON_VENV) -m mypy src/tracebook experiments tools
@@ -85,7 +85,7 @@ security:
 	$(PYTHON_VENV) -m bandit -q -r src integrations tools
 
 compile:
-	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
+	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments tools
 
 build:
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/conformance .
@@ -107,12 +107,6 @@ verify-distribution-split: build
 
 # Run the core quality gates used by CI
 quality: format-check lint typecheck security compile test
-
-# Generate documentation
-docs:
-	@echo "Generating documentation..."
-	@mkdir -p docs/generated
-	$(PYTHON_VENV) -c "import tracebook.core.orderbook; help(tracebook.core.orderbook)" > docs/generated/orderbook_help.txt
 
 # Clean up generated files
 clean:
@@ -162,7 +156,6 @@ help:
 	@echo "  build            - Build and validate both public distributions"
 	@echo "  verify-distribution-split - Check ownership and clean-install contracts"
 	@echo "  quality         - Run all code quality checks"
-	@echo "  docs            - Generate documentation"
 	@echo "  clean           - Clean generated files"
 	@echo "  clean-all       - Clean everything including venv"
 	@echo "  monitor         - Run continuous performance monitoring"

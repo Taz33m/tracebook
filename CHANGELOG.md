@@ -25,6 +25,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 - Unified conformance event hashing and JSONL artifact writing behind one
   canonical UTF-8 encoder. Valid non-ASCII symbols now produce artifact bytes
   that match their reported trace SHA-256.
+- Removed the stale root dependency installer, redundant bespoke system-smoke
+  runner, empty utility package, and orphaned generated-help Make target. The
+  unique performance-monitor lifecycle check now lives in the normal pytest
+  suite, and CI, release, and contributor commands share that single test path.
 
 ## 0.6.0 - 2026-07-27
 
