@@ -19,13 +19,12 @@
 ```bash
 python -m pip install -e ".[dev]"
 python -m pip install -e "./packaging/tracebook-sim[dashboard]"
-python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py
-python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py
+python -m black --check src tests examples integrations experiments tools
+python -m flake8 src tests examples integrations experiments tools
 python -m mypy src/tracebook experiments tools
 python -m bandit -q -r src integrations tools
-python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py
+python -m compileall -q src tests examples integrations experiments tools
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
-python test_system.py
 tracebook-sim --duration 1 --throughput 50 --algorithm FIFO --seed 1337 --warmup-seconds 0.01
 tracebook-benchmark --scenario smoke --duration 1 --throughput 50 --seed 1337 --warmup-seconds 0.01 --output benchmark_results/release-smoke.json
 tracebook-dashboard --demo-simulation --help

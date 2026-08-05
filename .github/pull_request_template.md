@@ -4,10 +4,8 @@
 
 ## Testing
 
-- [ ] `python -m black --check src tests examples install_deps.py`
-- [ ] `python -m flake8 src tests examples install_deps.py`
-- [ ] `python -m pytest`
-- [ ] `python test_system.py`
+- [ ] `make quality`
+- [ ] `make build` when packaging is relevant
 - [ ] benchmark/dashboard smoke when relevant
 
 ## Notes

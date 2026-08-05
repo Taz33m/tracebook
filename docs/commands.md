@@ -67,10 +67,9 @@ make setup
 | Command | Purpose |
 | --- | --- |
 | `python -m pytest --cov=tracebook --cov-fail-under=75` | Run tests and enforce the coverage baseline |
-| `python test_system.py` | Run integration smoke checks |
-| `python -m black --check src tests examples integrations experiments tools install_deps.py test_system.py` | Check formatting |
-| `python -m flake8 src tests examples integrations experiments tools install_deps.py test_system.py` | Run lint checks |
-| `python -m compileall -q src tests examples integrations experiments tools install_deps.py test_system.py` | Check source compilation |
+| `python -m black --check src tests examples integrations experiments tools` | Check formatting |
+| `python -m flake8 src tests examples integrations experiments tools` | Run lint checks |
+| `python -m compileall -q src tests examples integrations experiments tools` | Check source compilation |
 | `make build` | Build and validate both distribution wheels and sdists |
 | `make verify-distribution-split` | Prove version, dependency, command, file-ownership, uninstall, and migration contracts |
 | `python tools/smoke_conformance_wheel.py dist/conformance/*.whl` | Prove normal conformance-only installation and qualification without NumPy or psutil |
