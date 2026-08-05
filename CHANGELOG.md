@@ -11,6 +11,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   enforce a task-pinned identity before the first event, and `evidence-init` /
   `evidence-verify` prepare clean roots and emit a grading-ready manifest only
   for unchanged, complete, canonical, byte-identical qualification bundles.
+- Bound loaded conformance suites to the exact event bytes verified by their
+  manifest hashes. Suite execution now uses an immutable parsed snapshot, so a
+  fixture changed, replaced, or deleted after loading cannot diverge from the
+  `events_sha256` reported in the suite artifact.
 
 ## 0.6.0 - 2026-07-27
 

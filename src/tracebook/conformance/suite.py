@@ -5,12 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any, List, Mapping, Tuple
 
 from ..events import MarketEvent, load_market_events
+from ..events.market_replay import _load_market_events_bytes
 from .compare import run_conformance
 from .model import ARTIFACT_SCHEMA_VERSION, ConformanceConfig, ConformanceError
 from .protocol import AdapterFactory
@@ -28,9 +29,17 @@ class SuiteCase:
     config: ConformanceConfig
     events_path: Path
     events_sha256: str
+    _events: Tuple[MarketEvent, ...] | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def load_events(self) -> List[MarketEvent]:
-        return load_market_events(self.events_path)
+        if self._events is None:
+            return load_market_events(self.events_path)
+        return list(self._events)
 
 
 @dataclass(frozen=True)
@@ -44,12 +53,8 @@ class ConformanceSuite:
     cases: Tuple[SuiteCase, ...]
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return "sha256:" + digest.hexdigest()
+def _sha256_bytes(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
 def _manifest_hash(manifest: Mapping[str, Any]) -> str:
@@ -135,12 +140,14 @@ def load_conformance_suite(path: str | Path) -> ConformanceSuite:
         events_path = manifest_path.parent / filename
         if not events_path.is_file():
             raise ConformanceError(f"suite case {name} event file not found: {filename}")
-        actual_hash = _sha256(events_path)
+        event_bytes = events_path.read_bytes()
+        actual_hash = _sha256_bytes(event_bytes)
         if actual_hash != expected_hash:
             raise ConformanceError(
                 f"suite case {name} sha256 mismatch: expected {expected_hash}, "
                 f"found {actual_hash}"
             )
+        events = tuple(_load_market_events_bytes(event_bytes, events_path.suffix.lower()))
         case = SuiteCase(
             name=name,
             tags=tuple(tags),
@@ -148,7 +155,7 @@ def load_conformance_suite(path: str | Path) -> ConformanceSuite:
             events_path=events_path,
             events_sha256=actual_hash,
         )
-        case.load_events()
+        object.__setattr__(case, "_events", events)
         cases.append(case)
 
     return ConformanceSuite(

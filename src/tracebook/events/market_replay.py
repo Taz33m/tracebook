@@ -9,6 +9,7 @@ validated replay path.
 from __future__ import annotations
 
 import csv
+import io
 import json
 import math
 import re
@@ -310,16 +311,12 @@ class MarketReplayResult:
         }
 
 
-def load_market_events(path: str | Path) -> List[MarketEvent]:
-    """Load normalized events from JSON, JSONL/NDJSON, or CSV."""
-    source = Path(path)
-    if not source.is_file():
-        raise MarketReplayError(f"Event file not found: {source}")
-
-    suffix = source.suffix.lower()
+def _load_market_events_bytes(data: bytes, suffix: str) -> List[MarketEvent]:
+    """Parse normalized events from one immutable file payload."""
     mappings: List[Mapping[str, Any]] = []
     if suffix in {".jsonl", ".ndjson"}:
-        for line_number, line in enumerate(source.read_text(encoding="utf-8-sig").splitlines(), 1):
+        text = data.decode("utf-8-sig")
+        for line_number, line in enumerate(text.splitlines(), 1):
             if not line.strip():
                 continue
             try:
@@ -331,7 +328,7 @@ def load_market_events(path: str | Path) -> List[MarketEvent]:
             mappings.append(item)
     elif suffix == ".json":
         try:
-            payload = json.loads(source.read_text(encoding="utf-8-sig"))
+            payload = json.loads(data.decode("utf-8-sig"))
         except json.JSONDecodeError as exc:
             raise MarketReplayError(f"Invalid JSON: {exc}") from exc
         if isinstance(payload, dict):
@@ -340,7 +337,7 @@ def load_market_events(path: str | Path) -> List[MarketEvent]:
             raise MarketReplayError("JSON input must be an event array or an object with events[]")
         mappings = payload
     elif suffix == ".csv":
-        with source.open("r", encoding="utf-8-sig", newline="") as handle:
+        with io.StringIO(data.decode("utf-8-sig"), newline="") as handle:
             reader = csv.DictReader(handle)
             if not reader.fieldnames:
                 raise MarketReplayError("CSV input requires a header row")
@@ -355,6 +352,18 @@ def load_market_events(path: str | Path) -> List[MarketEvent]:
         except (TypeError, ValueError) as exc:
             raise MarketReplayError(f"Invalid event {index}: {exc}") from exc
     return events
+
+
+def load_market_events(path: str | Path) -> List[MarketEvent]:
+    """Load normalized events from JSON, JSONL/NDJSON, or CSV."""
+    source = Path(path)
+    if not source.is_file():
+        raise MarketReplayError(f"Event file not found: {source}")
+
+    suffix = source.suffix.lower()
+    if suffix not in {".json", ".jsonl", ".ndjson", ".csv"}:
+        raise MarketReplayError("Event file must end in .json, .jsonl, .ndjson, or .csv")
+    return _load_market_events_bytes(source.read_bytes(), suffix)
 
 
 def replay_market_events(
