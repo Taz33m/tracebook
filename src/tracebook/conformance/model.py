@@ -513,23 +513,29 @@ class Observation:
         )
 
 
-def trace_sha256(events: Sequence[Any]) -> str:
-    """Hash normalized events using the canonical JSONL representation."""
-    digest = hashlib.sha256()
-    for event in events:
-        try:
-            payload = event.to_dict()
-        except AttributeError as exc:
-            raise ConformanceError("trace entries must provide to_dict()") from exc
-        encoded = json.dumps(
+def canonical_event_jsonl_line(event: Any) -> bytes:
+    """Encode one normalized event as its canonical UTF-8 JSONL line."""
+    try:
+        payload = event.to_dict()
+    except AttributeError as exc:
+        raise ConformanceError("trace entries must provide to_dict()") from exc
+    return (
+        json.dumps(
             payload,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
         )
-        digest.update(encoded.encode("utf-8"))
-        digest.update(b"\n")
+        + "\n"
+    ).encode("utf-8")
+
+
+def trace_sha256(events: Sequence[Any]) -> str:
+    """Hash normalized events using the canonical JSONL representation."""
+    digest = hashlib.sha256()
+    for event in events:
+        digest.update(canonical_event_jsonl_line(event))
     return "sha256:" + digest.hexdigest()
 
 

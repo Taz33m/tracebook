@@ -25,7 +25,12 @@ from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .exit_codes import exit_code_for_artifact
 from .junit import write_junit
 from .minimize import minimize_failing_trace
-from .model import ConformanceConfig, ConformanceError, PinnedCandidateIdentity
+from .model import (
+    ConformanceConfig,
+    ConformanceError,
+    PinnedCandidateIdentity,
+    canonical_event_jsonl_line,
+)
 from .qualification import _QualificationOutputReservation, run_qualification
 from .reproduce import (
     discover_failure_metadata,
@@ -261,17 +266,9 @@ def _emit_junit(report: dict, output: Optional[str]) -> None:
 def _write_events(events, output: str) -> None:
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("wb") as handle:
         for event in events:
-            handle.write(
-                json.dumps(
-                    event.to_dict(),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                )
-                + "\n"
-            )
+            handle.write(canonical_event_jsonl_line(event))
 
 
 def _require_distinct_paths(*paths: Optional[str]) -> None:

@@ -566,6 +566,12 @@ adapter shutdown also fails after that divergence, optional `close_error`
 evidence is attached without replacing the first drift; the command still exits
 `2`.
 
+Trace SHA-256 values cover the exact canonical JSONL bytes emitted for normalized
+events: UTF-8, sorted object keys, compact separators, one trailing newline per
+event, and no non-finite numbers. Non-ASCII symbols remain UTF-8 rather than JSON
+escape sequences, so a written trace and its reported hash share one byte
+contract.
+
 Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
 minimized counts, run count, reduction percentage, minimality/budget status,

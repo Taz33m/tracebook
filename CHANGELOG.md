@@ -22,6 +22,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   category while preventing a specific classified failure from broadening. A
   generic execution drift may still narrow to the queue-priority defect exposed
   by removing causal noise.
+- Unified conformance event hashing and JSONL artifact writing behind one
+  canonical UTF-8 encoder. Valid non-ASCII symbols now produce artifact bytes
+  that match their reported trace SHA-256.
 
 ## 0.6.0 - 2026-07-27
 
