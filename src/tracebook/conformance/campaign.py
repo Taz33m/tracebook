@@ -12,11 +12,11 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from numbers import Integral
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypeVar, cast
 
 from ..core.order import OrderSide, OrderType
 from ..events import MarketEvent
-from .classification import classify_failure
+from .classification import FailureSignature, failure_signature, preserves_failure_signature
 from .compare import ConformanceReport, run_conformance
 from .minimize import MinimizationResult, minimize_failing_trace
 from .model import (
@@ -788,6 +788,9 @@ def run_campaign(
                 trace_hash=trace_sha256(original_events),
                 event_count=len(original_events),
             )
+            target_signature = cast(
+                FailureSignature, failure_signature(original_events, original_report)
+            )
             minimization = minimize_failing_trace(
                 original_events,
                 candidate_factory,
@@ -800,12 +803,17 @@ def run_campaign(
                 raise ConformanceError(
                     "candidate engine metadata changed during campaign minimization"
                 )
+            if not preserves_failure_signature(
+                target_signature,
+                failure_signature(minimization.events, minimization.report),
+            ):
+                raise ConformanceError("campaign minimization changed the failure signature")
             failure = CampaignFailure(
                 trace=trace_result,
                 original_events=original_events,
                 original_report=original_report,
                 minimization=minimization,
-                failure_class=classify_failure(original_events, original_report),
+                failure_class=target_signature.failure_class,
             )
             break
 

@@ -570,6 +570,12 @@ Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
 minimized counts, run count, reduction percentage, minimality/budget status,
 minimized trace hash, target failure category, and the final conformance report.
+Reduction preserves one internal failure signature: operational status,
+divergence category, and classified failure label. A specific label cannot
+broaden during reduction; a queue-priority failure, for example, cannot become
+generic execution drift merely because both use the `trades` category. Removing
+causal noise may narrow generic execution drift to the queue-priority defect it
+exposes.
 
 Suite reports use `artifact_type = "tracebook.conformance.suite_report"` and
 retain the suite hash plus each case's tags, fixture hash, and full report.

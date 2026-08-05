@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence
 
 from ..core.order import OrderSide
@@ -11,6 +12,15 @@ if TYPE_CHECKING:
     from .compare import ConformanceReport
 
 QUEUE_PRIORITY_DRIFT = "queue-priority drift"
+
+
+@dataclass(frozen=True)
+class FailureSignature:
+    """Failure identity that a reduction must preserve."""
+
+    operational: bool
+    category: str
+    failure_class: str
 
 
 def is_operational_divergence(
@@ -118,3 +128,30 @@ def classify_failure(events: Sequence[MarketEvent], report: ConformanceReport) -
         "book_state": "book-state drift",
         "protocol": "adapter protocol failure",
     }.get(divergence.category, "semantic drift")
+
+
+def failure_signature(
+    events: Sequence[MarketEvent], report: ConformanceReport
+) -> FailureSignature | None:
+    """Return the stable failure identity for one conformance result."""
+    divergence = report.divergence
+    if divergence is None:
+        return None
+    return FailureSignature(
+        operational=report.operational_failure,
+        category=divergence.category,
+        failure_class=classify_failure(events, report),
+    )
+
+
+def preserves_failure_signature(
+    target: FailureSignature, observed: FailureSignature | None
+) -> bool:
+    """Return whether a reduction preserves or narrows the original failure."""
+    if observed is None:
+        return False
+    if target.operational != observed.operational or target.category != observed.category:
+        return False
+    return target.failure_class == observed.failure_class or (
+        target.failure_class == "execution drift" and observed.failure_class == QUEUE_PRIORITY_DRIFT
+    )
