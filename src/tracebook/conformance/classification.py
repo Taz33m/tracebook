@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from ..core.order import OrderSide
 from ..events import MarketEvent
-from .compare import ConformanceReport
+
+if TYPE_CHECKING:
+    from .compare import ConformanceReport
 
 QUEUE_PRIORITY_DRIFT = "queue-priority drift"
+
+
+def is_operational_divergence(
+    category: object,
+    *,
+    snapshot_failed: bool = False,
+    close_failed: bool = False,
+) -> bool:
+    """Return whether a divergence represents an adapter/protocol failure."""
+    return category == "protocol" or snapshot_failed or close_failed
 
 
 def is_queue_priority_probe(events: Sequence[MarketEvent], end_index: int | None = None) -> bool:

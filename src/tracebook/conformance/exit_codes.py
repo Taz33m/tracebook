@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .classification import is_operational_divergence
 from .model import ConformanceError
 
 SUCCESS = 0
@@ -15,10 +16,10 @@ OPERATIONAL_FAILURE = 2
 def _divergence_exit_code(divergence: Any) -> int:
     if not isinstance(divergence, Mapping):
         return SUCCESS
-    if (
-        divergence.get("category") == "protocol"
-        or divergence.get("snapshot_error")
-        or divergence.get("close_error")
+    if is_operational_divergence(
+        divergence.get("category"),
+        snapshot_failed=bool(divergence.get("snapshot_error")),
+        close_failed=bool(divergence.get("close_error")),
     ):
         return OPERATIONAL_FAILURE
     return SEMANTIC_DIVERGENCE
