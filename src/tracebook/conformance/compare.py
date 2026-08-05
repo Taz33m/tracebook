@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Iterable, Optional
 
 from ..events import MarketEvent
+from .classification import is_operational_divergence
 from .model import (
     ARTIFACT_SCHEMA_VERSION,
     PROTOCOL_VERSION,
@@ -72,10 +73,10 @@ class ConformanceReport:
     @property
     def operational_failure(self) -> bool:
         """Whether the comparison encountered an adapter/protocol failure."""
-        return self.divergence is not None and (
-            self.divergence.category == "protocol"
-            or self.divergence.snapshot_error is not None
-            or self.divergence.close_error is not None
+        return self.divergence is not None and is_operational_divergence(
+            self.divergence.category,
+            snapshot_failed=self.divergence.snapshot_error is not None,
+            close_failed=self.divergence.close_error is not None,
         )
 
     def to_dict(self) -> dict:

@@ -152,6 +152,7 @@ def test_report_exit_classification_treats_adapter_failures_as_operational(adapt
     assert report.divergence is not None
     assert report.divergence.category == "protocol"
     assert report.divergence.kind == expected_kind
+    assert report.operational_failure is True
     assert exit_code_for_artifact(report.to_dict()) == 2
 
 
@@ -160,6 +161,7 @@ def test_report_exit_classification_keeps_semantic_divergence_at_one():
 
     assert report.divergence is not None
     assert report.divergence.category == "outcome"
+    assert report.operational_failure is False
     assert exit_code_for_artifact(report.to_dict()) == 1
 
 
@@ -172,6 +174,7 @@ def test_close_failure_preserves_first_semantic_divergence_and_exit_two():
     assert report.divergence.close_error == (
         "candidate close failed: close failed after semantic divergence"
     )
+    assert report.operational_failure is True
     assert exit_code_for_artifact(report.to_dict()) == 2
 
 
@@ -185,6 +188,7 @@ def test_close_failure_preserves_first_protocol_divergence():
     assert report.divergence.close_error == (
         "candidate close failed: close failed after apply failure"
     )
+    assert report.operational_failure is True
     assert exit_code_for_artifact(report.to_dict()) == 2
 
 
