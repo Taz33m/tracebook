@@ -18,6 +18,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 - Made the stdio adapter's terminal `complete` frame certify successful engine
   shutdown. Close failures now emit `ADAPTER_ERROR`, omit `complete`, and exit
   `2`; an earlier protocol error remains the single terminal error frame.
+- Tightened trace reduction to preserve operational status and divergence
+  category while preventing a specific classified failure from broadening. A
+  generic execution drift may still narrow to the queue-priority defect exposed
+  by removing causal noise.
 
 ## 0.6.0 - 2026-07-27
 

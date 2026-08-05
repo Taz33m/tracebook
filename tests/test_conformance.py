@@ -23,7 +23,9 @@ from tracebook.conformance import (
     ReferenceEngineAdapter,
     TradeFill,
     canonical_decimal,
+    classify_failure,
     copy_bundled_conformance_suite,
+    generate_campaign_trace,
     load_conformance_suite,
     minimize_failing_trace,
     run_conformance,
@@ -31,6 +33,10 @@ from tracebook.conformance import (
     serve_stdio,
 )
 from tracebook.conformance.cli import main
+from tracebook.conformance.classification import (
+    FailureSignature,
+    preserves_failure_signature,
+)
 from tracebook.conformance.exit_codes import exit_code_for_artifact
 from tracebook.events import MarketEvent, load_market_events
 
@@ -90,6 +96,40 @@ class _DroppingAdapter:
                 for book in state.books
             )
         )
+
+    def close(self):
+        self._inner.close()
+
+
+class _TradeMismatchAdapter:
+    """In-process fault that changes the first fill without changing state."""
+
+    def __init__(self, config):
+        self._inner = ReferenceEngineAdapter(config)
+        self.metadata = EngineMetadata("trade-mismatch", "1", "Python")
+
+    def apply(self, event, index):
+        observation = self._inner.apply(event, index)
+        if not observation.trades:
+            return observation
+        first = observation.trades[0]
+        mismatched = TradeFill(
+            first.symbol,
+            first.buy_order_id,
+            first.sell_order_id + 1000,
+            first.price,
+            first.quantity,
+        )
+        return Observation(
+            observation.index,
+            observation.outcome,
+            (mismatched,) + observation.trades[1:],
+            observation.state_hash,
+            observation.resting_order_count,
+        )
+
+    def snapshot(self):
+        return self._inner.snapshot()
 
     def close(self):
         self._inner.close()
@@ -276,6 +316,25 @@ def test_delta_debugging_reduces_to_a_one_event_reproducer():
     assert budget_limited.one_minimal is False
     assert budget_limited.budget_exhausted is True
     assert budget_limited.report.trace_hash == budget_limited.to_dict()["minimized_trace_sha256"]
+
+
+def test_minimizer_preserves_queue_priority_failure_class():
+    events = generate_campaign_trace("fifo-limit-v1", seed=0, event_count=5)
+
+    initial = run_conformance(events, _TradeMismatchAdapter)
+    minimized = minimize_failing_trace(events, _TradeMismatchAdapter, max_runs=50)
+
+    assert classify_failure(events, initial) == "queue-priority drift"
+    assert minimized.events == events
+    assert classify_failure(minimized.events, minimized.report) == "queue-priority drift"
+
+
+def test_failure_signature_can_narrow_but_not_broaden():
+    generic = FailureSignature(False, "trades", "execution drift")
+    queue_priority = FailureSignature(False, "trades", "queue-priority drift")
+
+    assert preserves_failure_signature(generic, queue_priority)
+    assert not preserves_failure_signature(queue_priority, generic)
 
 
 def test_minimizer_rejects_candidate_metadata_changes_between_runs():

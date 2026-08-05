@@ -5,9 +5,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 from numbers import Integral
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional, Tuple, cast
 
 from ..events import MarketEvent
+from .classification import (
+    FailureSignature,
+    failure_signature,
+    preserves_failure_signature,
+)
 from .compare import ConformanceReport, run_conformance
 from .model import (
     ARTIFACT_SCHEMA_VERSION,
@@ -55,12 +60,15 @@ class MinimizationResult:
 
 def _reject_protocol_failure_during_semantic_minimization(
     report: ConformanceReport,
-    target_category: str,
+    target: FailureSignature,
+    observed: FailureSignature | None,
     run_number: int,
 ) -> None:
     """Do not mistake an operational trial failure for a removable semantic subset."""
     divergence = report.divergence
-    if target_category != "protocol" and divergence is not None and report.operational_failure:
+    if not target.operational and observed is not None and observed.operational:
+        if divergence is None:
+            raise ConformanceError("operational failure has no divergence")
         kind = "adapter_close_error" if divergence.close_error is not None else divergence.kind
         message = divergence.close_error or divergence.message
         raise ConformanceError(
@@ -91,8 +99,8 @@ def minimize_failing_trace(
     if initial.candidate_engine != candidate_engine:
         raise ConformanceError("candidate engine metadata changed during minimization")
 
-    target = initial.divergence.category
-    _reject_protocol_failure_during_semantic_minimization(initial, target, runs)
+    target = cast(FailureSignature, failure_signature(original, initial))
+    _reject_protocol_failure_during_semantic_minimization(initial, target, target, runs)
     prefix_length = initial.divergence.event_index
     current = original[:prefix_length] if prefix_length > 0 else original
     current_report = (
@@ -123,12 +131,9 @@ def minimize_failing_trace(
             runs += 1
             if report.candidate_engine != candidate_engine:
                 raise ConformanceError("candidate engine metadata changed during minimization")
-            _reject_protocol_failure_during_semantic_minimization(report, target, runs)
-            if (
-                not report.conformant
-                and report.divergence is not None
-                and report.divergence.category == target
-            ):
+            observed = failure_signature(trial, report)
+            _reject_protocol_failure_during_semantic_minimization(report, target, observed, runs)
+            if preserves_failure_signature(target, observed):
                 current = trial
                 current_report = report
                 granularity = max(2, granularity - 1)
@@ -149,12 +154,9 @@ def minimize_failing_trace(
         runs += 1
         if empty_report.candidate_engine != candidate_engine:
             raise ConformanceError("candidate engine metadata changed during minimization")
-        _reject_protocol_failure_during_semantic_minimization(empty_report, target, runs)
-        if (
-            not empty_report.conformant
-            and empty_report.divergence is not None
-            and empty_report.divergence.category == target
-        ):
+        observed = failure_signature((), empty_report)
+        _reject_protocol_failure_during_semantic_minimization(empty_report, target, observed, runs)
+        if preserves_failure_signature(target, observed):
             current = ()
             current_report = empty_report
         one_minimal = True
@@ -163,7 +165,7 @@ def minimize_failing_trace(
         events=current,
         original_event_count=len(original),
         runs=runs,
-        target_category=target,
+        target_category=target.category,
         one_minimal=one_minimal,
         budget_exhausted=runs >= max_runs and not one_minimal,
         report=current_report,

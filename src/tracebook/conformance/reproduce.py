@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from ..events import MarketEvent
-from .classification import classify_failure
+from .classification import FailureSignature, failure_signature, is_operational_divergence
 from .compare import ConformanceReport, run_conformance
 from .model import ARTIFACT_SCHEMA_VERSION, ConformanceConfig, ConformanceError, trace_sha256
 from .protocol import AdapterFactory
@@ -107,10 +107,13 @@ def run_reproduction(
         if expected_count != len(events):
             raise ConformanceError("reduced event count does not match failure metadata")
     report = run_conformance(events, candidate_factory, config=config, trace_name=trace_name)
-    failure_class = classify_failure(events, report)
+    observed_signature = failure_signature(events, report)
+    failure_class = (
+        observed_signature.failure_class if observed_signature is not None else "conformant"
+    )
     divergence = report.divergence.to_dict() if report.divergence else None
     if expected is None:
-        reproduced = divergence is not None and not report.operational_failure
+        reproduced = observed_signature is not None and not observed_signature.operational
     else:
         expected_class = expected.get("failure_class")
         expected_divergence = expected.get("expected_reduced_divergence")
@@ -118,7 +121,18 @@ def run_reproduction(
             raise ConformanceError("failure metadata requires failure_class")
         if not isinstance(expected_divergence, Mapping):
             raise ConformanceError("failure metadata requires expected_reduced_divergence")
-        reproduced = failure_class == expected_class and divergence == dict(expected_divergence)
+        expected_signature = FailureSignature(
+            operational=is_operational_divergence(
+                expected_divergence.get("category"),
+                snapshot_failed=bool(expected_divergence.get("snapshot_error")),
+                close_failed=bool(expected_divergence.get("close_error")),
+            ),
+            category=str(expected_divergence.get("category")),
+            failure_class=expected_class,
+        )
+        reproduced = observed_signature == expected_signature and divergence == dict(
+            expected_divergence
+        )
     return ReproductionResult(
         events=tuple(events),
         report=report,
