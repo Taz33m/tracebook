@@ -15,6 +15,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
   manifest hashes. Suite execution now uses an immutable parsed snapshot, so a
   fixture changed, replaced, or deleted after loading cannot diverge from the
   `events_sha256` reported in the suite artifact.
+- Made the stdio adapter's terminal `complete` frame certify successful engine
+  shutdown. Close failures now emit `ADAPTER_ERROR`, omit `complete`, and exit
+  `2`; an earlier protocol error remains the single terminal error frame.
 
 ## 0.6.0 - 2026-07-27
 

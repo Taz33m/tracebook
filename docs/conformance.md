@@ -457,9 +457,11 @@ The candidate responds:
 }
 ```
 
-After the final event the host sends `{"type":"finish","event_count":N}` and
-the candidate responds with `{"type":"complete","event_count":N}` before
-exiting.
+After the final event the host sends `{"type":"finish","event_count":N}`. The
+candidate closes its engine and responds with
+`{"type":"complete","event_count":N}` only after shutdown succeeds. A shutdown
+failure produces an `ADAPTER_ERROR` frame instead, never `complete`, and exits
+with status `2`.
 
 The state hash is SHA-256 over the UTF-8 bytes of the `state` object serialized
 as compact JSON with object keys sorted lexicographically, arrays retained in

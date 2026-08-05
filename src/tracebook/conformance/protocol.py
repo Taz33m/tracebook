@@ -37,6 +37,13 @@ def _write_message(stream: TextIO, payload: dict) -> None:
     stream.flush()
 
 
+def _write_error(stream: TextIO, code: str, exc: Exception) -> None:
+    try:
+        _write_message(stream, {"type": "error", "code": code, "message": str(exc)})
+    except BrokenPipeError:
+        pass
+
+
 def serve_stdio(
     adapter_factory: AdapterFactory,
     input_stream: Optional[TextIO] = None,
@@ -108,28 +115,23 @@ def serve_stdio(
                 event_count = message.get("event_count")
                 if event_count != last_index:
                     raise ValueError("finish event_count does not match the last event")
+                try:
+                    adapter.close()
+                except Exception as exc:
+                    _write_error(sink, "ADAPTER_ERROR", exc)
+                    return 2
+                finally:
+                    adapter = None
                 _write_message(sink, {"type": "complete", "event_count": last_index})
                 return 0
             else:
                 raise ValueError(f"unsupported protocol message type: {message_type!r}")
         raise ValueError("protocol ended before finish")
     except (BrokenPipeError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        try:
-            _write_message(
-                sink,
-                {"type": "error", "code": "PROTOCOL_ERROR", "message": str(exc)},
-            )
-        except BrokenPipeError:
-            pass
+        _write_error(sink, "PROTOCOL_ERROR", exc)
         return 2
     except Exception as exc:
-        try:
-            _write_message(
-                sink,
-                {"type": "error", "code": "ADAPTER_ERROR", "message": str(exc)},
-            )
-        except BrokenPipeError:
-            pass
+        _write_error(sink, "ADAPTER_ERROR", exc)
         return 2
     finally:
         if adapter is not None:
