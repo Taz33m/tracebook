@@ -99,7 +99,7 @@ def test_simulator_facade_has_exact_version_dependency_and_no_packages():
     metadata = _sim_pyproject()
     project = metadata["project"]
     setuptools = metadata["tool"]["setuptools"]
-    build_requirements = ["setuptools==83.0.0", "wheel==0.47.0"]
+    build_requirements = ["setuptools==84.0.0", "wheel==0.48.0"]
 
     assert _pyproject()["build-system"]["requires"] == build_requirements
     assert metadata["build-system"]["requires"] == build_requirements
