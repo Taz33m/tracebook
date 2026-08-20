@@ -9,7 +9,7 @@ PYTHON_VENV := $(VENV)/bin/python
 # Setup a development environment with the implementation owner and compatibility facade
 setup:
 	$(PYTHON) -m venv $(VENV)
-	$(PIP) install --upgrade pip "setuptools==83.0.0" "wheel==0.47.0"
+	$(PIP) install --upgrade pip "setuptools==84.0.0" "wheel==0.47.0"
 	$(PIP) install -e ".[dev]"
 	$(PIP) install -e "./packaging/tracebook-sim[dashboard,analysis,capture]"
 	@echo "Setup complete! Activate with: source $(VENV)/bin/activate"
@@ -21,7 +21,7 @@ install:
 
 # Install development dependencies
 install-dev:
-	$(PIP) install --upgrade "setuptools==83.0.0" "wheel==0.47.0"
+	$(PIP) install --upgrade "setuptools==84.0.0" "wheel==0.47.0"
 	$(PIP) install -e ".[dev]"
 	$(PIP) install -e "./packaging/tracebook-sim[dashboard,analysis,capture]"
 
