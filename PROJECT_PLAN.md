@@ -66,10 +66,11 @@ that cancel plus create could not preserve reduction priority. From a fresh
 clone, the 0.5.0 public command passed 3/3 fixed cases, 25/25 generated traces,
 5,000 events, and 10/10 capabilities. The bundled draft was later closed in
 favor of the reviewable, core-only
-[`geseq/orderbook` PR #31](https://github.com/geseq/orderbook/pull/31); the
-865-line adapter and optional CI workflow remain out of tree. Review and
-retention remain pending, so this is evidence of a serious onboarding attempt
-rather than a claim of independent adoption.
+[`geseq/orderbook` PR #31](https://github.com/geseq/orderbook/pull/31), which
+merged on 2026-07-25. The 865-line adapter and optional CI workflow remain out
+of tree. The core semantic change is therefore retained upstream, but the
+maintainer has not adopted Tracebook or its qualification workflow; this is
+evidence of a serious onboarding attempt rather than independent adoption.
 
 The first native-regression retention pilot reached three additional engines on
 2026-07-20. StockSharp merged a focused FIFO-priority repair and regression in
@@ -82,6 +83,14 @@ equivalent OPEX lifecycle repair remains open in
 2/3 retention result and its key limitation: Flash had already reduced all
 three source reports, so this validates maintainer demand for small native
 regressions, not Tracebook's discovery or minimization value.
+
+The proposed untouched Flash handoff did not yield a raw divergence. Every
+eligible duplicate repository tested against the oracle reproduced the
+consensus, while the remaining long-tail candidates were incomplete or lacked
+the cancel/modify and price-time semantics required by the workload. The raw
+case remains a useful opportunity when a genuine divergence appears, but it is
+not a dependable near-term milestone or a reason to delay independent
+onboarding work.
 
 ## Current Product Hypothesis
 
@@ -125,18 +134,19 @@ experiments rather than presumed roadmap wins.
 
 ## Next Milestones
 
-1. Complete one raw Flash-to-Tracebook forensic handoff. The source case must be
-   untriaged when received so the experiment can measure localization,
-   minimization, translation into a native regression, and maintainer retention
-   honestly. The retention-only pilot does not satisfy this gate.
-2. Complete review of the core-only `geseq/orderbook` PR #31. The
-   maintainer-requested amendment/snapshot engine change is now separate from
-   the optional 865-line adapter and CI workflow. Keep that integration out of
-   tree, then record whether the maintainer wants shadow qualification, a later
-   optional workflow, or neither.
-3. Complete the targeted OPEX review loop, but stop repeated hypothetical
-   integration follow-ups to inactive or silent repositories. New outreach
-   should begin with a tested native artifact and one narrow semantic question.
+1. Complete one independent public-package onboarding. Start from a concrete,
+   tested semantic artifact, ask one narrow ownership question, and record
+   whether an external maintainer runs the tool or retains its output. Do not
+   count Tracebook-owned scheduled integrations as adoption.
+2. Keep the raw Flash-to-Tracebook forensic handoff opportunistic. If an
+   untriaged divergence appears, measure localization, minimization, translation
+   into a native regression, and maintainer retention honestly; do not keep
+   searching incompatible or unfinished repositories solely to manufacture the
+   gate.
+3. Await an OPEX maintainer decision on the focused lifecycle repair after one
+   concise status follow-up. Do not add repeated hypothetical integration
+   outreach to an inactive review. Any new outreach should begin with a tested
+   native artifact and one narrow semantic question.
 4. Observe at least two external onboarding attempts before building an adapter
    scaffold. The 865-line Go adapter is the first concrete signal that protocol
    framing, canonical hashing, state translation, and decimal handling may
