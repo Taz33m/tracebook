@@ -264,7 +264,7 @@ def _write_project(project: Path, *, simulator: bool) -> None:
     (project / "pyproject.toml").write_text(
         f"""
 [build-system]
-requires = ["setuptools==84.0.0", "wheel==0.47.0"]
+requires = ["setuptools==84.0.0", "wheel==0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
