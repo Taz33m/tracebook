@@ -92,6 +92,24 @@ def test_snapshot_digest_binds_file_mode_and_content(tmp_path):
     assert len({first, second, third}) == 3
 
 
+def test_tree_inventory_uses_same_git_exclusion_as_snapshot_digest(tmp_path):
+    source = tmp_path / "source"
+    git = source / ".git"
+    git.mkdir(parents=True)
+    (source / "engine.txt").write_text("price-time\n")
+    (git / "index").write_text("metadata\n")
+
+    assert [item["path"] for item in generalization._tree_inventory(source)] == ["engine.txt"]
+
+
+def test_dependency_target_is_explicit_and_restricted():
+    assert generalization._dependency_target("m2-repository") == "m2-repository"
+    assert generalization._dependency_target("cargo-home") == "cargo-home"
+
+    with pytest.raises(generalization.GeneralizationError, match="dependency_target"):
+        generalization._dependency_target("../operator-cache")
+
+
 def test_validate_tree_rejects_inventory_drift(tmp_path, monkeypatch):
     private = tmp_path / "private"
     source = private / "cache"

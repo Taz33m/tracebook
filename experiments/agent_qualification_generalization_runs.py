@@ -17,8 +17,9 @@ import shutil
 import socket
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 if __package__:
     from . import agent_qualification as helpers
@@ -65,6 +66,15 @@ CLAUDE_FIRST_PARTY_ENV = {
     "CLAUDE_CODE_USE_VERTEX": "0",
     "CLAUDE_CODE_USE_FOUNDRY": "0",
 }
+RESTRICTED_SYSTEM_PATH = (
+    "/Library/Developer/CommandLineTools/usr/bin",
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+)
 
 _PLUGIN_MANIFEST = {
     "author": {"name": "Tracebook evaluator"},
@@ -220,13 +230,50 @@ def _validated_provider_bindings() -> dict[str, dict[str, Any]]:
     return bindings
 
 
-def _configure_delivery() -> None:
-    helpers.CODEX_BINARY = _provider_binary("codex")
-    helpers.CLAUDE_BINARY = _provider_binary("claude")
-    helpers.CODEX_AUTH_PATH = Path.home() / ".codex" / "auth.json"
-    delivery.DEFAULT_CLAUDE_WRAPPER_PATH = CLAUDE_WRAPPER_PATH
-    delivery.EXPECTED_MODELS = dict(EXPECTED_MODELS)
-    helpers._codex_shell_environment = _codex_shell_environment
+@contextmanager
+def _configured_delivery() -> Iterator[None]:
+    """Temporarily bind shared delivery helpers and always restore their globals."""
+
+    original_codex_binary = helpers.CODEX_BINARY
+    original_claude_binary = helpers.CLAUDE_BINARY
+    original_codex_auth_path = helpers.CODEX_AUTH_PATH
+    original_claude_wrapper_path = delivery.DEFAULT_CLAUDE_WRAPPER_PATH
+    original_expected_models = delivery.EXPECTED_MODELS
+    original_codex_shell_environment = helpers._codex_shell_environment
+    try:
+        helpers.CODEX_BINARY = _provider_binary("codex")
+        helpers.CLAUDE_BINARY = _provider_binary("claude")
+        helpers.CODEX_AUTH_PATH = Path.home() / ".codex" / "auth.json"
+        delivery.DEFAULT_CLAUDE_WRAPPER_PATH = CLAUDE_WRAPPER_PATH
+        delivery.EXPECTED_MODELS = dict(EXPECTED_MODELS)
+        helpers._codex_shell_environment = _codex_shell_environment
+        yield
+    finally:
+        helpers.CODEX_BINARY = original_codex_binary
+        helpers.CLAUDE_BINARY = original_claude_binary
+        helpers.CODEX_AUTH_PATH = original_codex_auth_path
+        delivery.DEFAULT_CLAUDE_WRAPPER_PATH = original_claude_wrapper_path
+        delivery.EXPECTED_MODELS = original_expected_models
+        helpers._codex_shell_environment = original_codex_shell_environment
+
+
+def _toolchain_read_paths() -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for name in (
+        "TRACEBOOK_V2_MAVEN_HOME",
+        "TRACEBOOK_V2_JAVA_HOME",
+        "TRACEBOOK_V2_PYTHON_HOME",
+    ):
+        raw = os.environ.get(name)
+        if raw:
+            paths.append(Path(raw).resolve())
+    uv_binary = os.environ.get("TRACEBOOK_V2_UV_BINARY")
+    if uv_binary:
+        paths.append(Path(uv_binary).resolve().parent)
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    if cargo_bin.is_dir():
+        paths.append(cargo_bin.resolve())
+    return tuple(dict.fromkeys(paths))
 
 
 def _toolchain_environment() -> dict[str, str]:
@@ -257,9 +304,7 @@ def _toolchain_environment() -> dict[str, str]:
     cargo_bin = Path.home() / ".cargo" / "bin"
     if cargo_bin.is_dir():
         path_prefixes.append(str(cargo_bin))
-    values["PATH"] = ":".join(
-        [*path_prefixes, os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")]
-    )
+    values["PATH"] = ":".join(dict.fromkeys([*path_prefixes, *RESTRICTED_SYSTEM_PATH]))
     return values
 
 
@@ -275,6 +320,10 @@ def _claude_settings(workspace: Path, scratch: Path, plugin_root: Path) -> dict[
     settings["env"].update(CLAUDE_FIRST_PARTY_ENV)
     settings["env"].update(_toolchain_environment())
     settings["env"].update(_fresh_environment(scratch))
+    allow_read = settings["sandbox"]["filesystem"]["allowRead"]
+    for path in _toolchain_read_paths():
+        if str(path) not in allow_read:
+            allow_read.append(str(path))
     return settings
 
 
@@ -434,22 +483,37 @@ def _native_surface(
     skill: bytes,
     skill_name: str,
 ) -> tuple[list[str], dict[str, Any], Path | None]:
-    _configure_delivery()
-    return delivery._prepare_native_surface(
-        agent=provider,
-        condition=condition,
-        workspace=workspace,
-        external_run_root=run_root,
-        scratch=scratch,
-        environment=environment,
-        skill_content=skill,
-        skill_name=skill_name,
-    )
+    with _configured_delivery():
+        command, surface, plugin_root = delivery._prepare_native_surface(
+            agent=provider,
+            condition=condition,
+            workspace=workspace,
+            external_run_root=run_root,
+            scratch=scratch,
+            environment=environment,
+            skill_content=skill,
+            skill_name=skill_name,
+        )
+    if provider == "codex":
+        permission_index = next(
+            index
+            for index, value in enumerate(command)
+            if value.startswith("permissions.agent-eval=")
+        )
+        read_entries = "".join(
+            f'{json.dumps(str(path))}="read",' for path in _toolchain_read_paths()
+        )
+        command[permission_index] = command[permission_index].replace(
+            "filesystem={",
+            "filesystem={" + read_entries,
+            1,
+        )
+    return command, surface, plugin_root
 
 
 def _claude_command(settings_path: Path, plugin_root: Path) -> list[str]:
-    command = delivery._claude_treatment_command(settings_path, plugin_root)
-    return command
+    with _configured_delivery():
+        return delivery._claude_treatment_command(settings_path, plugin_root)
 
 
 def _run_delivery_probe(provider: str, condition: str, root: Path) -> dict[str, Any]:
@@ -502,12 +566,21 @@ def _run_delivery_probe(provider: str, condition: str, root: Path) -> dict[str, 
     )
     terminal = delivery._transcript_terminal_state(transcript, provider)
     result = delivery._transcript_result_text(transcript, provider)
+    catalog_audit = None
+    if provider == "claude":
+        catalog_audit = delivery._claude_catalog_audit(
+            transcript,
+            condition=condition,
+            skill_name=SYNTHETIC_SKILL_NAME,
+        )
     expected = SYNTHETIC_MARKER if condition == "skill" else "NO_NATIVE_DELIVERY"
     errors = []
     if exit_code != 0 or timed_out or terminal != "completed":
         errors.append("provider did not complete cleanly")
     if audit.get("mutated") is not False:
         errors.append("native skill surface mutated")
+    if provider == "claude" and catalog_audit is not None and catalog_audit["valid"] is not True:
+        errors.append("Claude provider catalog isolation failed")
     if result != expected:
         errors.append(f"result {result!r} != {expected!r}")
     return {
@@ -520,6 +593,7 @@ def _run_delivery_probe(provider: str, condition: str, root: Path) -> dict[str, 
         "terminal_state": terminal,
         "result": result,
         "surface": audit,
+        "provider_catalog_audit": catalog_audit,
         "transcript": _file_record(transcript),
         "stderr": _file_record(stderr),
     }
@@ -666,7 +740,7 @@ def _copy_fixture(case: Mapping[str, Any], scratch: Path) -> dict[str, Any]:
     if not isinstance(declaration, dict):
         raise ExecutionError("case dependency-cache declaration is missing")
     source = (REPOSITORY_ROOT / str(declaration["source"])).resolve(strict=True)
-    target_name = "m2-repository" if case["id"] == "c4-compatible" else "cargo-home"
+    target_name = cohort._dependency_target(declaration.get("target"))
     target = scratch / target_name
     helpers._copy_frozen_tree(source, target, str(declaration["tree_sha256"]))
     return {
@@ -680,9 +754,17 @@ def _record_fixture_final(fixture: dict[str, Any]) -> None:
     target = Path(str(fixture["target"]))
     if not target.is_dir():
         fixture["final_state"] = "missing"
+        fixture["mutated"] = True
+        return
+    try:
+        final_hash = helpers._snapshot_digest(target)
+    except OSError as exc:
+        fixture["final_state"] = f"unreadable:{type(exc).__name__}"
+        fixture["mutated"] = True
         return
     fixture["final_state"] = "present"
-    fixture["final_tree_sha256"] = helpers._snapshot_digest(target)
+    fixture["final_tree_sha256"] = final_hash
+    fixture["mutated"] = final_hash != fixture["initial_tree_sha256"]
 
 
 def _run_root(run_id: str) -> Path:
@@ -713,9 +795,20 @@ def _technical_verdict(
     return verdict
 
 
-def validate_run(run_id: str) -> dict[str, Any]:
-    freeze = validate_freeze()
-    manifest, plan, _ = _load_primary()
+def validate_run(
+    run_id: str,
+    *,
+    freeze: Mapping[str, Any] | None = None,
+    primary: tuple[Mapping[str, Any], Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if freeze is None:
+        freeze = validate_freeze()
+    if primary is None:
+        loaded_manifest, loaded_plan, _ = _load_primary()
+        manifest: Mapping[str, Any] = loaded_manifest
+        plan: Mapping[str, Any] = loaded_plan
+    else:
+        manifest, plan = primary
     entry = _plan_entry(plan, run_id)
     run_root = _run_root(run_id)
     metadata = _read_json(run_root / "metadata.json", "run metadata")
@@ -793,6 +886,18 @@ def validate_run(run_id: str) -> dict[str, Any]:
             or surface["final_audit"].get("mutated") is not False
         ):
             errors.append("native skill surface audit failed")
+        if entry["agent"] == "claude":
+            catalog_audit = surface.get("provider_catalog_audit")
+            if not isinstance(catalog_audit, dict) or catalog_audit.get("valid") is not True:
+                errors.append("Claude provider catalog audit failed")
+    fixture = metadata.get("fixture")
+    if not isinstance(fixture, dict):
+        errors.append("dependency fixture audit is missing")
+    else:
+        if fixture.get("mutated") is not False:
+            errors.append("dependency fixture mutated")
+        if fixture.get("final_tree_sha256") != fixture.get("initial_tree_sha256"):
+            errors.append("dependency fixture final hash changed")
     for artifact_name in (
         "git-status.txt",
         "workspace.patch",
@@ -814,17 +919,28 @@ def validate_run(run_id: str) -> dict[str, Any]:
     return verdict
 
 
-def _validate_prior_runs(plan: Mapping[str, Any], order: int) -> None:
+def _validate_prior_runs(
+    plan: Mapping[str, Any],
+    order: int,
+    *,
+    freeze: Mapping[str, Any] | None = None,
+    primary: tuple[Mapping[str, Any], Mapping[str, Any]] | None = None,
+) -> None:
     entries = plan.get("entries")
     if not isinstance(entries, list):
         raise ExecutionError("validated cohort lost its plan entries")
     for prior in entries[: order - 1]:
         if not isinstance(prior, dict):
             raise ExecutionError("plan entry shape changed")
-        validate_run(str(prior["id"]))
+        if freeze is None or primary is None:
+            validate_run(str(prior["id"]))
+        else:
+            validate_run(str(prior["id"]), freeze=freeze, primary=primary)
 
 
-def execute_run(run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
+def _execute_run_once(
+    run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+) -> dict[str, Any]:
     if timeout_seconds != DEFAULT_TIMEOUT_SECONDS:
         raise ExecutionError(f"official timeout must remain {DEFAULT_TIMEOUT_SECONDS} seconds")
     freeze = validate_freeze()
@@ -832,7 +948,12 @@ def execute_run(run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> 
     entry = _plan_entry(plan, run_id)
     provider = str(entry["agent"])
     validate_authorization(provider)
-    _validate_prior_runs(plan, int(entry["order"]))
+    _validate_prior_runs(
+        plan,
+        int(entry["order"]),
+        freeze=freeze,
+        primary=(manifest, plan),
+    )
     case = _case_index(manifest)[str(entry["case_id"])]
     run_root = _run_root(run_id)
     external_root = _external_run_root(run_id)
@@ -939,6 +1060,12 @@ def execute_run(run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> 
         ignore=shutil.ignore_patterns(".git", "target", "node_modules", ".eval-cache"),
     )
     terminal = delivery._transcript_terminal_state(transcript, provider)
+    if provider == "claude":
+        surface["provider_catalog_audit"] = delivery._claude_catalog_audit(
+            transcript,
+            condition=str(entry["condition"]),
+            skill_name=SKILL_NAME,
+        )
     model, model_source = helpers._reported_model(transcript, provider)
     metadata.update(
         {
@@ -967,12 +1094,29 @@ def execute_run(run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> 
         errors.append(f"reported model {model!r} != {EXPECTED_MODELS[provider]!r}")
     if surface["final_audit"].get("mutated") is not False:
         errors.append("native skill surface mutated")
+    if provider == "claude" and surface.get("provider_catalog_audit", {}).get("valid") is not True:
+        errors.append("Claude provider catalog isolation failed")
+    if fixture.get("mutated") is not False:
+        errors.append("dependency fixture mutated")
     verdict = _technical_verdict(run_root, metadata, errors)
     if errors:
         raise ExecutionError(f"run {run_id!r} is technically invalid: " + "; ".join(errors))
     validate_run(run_id)
     shutil.rmtree(external_root)
     return {"metadata": metadata, "verdict": verdict}
+
+
+def execute_run(run_id: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
+    run_root = _run_root(run_id)
+    external_root = _external_run_root(run_id)
+    run_root_preexisting = run_root.exists() or run_root.is_symlink()
+    external_root_preexisting = external_root.exists() or external_root.is_symlink()
+    try:
+        return _execute_run_once(run_id, timeout_seconds)
+    except BaseException:
+        if not run_root_preexisting and not external_root_preexisting:
+            helpers._quarantine_interrupted_run(run_root, external_root)
+        raise
 
 
 def status() -> dict[str, Any]:

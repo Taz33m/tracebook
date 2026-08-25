@@ -4,8 +4,15 @@
 **Public protocol commit:** `50ac3b63c934ec9f3c18869cc5c68b221b73fdd2`  
 **Execution completed:** 2026-08-02  
 **Aggregate grading completed:** 2026-08-03
+**Validity:** invalidated on 2026-08-25 after execution-harness review; retained
+only as a historical audit record pending a corrected 24-run recollection
 
-## Primary Result
+## Historical Result (Invalidated)
+
+The figures below describe the original execution. They must not be used for
+inference: the corrected harness restores fixture-mutation validation, Claude
+provider-catalog auditing, and the restricted toolchain environment, among
+other isolation and evidence-capture fixes.
 
 All 24 preregistered runs received valid pre-score technical verdicts before
 semantic outcomes were inspected. The frozen skill improved the autonomous

@@ -26,18 +26,14 @@ MANIFEST_PATH = PRIVATE_ROOT / "cases.json"
 PLAN_PATH = PRIVATE_ROOT / "plan.json"
 FREEZE_PATH = PRIVATE_ROOT / "freeze.json"
 MANIFESTS_ROOT = PRIVATE_ROOT / "manifests"
-SKILL_PATH = (
-    PRIVATE_ROOT
-    / "treatments"
-    / "tracebook-qualify-matching-engine"
-    / "SKILL.md"
-)
+SKILL_PATH = PRIVATE_ROOT / "treatments" / "tracebook-qualify-matching-engine" / "SKILL.md"
 
 PROTOCOL_ID = "agent-qualification-generalization-v2"
 RANDOMIZATION_SEED = 20260730
 REPETITIONS = 3
 AGENTS = ("codex", "claude")
 CONDITIONS = ("docs", "skill")
+DEPENDENCY_TARGETS = ("m2-repository", "cargo-home")
 
 DOCS_TREATMENT = (
     "\n\nYou may evaluate tracebook-conformance==0.6.0 using only its public "
@@ -89,7 +85,10 @@ def _snapshot_digest(root: Path) -> str:
 def _tree_inventory(root: Path) -> list[dict[str, Any]]:
     inventory: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*"), key=lambda value: value.as_posix()):
-        relative = path.relative_to(root).as_posix()
+        relative_path = path.relative_to(root)
+        if ".git" in relative_path.parts:
+            continue
+        relative = relative_path.as_posix()
         if path.is_symlink():
             raise GeneralizationError(f"frozen tree must not contain symlink {relative!r}")
         mode = path.stat().st_mode
@@ -199,9 +198,7 @@ def _validate_tree(
         if not isinstance(declaration.get(field), str):
             raise GeneralizationError(f"case {case['id']!r} {name!r} lacks {field!r}")
     source = _private_path(str(declaration["source"]), f"{case['id']} {name} source")
-    manifest_path = _private_path(
-        str(declaration["manifest"]), f"{case['id']} {name} manifest"
-    )
+    manifest_path = _private_path(str(declaration["manifest"]), f"{case['id']} {name} manifest")
     if not source.is_dir() or not manifest_path.is_file():
         raise GeneralizationError(f"case {case['id']!r} {name!r} tree is unavailable")
     manifest_hash = _sha256_file(manifest_path)
@@ -231,6 +228,14 @@ def _validate_tree(
     }
 
 
+def _dependency_target(value: Any) -> str:
+    if value not in DEPENDENCY_TARGETS:
+        raise GeneralizationError(
+            "dependency_target must be one of " + ", ".join(DEPENDENCY_TARGETS)
+        )
+    return str(value)
+
+
 def freeze() -> dict[str, Any]:
     """Create the immutable v2 case manifest, plan, and freeze binding."""
 
@@ -256,6 +261,7 @@ def freeze() -> dict[str, Any]:
             "origin",
             "gold_manifest",
             "dependency_source",
+            "dependency_target",
             "gold_evidence",
             "status",
         )
@@ -270,9 +276,7 @@ def freeze() -> dict[str, Any]:
                 f"case {raw_case['id']!r} source must be an origin-stripped directory"
             )
         snapshot_sha256 = _snapshot_digest(source)
-        gold_path = _private_path(
-            str(raw_case["gold_manifest"]), f"{raw_case['id']} gold manifest"
-        )
+        gold_path = _private_path(str(raw_case["gold_manifest"]), f"{raw_case['id']} gold manifest")
         if not gold_path.is_file():
             raise GeneralizationError(f"case {raw_case['id']!r} gold is unavailable")
         evidence_specs = raw_case["gold_evidence"]
@@ -299,6 +303,7 @@ def freeze() -> dict[str, Any]:
             source_path=str(raw_case["dependency_source"]),
             snapshot_sha256=snapshot_sha256,
         )
+        dependency["target"] = _dependency_target(raw_case["dependency_target"])
         frozen_cases.append(
             {
                 "id": raw_case["id"],
@@ -407,6 +412,10 @@ def validate_manifest() -> dict[str, Any]:
         if _sha256_file(gold_path) != case["gold_sha256"]:
             raise GeneralizationError(f"case {case['id']!r} gold drifted")
         _validate_tree(case, case["dependency_cache"], name="dependency-cache")
+        dependency = case["dependency_cache"]
+        if not isinstance(dependency, dict):
+            raise GeneralizationError(f"case {case['id']!r} dependency cache is invalid")
+        _dependency_target(dependency.get("target"))
         evidence = case["gold_evidence"]
         if not isinstance(evidence, list):
             raise GeneralizationError(f"case {case['id']!r} gold_evidence must be a list")
@@ -527,9 +536,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = validate()
         else:
             payload = validate()
-            payload["authorization_blocker"] = _load_json(FREEZE_PATH).get(
-                "execution_blocker"
-            )
+            payload["authorization_blocker"] = _load_json(FREEZE_PATH).get("execution_blocker")
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     except GeneralizationError as exc:

@@ -136,7 +136,10 @@ def _tree_inventory(root: Path) -> list[dict[str, Any]]:
 
     inventory: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*"), key=lambda value: value.as_posix()):
-        relative = path.relative_to(root).as_posix()
+        relative_path = path.relative_to(root)
+        if ".git" in relative_path.parts:
+            continue
+        relative = relative_path.as_posix()
         if path.is_symlink():
             raise EvaluationError(f"frozen fixture must not contain symlink {relative!r}")
         mode = path.stat().st_mode
@@ -870,6 +873,8 @@ def _claude_command(settings_path: Path) -> list[str]:
         "--no-session-persistence",
         "--no-chrome",
         "--disable-slash-commands",
+        "--setting-sources",
+        "",
         "--strict-mcp-config",
         "--mcp-config",
         '{"mcpServers":{}}',
@@ -989,13 +994,9 @@ def _initialize_snapshot(source: Path, workspace: Path) -> None:
     _run_checked(("git", "commit", "-q", "-m", "Frozen candidate snapshot"), workspace)
 
 
-def _write_workspace_evidence(workspace: Path, run_root: Path) -> None:
-    (run_root / "git-status.txt").write_text(_run_checked(("git", "status", "--short"), workspace))
-    (run_root / "workspace.patch").write_text(
-        _run_checked(("git", "diff", "--binary", "HEAD"), workspace)
-    )
+def _workspace_inventory(workspace: Path) -> list[dict[str, Any]]:
     inventory: list[dict[str, Any]] = []
-    excluded_parts = {".git", "bin", "obj", "target", "node_modules"}
+    excluded_parts = {".git", ".eval-cache", "bin", "obj", "target", "node_modules"}
     for path in sorted(workspace.rglob("*"), key=lambda value: value.as_posix()):
         relative = path.relative_to(workspace)
         if any(part in excluded_parts for part in relative.parts):
@@ -1008,10 +1009,62 @@ def _write_workspace_evidence(workspace: Path, run_root: Path) -> None:
                     "sha256": _sha256_file(path),
                 }
             )
+    return inventory
+
+
+def _write_workspace_evidence(workspace: Path, run_root: Path) -> None:
+    """Capture tracked, untracked, and ignored candidate changes without mutating its index."""
+
+    inventory = _workspace_inventory(workspace)
+    temporary_index = run_root / ".workspace-evidence.index"
+    environment = dict(os.environ)
+    environment["GIT_INDEX_FILE"] = str(temporary_index)
+
+    def run_git(*arguments: str) -> str:
+        completed = subprocess.run(
+            ("git", *arguments),
+            cwd=workspace,
+            env=environment,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        return completed.stdout
+
+    try:
+        run_git("read-tree", "HEAD")
+        run_git("add", "-u", "--", ".")
+        paths = ["./" + str(item["path"]) for item in inventory]
+        for start in range(0, len(paths), 200):
+            run_git("add", "-f", "--", *paths[start : start + 200])
+        (run_root / "git-status.txt").write_text(run_git("status", "--short"))
+        (run_root / "workspace.patch").write_text(run_git("diff", "--cached", "--binary", "HEAD"))
+    finally:
+        temporary_index.unlink(missing_ok=True)
     _write_json(run_root / "workspace-files.json", {"files": inventory})
 
 
-def execute_run(
+def _quarantine_interrupted_run(run_root: Path, external_run_root: Path) -> Path | None:
+    """Preserve incomplete evidence under ``interruptions`` and unblock a clean retry."""
+
+    if external_run_root.is_symlink():
+        external_run_root.unlink()
+    elif external_run_root.exists():
+        shutil.rmtree(external_run_root)
+    if not run_root.exists() and not run_root.is_symlink():
+        return None
+    if not run_root.is_symlink() and (run_root / "pre-score-verdict.json").is_file():
+        return None
+    interruptions = run_root.parent / "interruptions"
+    interruptions.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    target = interruptions / f"{run_root.name}.{stamp}.{os.getpid()}"
+    run_root.replace(target)
+    return target
+
+
+def _execute_run_once(
     manifest_path: Path,
     *,
     case_id: str,
@@ -1137,6 +1190,38 @@ def execute_run(
     _write_json(run_root / "metadata.json", metadata)
     shutil.rmtree(external_run_root)
     return metadata
+
+
+def execute_run(
+    manifest_path: Path,
+    *,
+    case_id: str,
+    agent: str,
+    repetition: int,
+    condition: str,
+    runs_path: Path,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    run_id = f"{condition}__{case_id}__{agent}__r{repetition}"
+    run_root = runs_path.resolve() / run_id
+    work_root = CODEX_WORK_ROOT if agent == "codex" else CLAUDE_WORK_ROOT
+    external_run_root = work_root / run_id
+    run_root_preexisting = run_root.exists() or run_root.is_symlink()
+    external_root_preexisting = external_run_root.exists() or external_run_root.is_symlink()
+    try:
+        return _execute_run_once(
+            manifest_path,
+            case_id=case_id,
+            agent=agent,
+            repetition=repetition,
+            condition=condition,
+            runs_path=runs_path,
+            timeout_seconds=timeout_seconds,
+        )
+    except BaseException:
+        if not run_root_preexisting and not external_root_preexisting:
+            _quarantine_interrupted_run(run_root, external_run_root)
+        raise
 
 
 def _parse_conditions(raw: str) -> list[str]:

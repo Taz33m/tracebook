@@ -10,7 +10,7 @@ import pytest
 from experiments import agent_qualification
 from experiments import agent_qualification_treatments as treatments
 
-BASELINE_RUNNER_SHA256 = "6ccf1f0ceee34672e049c428cb368d98a1c36270aeff21900f25b79e659261ef"
+BASELINE_RUNNER_SHA256 = "71300722b273e983dcd4e830358677337255a39f52b7f10e4c57479c8dc5cb0d"
 
 
 def _sha256(path: Path) -> str:
@@ -51,7 +51,8 @@ def test_treatment_prompt_is_identical_between_docs_and_skill():
 
 def test_master_plan_is_two_matched_blocks_in_baseline_order():
     manifest = _synthetic_manifest()
-    entries = treatments._master_entries(manifest)
+    evidence_ids = [f"ev_{index:032x}" for index in range(24)]
+    entries = treatments._master_entries(manifest, evidence_ids=evidence_ids)
     baseline_cells = [
         {
             "case_id": case["id"],
@@ -78,6 +79,43 @@ def test_master_plan_is_two_matched_blocks_in_baseline_order():
         ] == baseline_cells
     assert len({entry["run_id"] for entry in entries}) == 24
     assert len({entry["evidence_id"] for entry in entries}) == 24
+    assert [entry["evidence_id"] for entry in entries] == evidence_ids
+
+
+def test_master_plan_preserves_manifest_case_order_before_seeded_shuffle():
+    manifest = {
+        "cases": [
+            {"id": "z-last-lexically", "status": "ready"},
+            {"id": "a-first-lexically", "status": "ready"},
+        ]
+    }
+    evidence_ids = [f"ev_{index:032x}" for index in range(24)]
+    entries = treatments._master_entries(manifest, evidence_ids=evidence_ids)
+    expected = [
+        {"case_id": case["id"], "agent": agent, "repetition": repetition}
+        for case in manifest["cases"]
+        for agent in ("codex", "claude")
+        for repetition in range(1, treatments.REPETITIONS + 1)
+    ]
+    random.Random(agent_qualification.RANDOMIZATION_SEED).shuffle(expected)
+
+    assert [
+        {
+            "case_id": entry["case_id"],
+            "agent": entry["agent"],
+            "repetition": entry["repetition"],
+        }
+        for entry in entries[:12]
+    ] == expected
+
+
+def test_evidence_ids_are_random_opaque_values():
+    first = treatments._new_evidence_id()
+    second = treatments._new_evidence_id()
+
+    assert first != second
+    assert len(first) == len("ev_") + 32
+    assert int(first.removeprefix("ev_"), 16) >= 0
 
 
 def test_skill_is_candidate_agnostic_and_exactly_one_measured_file(tmp_path, monkeypatch):
@@ -133,7 +171,7 @@ def test_master_plan_shape_rejects_tampering():
         {
             "ordinal": index,
             "run_id": f"run-{index}",
-            "evidence_id": f"evidence-{index}",
+            "evidence_id": f"ev_{index:032x}",
             "condition": "docs" if index <= 12 else "skill",
         }
         for index in range(1, 25)
@@ -284,7 +322,8 @@ def test_transcript_terminal_state_requires_clean_completion(tmp_path):
 def test_claude_catalog_audit_requires_only_wrapper_and_expected_skill(tmp_path):
     transcript = tmp_path / "claude.jsonl"
     transcript.write_text(
-        json.dumps(
+        "provider banner that is not JSON\n"
+        + json.dumps(
             {
                 "type": "system",
                 "subtype": "init",
@@ -310,6 +349,14 @@ def test_claude_catalog_audit_requires_only_wrapper_and_expected_skill(tmp_path)
 
     assert treatments._claude_catalog_audit(transcript, condition="skill")["valid"] is True
     assert treatments._claude_catalog_audit(transcript, condition="docs")["valid"] is False
+    assert treatments._transcript_result_text(transcript, "claude") == ""
+
+
+def test_transcript_result_text_skips_non_json_lines(tmp_path):
+    transcript = tmp_path / "claude-result.jsonl"
+    transcript.write_text('banner\n{"type":"result","result":"done"}\n')
+
+    assert treatments._transcript_result_text(transcript, "claude") == "done"
 
 
 def test_measurement_policy_uses_conservative_paired_timing_gate():
@@ -324,6 +371,17 @@ def test_measurement_policy_uses_conservative_paired_timing_gate():
 def test_official_run_rejects_timeout_drift_before_freeze_validation():
     with pytest.raises(treatments.EvaluationError, match="timeout must remain"):
         treatments.execute_run("not-a-run", timeout_seconds=1)
+
+
+def test_main_converts_subprocess_failures_to_exit_two(monkeypatch, capsys):
+    monkeypatch.setattr(
+        treatments,
+        "run_native_delivery_shakedown",
+        lambda: (_ for _ in ()).throw(subprocess.CalledProcessError(1, ["git"])),
+    )
+
+    assert treatments.main(["shakedown"]) == 2
+    assert "error:" in capsys.readouterr().err
 
 
 def test_direct_script_entrypoint_smoke():

@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 import random
+import re
+import secrets
 import shlex
 import shutil
 import stat
@@ -293,11 +295,11 @@ def _load_skill(skill_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]
 
 
 def _ready_case_ids(manifest: Mapping[str, Any]) -> list[str]:
-    return sorted(
+    return [
         case_id
         for case_id, case in baseline._case_index(manifest).items()
         if case.get("status") == "ready"
-    )
+    ]
 
 
 def _structural_cells(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -319,13 +321,25 @@ def _structural_cells(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
     return cells
 
 
-def _evidence_id(ordinal: int) -> str:
-    material = f"{PROTOCOL_ID}|treatment|{RANDOMIZATION_SEED}|{ordinal}".encode()
-    return "ev_" + _sha256_bytes(material)[:20]
+def _new_evidence_id() -> str:
+    """Create a non-derivable identifier for blinded pre-score evidence."""
+
+    return "ev_" + secrets.token_hex(16)
 
 
-def _master_entries(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _master_entries(
+    manifest: Mapping[str, Any],
+    *,
+    evidence_ids: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
     cells = _structural_cells(manifest)
+    expected_count = len(TREATMENT_CONDITIONS) * len(cells)
+    if evidence_ids is None:
+        evidence_ids = [_new_evidence_id() for _ in range(expected_count)]
+    if len(evidence_ids) != expected_count:
+        raise EvaluationError(
+            f"treatment protocol requires {expected_count} evidence IDs, got {len(evidence_ids)}"
+        )
     entries: list[dict[str, Any]] = []
     ordinal = 0
     for condition in TREATMENT_CONDITIONS:
@@ -337,7 +351,7 @@ def _master_entries(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
                     **cell,
                     "condition": condition,
                     "run_id": run_id,
-                    "evidence_id": _evidence_id(ordinal),
+                    "evidence_id": evidence_ids[ordinal - 1],
                     "ordinal": ordinal,
                 }
             )
@@ -545,7 +559,11 @@ def _validate_plan_entry_shape(entries: Any) -> list[dict[str, Any]]:
         evidence_id = entry.get("evidence_id")
         if not isinstance(run_id, str) or run_id in seen_ids:
             raise EvaluationError("master plan run IDs must be unique strings")
-        if not isinstance(evidence_id, str) or evidence_id in seen_evidence:
+        if (
+            not isinstance(evidence_id, str)
+            or re.fullmatch(r"ev_[0-9a-f]{32}", evidence_id) is None
+            or evidence_id in seen_evidence
+        ):
             raise EvaluationError("master plan evidence IDs must be unique opaque strings")
         if entry.get("condition") not in TREATMENT_CONDITIONS:
             raise EvaluationError("master plan contains an invalid condition")
@@ -623,7 +641,10 @@ def validate_plan(
         raise EvaluationError("master plan rendered prompt hashes changed")
 
     entries = _validate_plan_entry_shape(payload.get("entries"))
-    expected_entries = _master_entries(manifest)
+    expected_entries = _master_entries(
+        manifest,
+        evidence_ids=[str(entry["evidence_id"]) for entry in entries],
+    )
     prompt_hashes = _prompt_hashes(manifest)
     for entry in expected_entries:
         entry["rendered_prompt_sha256"] = prompt_hashes[entry["case_id"]][entry["condition"]]
@@ -1061,7 +1082,10 @@ def _claude_catalog_audit(
     init: dict[str, Any] | None = None
     with path.open(encoding="utf-8") as handle:
         for line in handle:
-            event = json.loads(line)
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
             if (
                 isinstance(event, dict)
                 and event.get("type") == "system"
@@ -1316,7 +1340,7 @@ def validate_run(
     return verdict
 
 
-def execute_run(
+def _execute_run_once(
     run_id: str,
     *,
     timeout_seconds: int = baseline.DEFAULT_TIMEOUT_SECONDS,
@@ -1480,11 +1504,34 @@ def execute_run(
     return {"metadata": metadata, "verdict": verdict}
 
 
+def execute_run(
+    run_id: str,
+    *,
+    timeout_seconds: int = baseline.DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    run_root = _run_root(run_id)
+    parts = run_id.split("__")
+    agent = parts[-2] if len(parts) >= 4 else ""
+    work_root = baseline.CODEX_WORK_ROOT if agent == "codex" else baseline.CLAUDE_WORK_ROOT
+    external_run_root = work_root / run_id
+    run_root_preexisting = run_root.exists() or run_root.is_symlink()
+    external_root_preexisting = external_run_root.exists() or external_run_root.is_symlink()
+    try:
+        return _execute_run_once(run_id, timeout_seconds=timeout_seconds)
+    except BaseException:
+        if not run_root_preexisting and not external_root_preexisting:
+            baseline._quarantine_interrupted_run(run_root, external_run_root)
+        raise
+
+
 def _transcript_result_text(path: Path, agent: str) -> str:
     result = ""
     with path.open(encoding="utf-8") as handle:
         for line in handle:
-            event = json.loads(line)
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
             if not isinstance(event, dict):
                 continue
             if agent == "codex" and event.get("type") == "item.completed":
@@ -1676,7 +1723,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = validate_run(args.run_id)
         else:  # pragma: no cover - argparse enforces the command.
             raise EvaluationError(f"unknown command {args.command!r}")
-    except (EvaluationError, OSError, ValueError) as exc:
+    except (EvaluationError, OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     printable = {

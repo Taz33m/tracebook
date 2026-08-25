@@ -1,9 +1,9 @@
 # Agentic Qualification Generalization Evaluation
 
 **Protocol:** `agent-qualification-generalization-v2`  
-**Historical status:** frozen before measured execution; all 24 preregistered
-runs received valid pre-score verdicts on 2026-08-02 and aggregate semantic
-grading completed on 2026-08-03
+**Correction status:** the 2026-08-02 execution is retained as historical
+evidence but is not valid for inference. A corrected harness must collect a
+fresh 24-run matrix before the aggregate claim is reinstated.
 
 This document preserves the preregistered design. The aggregate outcome and
 claim boundaries are reported separately in the
@@ -64,7 +64,8 @@ Each frozen case binds:
 - owner claim and excluded scope;
 - supported native commands;
 - evaluator-only gold;
-- a frozen writable dependency-cache seed; and
+- a frozen writable dependency-cache seed and manifest-declared destination;
+  and
 - applicable evaluator adapter and machine evidence.
 
 Agents may inspect only their fresh candidate copy, the frozen prompt, public
@@ -117,6 +118,10 @@ Before timing, the harness must:
    paths do not exist;
 5. initialize a fresh Git repository only for diff capture; and
 6. record the initial source, dependency, and workspace tree hashes.
+
+After the provider turn, the harness rehashes the dependency seed and rejects
+the run if it differs from the initial hash. The destination is read from the
+frozen case manifest rather than inferred from a case identifier.
 
 The agent must produce two independent evidence runs. A valid pair requires:
 
@@ -181,6 +186,13 @@ Pre-registered interpretation:
 - Gold, frozen adapters, prior qualification bundles, v1 runs, OpenWiki, and
   the local Tracebook checkout are not mounted into agent workspaces.
 - Candidate build scripts run only inside the agent sandbox.
+- The provider processes receive a fixed minimal system `PATH`; only frozen
+  native-toolchain prefixes may be added, and those exact roots are included
+  in each provider's filesystem-read policy.
+- Provider user and project settings are disabled. Claude's visible provider
+  catalog is audited before a run can receive a valid pre-score verdict: no MCP
+  servers, exactly the intended plugin surface, and the expected skill presence
+  for the assigned condition.
 - Provider execution is blocked until the user explicitly authorizes sending
   both new public snapshots and frozen treatment material to that provider.
 - A technical interruption may be archived and restarted; a semantic outcome
@@ -191,7 +203,7 @@ Pre-registered interpretation:
 `experiments/agent_qualification_generalization.py freeze` writes an immutable
 case manifest, seeded plan, and `freeze.json`. `validate` rejects drift in the
 tracked protocol, prompt, runner, skill, source snapshots, dependency seeds,
-gold manifests, and evaluator evidence trees.
+dependency destinations, gold manifests, and evaluator evidence trees.
 
 Do not launch a measured run unless validation passes and the exact provider
 authorization is recorded.

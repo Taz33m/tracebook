@@ -91,6 +91,19 @@ def test_validate_manifest_rejects_snapshot_drift(tmp_path):
         agent_qualification.validate_manifest(manifest_path)
 
 
+def test_inventory_and_digest_both_ignore_git_metadata(tmp_path):
+    source = tmp_path / "source"
+    git = source / ".git"
+    git.mkdir(parents=True)
+    (source / "engine.txt").write_text("price-time\n")
+    (git / "index").write_text("first\n")
+    first_digest = agent_qualification._snapshot_digest(source)
+
+    assert [item["path"] for item in agent_qualification._tree_inventory(source)] == ["engine.txt"]
+    (git / "index").write_text("changed\n")
+    assert agent_qualification._snapshot_digest(source) == first_digest
+
+
 def test_validate_manifest_rejects_gold_drift(tmp_path):
     manifest_path = _manifest(tmp_path)
     manifest = agent_qualification.validate_manifest(manifest_path)
@@ -245,6 +258,13 @@ def test_claude_permissions_delegate_paths_to_fail_closed_sandbox(tmp_path):
     assert settings["env"]["NuGetAudit"] == "false"
 
 
+def test_claude_command_ignores_user_and_project_settings(tmp_path):
+    command = agent_qualification._claude_command(tmp_path / "settings.json")
+
+    assert command[command.index("--setting-sources") + 1] == ""
+    assert command[command.index("--settings") + 1] == str(tmp_path / "settings.json")
+
+
 def test_dotnet_environment_preseeds_nuget_migration_state(tmp_path):
     environment = agent_qualification._dotnet_environment(tmp_path)
 
@@ -342,3 +362,43 @@ def test_reported_model_uses_claude_transcript_and_codex_command(tmp_path):
         "gpt-5.6-sol",
         "command",
     )
+
+
+def test_workspace_evidence_includes_gitignored_files(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / ".gitignore").write_text("ignored.txt\n")
+    (source / "tracked.txt").write_text("before\n")
+    workspace = tmp_path / "workspace"
+    agent_qualification._initialize_snapshot(source, workspace)
+    (workspace / "tracked.txt").write_text("after\n")
+    (workspace / "ignored.txt").write_text("captured\n")
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+
+    agent_qualification._write_workspace_evidence(workspace, run_root)
+
+    status = (run_root / "git-status.txt").read_text()
+    patch = (run_root / "workspace.patch").read_text()
+    inventory = json.loads((run_root / "workspace-files.json").read_text())["files"]
+    assert "ignored.txt" in status
+    assert "ignored.txt" in patch
+    assert "captured" in patch
+    assert "ignored.txt" in {item["path"] for item in inventory}
+
+
+def test_interrupted_run_is_quarantined_and_external_workspace_removed(tmp_path):
+    run_root = tmp_path / "runs" / "docs__case__codex__r1"
+    external = tmp_path / "external"
+    run_root.mkdir(parents=True)
+    external.mkdir()
+    (run_root / "partial.jsonl").write_text("partial\n")
+    (external / "workspace").mkdir()
+
+    archived = agent_qualification._quarantine_interrupted_run(run_root, external)
+
+    assert archived is not None
+    assert archived.parent.name == "interruptions"
+    assert (archived / "partial.jsonl").read_text() == "partial\n"
+    assert not run_root.exists()
+    assert not external.exists()

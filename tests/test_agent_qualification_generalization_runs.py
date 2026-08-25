@@ -1,5 +1,6 @@
 import hashlib
 import json
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,7 @@ def test_copy_fixture_starts_from_frozen_hash(tmp_path, monkeypatch):
             "source": "private/cache",
             "tree_sha256": tree_hash,
             "manifest_sha256": "manifest",
+            "target": "cargo-home",
         },
     }
 
@@ -92,6 +94,11 @@ def test_copy_fixture_starts_from_frozen_hash(tmp_path, monkeypatch):
     assert fixture["initial_tree_sha256"] == tree_hash
     assert Path(fixture["target"]).name == "cargo-home"
     assert execution.helpers._snapshot_digest(Path(fixture["target"])) == tree_hash
+
+    (Path(fixture["target"]) / "artifact").write_text("mutated")
+    execution._record_fixture_final(fixture)
+    assert fixture["mutated"] is True
+    assert fixture["final_tree_sha256"] != fixture["initial_tree_sha256"]
 
 
 def test_native_surface_has_no_skill_in_docs_condition(tmp_path, monkeypatch):
@@ -102,14 +109,14 @@ def test_native_surface_has_no_skill_in_docs_condition(tmp_path, monkeypatch):
     scratch.mkdir()
     monkeypatch.setattr(
         execution,
-        "_configure_delivery",
-        lambda: None,
+        "_configured_delivery",
+        lambda: nullcontext(),
     )
     monkeypatch.setattr(
         execution.delivery,
         "_prepare_native_surface",
         lambda **kwargs: (
-            ["provider"],
+            ["provider", "permissions.agent-eval={filesystem={}}"],
             {
                 "skill_installed": kwargs["condition"] == "skill",
                 "semantic_file_count": 1 if kwargs["condition"] == "skill" else 0,
@@ -132,6 +139,45 @@ def test_native_surface_has_no_skill_in_docs_condition(tmp_path, monkeypatch):
     assert surface == {"skill_installed": False, "semantic_file_count": 0}
 
 
+def test_codex_native_surface_can_read_declared_toolchain_roots(tmp_path, monkeypatch):
+    root = tmp_path / "run"
+    workspace = root / "workspace"
+    scratch = root / "scratch"
+    maven = tmp_path / "maven"
+    java = tmp_path / "java"
+    workspace.mkdir(parents=True)
+    scratch.mkdir()
+    (maven / "bin").mkdir(parents=True)
+    (java / "bin").mkdir(parents=True)
+    monkeypatch.setenv("TRACEBOOK_V2_MAVEN_HOME", str(maven))
+    monkeypatch.setenv("TRACEBOOK_V2_JAVA_HOME", str(java))
+    monkeypatch.setattr(execution, "_configured_delivery", lambda: nullcontext())
+    monkeypatch.setattr(
+        execution.delivery,
+        "_prepare_native_surface",
+        lambda **kwargs: (
+            ["provider", "permissions.agent-eval={filesystem={}}"],
+            {"skill_installed": False},
+            None,
+        ),
+    )
+
+    command, _, _ = execution._native_surface(
+        provider="codex",
+        condition="docs",
+        workspace=workspace,
+        run_root=root,
+        scratch=scratch,
+        environment={},
+        skill=b"skill",
+        skill_name="probe",
+    )
+
+    permission = next(value for value in command if value.startswith("permissions.agent-eval="))
+    assert f'"{maven}"="read"' in permission
+    assert f'"{java}"="read"' in permission
+
+
 def test_validate_prior_runs_enforces_seeded_order(monkeypatch):
     seen = []
     monkeypatch.setattr(execution, "validate_run", seen.append)
@@ -146,6 +192,22 @@ def test_validate_prior_runs_enforces_seeded_order(monkeypatch):
     execution._validate_prior_runs(plan, 3)
 
     assert seen == ["first", "second"]
+
+
+def test_validate_prior_runs_reuses_one_frozen_context(monkeypatch):
+    seen = []
+    freeze = {"frozen": True}
+    primary = ({"cases": []}, {"entries": []})
+
+    def validate(run_id, **kwargs):
+        seen.append((run_id, kwargs["freeze"], kwargs["primary"]))
+
+    monkeypatch.setattr(execution, "validate_run", validate)
+    plan = {"entries": [{"id": "first"}, {"id": "second"}, {"id": "third"}]}
+
+    execution._validate_prior_runs(plan, 3, freeze=freeze, primary=primary)
+
+    assert seen == [("first", freeze, primary), ("second", freeze, primary)]
 
 
 def test_execution_refuses_without_provider_authorization(monkeypatch):
@@ -206,7 +268,7 @@ def test_toolchain_environment_prepends_frozen_tools(tmp_path, monkeypatch):
     monkeypatch.setenv("TRACEBOOK_V2_JAVA_HOME", str(java))
     monkeypatch.setenv("TRACEBOOK_V2_PYTHON_HOME", str(python))
     monkeypatch.setenv("TRACEBOOK_V2_UV_BINARY", str(uv))
-    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv("PATH", "/operator/private/bin")
 
     environment = execution._toolchain_environment()
 
@@ -217,6 +279,8 @@ def test_toolchain_environment_prepends_frozen_tools(tmp_path, monkeypatch):
         str(python / "bin"),
         str(tmp_path),
     ]
+    assert "/operator/private/bin" not in environment["PATH"]
+    assert "/usr/bin" in environment["PATH"].split(":")
 
 
 def test_provider_shells_receive_fresh_paths(tmp_path, monkeypatch):
@@ -266,18 +330,75 @@ def test_claude_binding_probes_an_explicit_first_party_route(tmp_path, monkeypat
     assert binding["auth_route"]["apiProvider"] == "firstParty"
 
 
-def test_claude_run_settings_disable_third_party_routes(tmp_path):
+def test_claude_run_settings_disable_third_party_routes(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     scratch = tmp_path / "scratch"
     plugin_root = tmp_path / "plugin"
     workspace.mkdir()
     scratch.mkdir()
     plugin_root.mkdir()
+    maven = tmp_path / "maven"
+    java = tmp_path / "java"
+    (maven / "bin").mkdir(parents=True)
+    (java / "bin").mkdir(parents=True)
+    monkeypatch.setenv("TRACEBOOK_V2_MAVEN_HOME", str(maven))
+    monkeypatch.setenv("TRACEBOOK_V2_JAVA_HOME", str(java))
 
     settings = execution._claude_settings(workspace, scratch, plugin_root)
 
     for name, value in execution.CLAUDE_FIRST_PARTY_ENV.items():
         assert settings["env"][name] == value
+    assert str(maven) in settings["sandbox"]["filesystem"]["allowRead"]
+    assert str(java) in settings["sandbox"]["filesystem"]["allowRead"]
+
+
+def test_delivery_configuration_restores_imported_module_globals(tmp_path, monkeypatch):
+    binary = tmp_path / "provider"
+    binary.write_text("provider")
+    monkeypatch.setattr(execution, "_provider_binary", lambda provider: binary)
+    original = (
+        execution.helpers.CODEX_BINARY,
+        execution.helpers.CLAUDE_BINARY,
+        execution.helpers.CODEX_AUTH_PATH,
+        execution.delivery.DEFAULT_CLAUDE_WRAPPER_PATH,
+        execution.delivery.EXPECTED_MODELS,
+        execution.helpers._codex_shell_environment,
+    )
+
+    with execution._configured_delivery():
+        assert execution.helpers.CODEX_BINARY == binary
+        assert execution.helpers.CLAUDE_BINARY == binary
+        assert execution.helpers._codex_shell_environment is execution._codex_shell_environment
+
+    assert (
+        execution.helpers.CODEX_BINARY,
+        execution.helpers.CLAUDE_BINARY,
+        execution.helpers.CODEX_AUTH_PATH,
+        execution.delivery.DEFAULT_CLAUDE_WRAPPER_PATH,
+        execution.delivery.EXPECTED_MODELS,
+        execution.helpers._codex_shell_environment,
+    ) == original
+
+
+def test_interrupted_v2_run_is_quarantined_for_clean_restart(tmp_path, monkeypatch):
+    runs = tmp_path / "runs"
+    external = tmp_path / "external"
+    monkeypatch.setattr(execution, "RUNS_ROOT", runs)
+    monkeypatch.setattr(execution, "EXTERNAL_ROOT", external)
+
+    def fail(run_id, timeout_seconds):
+        (runs / run_id).mkdir(parents=True)
+        (external / run_id / "workspace").mkdir(parents=True)
+        raise KeyboardInterrupt("interrupted")
+
+    monkeypatch.setattr(execution, "_execute_run_once", fail)
+
+    with pytest.raises(KeyboardInterrupt, match="interrupted"):
+        execution.execute_run("docs__case__codex__r1")
+
+    assert not (runs / "docs__case__codex__r1").exists()
+    assert not (external / "docs__case__codex__r1").exists()
+    assert len(list((runs / "interruptions").iterdir())) == 1
 
 
 def test_shakedown_requires_first_party_claude_route(monkeypatch):

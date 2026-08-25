@@ -25,6 +25,10 @@ Bedrock, Vertex, and Foundry routing flags in their isolated settings. The
 harness still refuses to freeze unless `claude auth status` identifies an
 authenticated `firstParty` route.
 
+Every provider run also starts without user or project configuration. The
+harness supplies a fixed minimal system `PATH`, adds only the toolchain prefixes
+bound by the execution freeze, and grants read access to those exact roots.
+
 The synthetic canary contains no candidate source, Tracebook guidance, gold
 data, or measured prompt material.
 
@@ -43,6 +47,10 @@ seed, new build target, isolated provider state, and condition-specific native
 skill surface. The local Tracebook checkout, private gold, prior workspaces,
 and prior transcripts are not mounted into the workspace.
 
+Before accepting a Claude turn, the harness audits the provider catalog and
+requires no MCP servers, exactly one intended plugin, and skill visibility that
+matches the assigned condition. The audit is preserved with the run.
+
 The harness executes only the next entry in the frozen 24-run order. A later
 entry is rejected until every earlier entry has a valid pre-score technical
 verdict. Existing run or external-workspace paths are never overwritten.
@@ -55,10 +63,19 @@ reported model before semantic grading. A pre-score verdict covers technical
 validity only; it must not inspect whether the agent reached the correct
 qualification outcome.
 
+Fixture validity requires the final dependency-cache hash to equal its frozen
+initial hash. Workspace inventory and patch capture include ignored candidate
+files, using a temporary Git index so the evaluator's real index is unchanged.
+
 A completed provider turn, refusal, timeout, or semantic failure is not
 restartable. Only a genuine technical interruption that lacks a completed
 provider turn may be archived intact and restarted. Archives remain under the
 ignored private experiment tree.
+
+If execution fails before a technical verdict exists, the harness removes the
+new external workspace and quarantines the incomplete run root under the
+private interruption archive. A documented clean restart is therefore possible
+without overwriting evidence.
 
 ## Commands
 
