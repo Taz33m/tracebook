@@ -500,10 +500,13 @@ def _native_surface(
             for index, value in enumerate(command)
             if value.startswith("permissions.agent-eval=")
         )
+        permission_profile = command[permission_index]
         read_entries = "".join(
-            f'{json.dumps(str(path))}="read",' for path in _toolchain_read_paths()
+            f'{json.dumps(str(path))}="read",'
+            for path in _toolchain_read_paths()
+            if f"{json.dumps(str(path))}=" not in permission_profile
         )
-        command[permission_index] = command[permission_index].replace(
+        command[permission_index] = permission_profile.replace(
             "filesystem={",
             "filesystem={" + read_entries,
             1,

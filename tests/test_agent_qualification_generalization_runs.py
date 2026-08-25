@@ -149,6 +149,8 @@ def test_codex_native_surface_can_read_declared_toolchain_roots(tmp_path, monkey
     scratch.mkdir()
     (maven / "bin").mkdir(parents=True)
     (java / "bin").mkdir(parents=True)
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    existing_cargo_read = f'{json.dumps(str(cargo_bin))}="read",'
     monkeypatch.setenv("TRACEBOOK_V2_MAVEN_HOME", str(maven))
     monkeypatch.setenv("TRACEBOOK_V2_JAVA_HOME", str(java))
     monkeypatch.setattr(execution, "_configured_delivery", lambda: nullcontext())
@@ -156,7 +158,10 @@ def test_codex_native_surface_can_read_declared_toolchain_roots(tmp_path, monkey
         execution.delivery,
         "_prepare_native_surface",
         lambda **kwargs: (
-            ["provider", "permissions.agent-eval={filesystem={}}"],
+            [
+                "provider",
+                f"permissions.agent-eval={{filesystem={{{existing_cargo_read}}}}}",
+            ],
             {"skill_installed": False},
             None,
         ),
@@ -176,6 +181,7 @@ def test_codex_native_surface_can_read_declared_toolchain_roots(tmp_path, monkey
     permission = next(value for value in command if value.startswith("permissions.agent-eval="))
     assert f'"{maven}"="read"' in permission
     assert f'"{java}"="read"' in permission
+    assert permission.count(existing_cargo_read) == 1
 
 
 def test_validate_prior_runs_enforces_seeded_order(monkeypatch):
