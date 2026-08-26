@@ -751,7 +751,7 @@ def _copy_fixture(case: Mapping[str, Any], scratch: Path) -> dict[str, Any]:
         shutil.copytree(target, scratch / "m2-repository")
     elif target_name == "cargo-vendor":
         cargo_home = scratch / "cargo-home"
-        cargo_home.mkdir()
+        cargo_home.mkdir(exist_ok=True)
         quoted_target = json.dumps(str(target))
         (cargo_home / "config.toml").write_text(
             "[source.crates-io]\n"

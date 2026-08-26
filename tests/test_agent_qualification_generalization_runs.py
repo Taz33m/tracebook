@@ -78,6 +78,7 @@ def test_copy_fixture_starts_from_frozen_hash(tmp_path, monkeypatch):
     tree_hash = execution.helpers._snapshot_digest(source)
     scratch = tmp_path / "scratch"
     scratch.mkdir()
+    (scratch / "cargo-home").mkdir()
     monkeypatch.setattr(execution, "REPOSITORY_ROOT", repository)
     case = {
         "id": "c5-boundary",
