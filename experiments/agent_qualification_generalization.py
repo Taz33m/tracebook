@@ -33,7 +33,7 @@ RANDOMIZATION_SEED = 20260730
 REPETITIONS = 3
 AGENTS = ("codex", "claude")
 CONDITIONS = ("docs", "skill")
-DEPENDENCY_TARGETS = ("m2-repository", "cargo-home", "cargo-vendor")
+DEPENDENCY_TARGETS = ("m2-repository", "m2-seed", "cargo-home", "cargo-vendor")
 
 DOCS_TREATMENT = (
     "\n\nYou may evaluate tracebook-conformance==0.6.0 using only its public "

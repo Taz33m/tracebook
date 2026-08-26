@@ -109,6 +109,34 @@ def test_copy_fixture_starts_from_frozen_hash(tmp_path, monkeypatch):
     assert fixture["final_tree_sha256"] != fixture["initial_tree_sha256"]
 
 
+def test_copy_maven_fixture_keeps_writable_repository_outside_hash(tmp_path, monkeypatch):
+    repository = tmp_path / "repo"
+    source = repository / "private" / "cache"
+    source.mkdir(parents=True)
+    (source / "artifact.jar").write_text("frozen")
+    tree_hash = execution.helpers._snapshot_digest(source)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(execution, "REPOSITORY_ROOT", repository)
+    case = {
+        "id": "c4-compatible",
+        "dependency_cache": {
+            "source": "private/cache",
+            "tree_sha256": tree_hash,
+            "manifest_sha256": "manifest",
+            "target": "m2-seed",
+        },
+    }
+
+    fixture = execution._copy_fixture(case, scratch)
+
+    assert Path(fixture["target"]).name == "m2-seed"
+    assert (scratch / "m2-repository" / "artifact.jar").read_text() == "frozen"
+    (scratch / "m2-repository" / "resolver-status.properties").write_text("mutable")
+    execution._record_fixture_final(fixture)
+    assert fixture["mutated"] is False
+
+
 def test_native_surface_has_no_skill_in_docs_condition(tmp_path, monkeypatch):
     root = tmp_path / "run"
     workspace = root / "workspace"

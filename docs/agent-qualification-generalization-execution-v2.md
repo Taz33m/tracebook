@@ -44,10 +44,12 @@ for the earlier C1/C3 cohort does not apply.
 
 Every run receives a new origin-stripped workspace, new dependency-seed copy,
 new writable tool state and build target, isolated provider state, and
-condition-specific native skill surface. For Cargo cases, the hashed fixture is
-an immutable vendored-source tree while Cargo home and target directories are
-separate fresh writable paths. The local Tracebook checkout, private gold,
-prior workspaces, and prior transcripts are not mounted into the workspace.
+condition-specific native skill surface. For Maven cases, the hashed fixture is
+an immutable repository seed copied into a separate writable local repository.
+For Cargo cases, the hashed fixture is an immutable vendored-source tree while
+Cargo home and target directories are separate fresh writable paths. The local
+Tracebook checkout, private gold, prior workspaces, and prior transcripts are
+not mounted into the workspace.
 Fresh candidate clones, cache copies, build products, tool state, and virtual
 environments belong under the supplied external `FRESH_*` paths so the final
 workspace evidence contains only source-sized audit artifacts and deliverables.

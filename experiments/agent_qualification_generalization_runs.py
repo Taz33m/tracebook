@@ -747,7 +747,9 @@ def _copy_fixture(case: Mapping[str, Any], scratch: Path) -> dict[str, Any]:
     target_name = cohort._dependency_target(declaration.get("target"))
     target = scratch / target_name
     helpers._copy_frozen_tree(source, target, str(declaration["tree_sha256"]))
-    if target_name == "cargo-vendor":
+    if target_name == "m2-seed":
+        shutil.copytree(target, scratch / "m2-repository")
+    elif target_name == "cargo-vendor":
         cargo_home = scratch / "cargo-home"
         cargo_home.mkdir()
         quoted_target = json.dumps(str(target))

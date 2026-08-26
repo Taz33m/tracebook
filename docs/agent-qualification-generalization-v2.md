@@ -64,8 +64,9 @@ Each frozen case binds:
 - owner claim and excluded scope;
 - supported native commands;
 - evaluator-only gold;
-- a frozen dependency seed and manifest-declared destination (vendored sources
-  for Cargo, with writable Cargo state kept separately);
+- a frozen dependency seed and manifest-declared destination (an immutable
+  Maven repository seed or vendored Cargo sources, with writable tool state
+  kept separately);
   and
 - applicable evaluator adapter and machine evidence.
 
