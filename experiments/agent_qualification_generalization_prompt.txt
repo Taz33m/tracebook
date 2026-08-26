@@ -35,6 +35,12 @@ and absent-before-use output path. Preserve both run identities and compare
 their deterministic results. Do not overwrite an incomplete bundle or call a
 second command over retained state a clean reproduction.
 
+Keep candidate clones, dependency-store copies, build products, tool state, and
+virtual environments under `FRESH_WORK_ROOT` or the supplied `FRESH_*` paths,
+never inside the candidate repository. The candidate repository should retain
+only source-sized audit artifacts and the requested final deliverables; do not
+copy dependency stores, toolchains, or compiled outputs into those artifacts.
+
 Deliver:
 
 1. `CLASSIFICATION.md`: terminal class, scope, evidence, first disagreement

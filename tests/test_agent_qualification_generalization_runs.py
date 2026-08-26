@@ -308,6 +308,7 @@ def test_provider_shells_receive_fresh_paths(tmp_path, monkeypatch):
     assert values["FRESH_M2"] == str(tmp_path / "m2-repository")
     assert values["FRESH_CARGO_HOME"] == str(tmp_path / "cargo-home")
     assert values["FRESH_TARGET"] == str(tmp_path / "cargo-target")
+    assert values["FRESH_WORK_ROOT"] == str(tmp_path / "fresh-work")
 
 
 def test_claude_binding_probes_an_explicit_first_party_route(tmp_path, monkeypatch):

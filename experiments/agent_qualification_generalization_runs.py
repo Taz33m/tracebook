@@ -332,6 +332,7 @@ def _fresh_environment(scratch: Path) -> dict[str, str]:
         "FRESH_M2": str(scratch / "m2-repository"),
         "FRESH_CARGO_HOME": str(scratch / "cargo-home"),
         "FRESH_TARGET": str(scratch / "cargo-target"),
+        "FRESH_WORK_ROOT": str(scratch / "fresh-work"),
     }
 
 
