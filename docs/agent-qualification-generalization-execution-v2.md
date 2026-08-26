@@ -42,10 +42,12 @@ for the earlier C1/C3 cohort does not apply.
 
 ## Isolation And Order
 
-Every run receives a new origin-stripped workspace, new writable dependency
-seed, new build target, isolated provider state, and condition-specific native
-skill surface. The local Tracebook checkout, private gold, prior workspaces,
-and prior transcripts are not mounted into the workspace.
+Every run receives a new origin-stripped workspace, new dependency-seed copy,
+new writable tool state and build target, isolated provider state, and
+condition-specific native skill surface. For Cargo cases, the hashed fixture is
+an immutable vendored-source tree while Cargo home and target directories are
+separate fresh writable paths. The local Tracebook checkout, private gold,
+prior workspaces, and prior transcripts are not mounted into the workspace.
 
 Before accepting a Claude turn, the harness audits the provider catalog and
 requires no MCP servers, exactly one intended plugin, and skill visibility that
@@ -63,8 +65,9 @@ reported model before semantic grading. A pre-score verdict covers technical
 validity only; it must not inspect whether the agent reached the correct
 qualification outcome.
 
-Fixture validity requires the final dependency-cache hash to equal its frozen
-initial hash. Workspace inventory and patch capture include ignored candidate
+Fixture validity requires the final dependency-seed hash to equal its frozen
+initial hash. Tool-generated usage metadata lives outside that seed. Workspace
+inventory and patch capture include ignored candidate
 files, using a temporary Git index so the evaluator's real index is unchanged.
 
 A completed provider turn, refusal, timeout, or semantic failure is not

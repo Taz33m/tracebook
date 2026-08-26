@@ -105,6 +105,7 @@ def test_tree_inventory_uses_same_git_exclusion_as_snapshot_digest(tmp_path):
 def test_dependency_target_is_explicit_and_restricted():
     assert generalization._dependency_target("m2-repository") == "m2-repository"
     assert generalization._dependency_target("cargo-home") == "cargo-home"
+    assert generalization._dependency_target("cargo-vendor") == "cargo-vendor"
 
     with pytest.raises(generalization.GeneralizationError, match="dependency_target"):
         generalization._dependency_target("../operator-cache")

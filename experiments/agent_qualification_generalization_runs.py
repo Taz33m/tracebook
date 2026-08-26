@@ -746,6 +746,18 @@ def _copy_fixture(case: Mapping[str, Any], scratch: Path) -> dict[str, Any]:
     target_name = cohort._dependency_target(declaration.get("target"))
     target = scratch / target_name
     helpers._copy_frozen_tree(source, target, str(declaration["tree_sha256"]))
+    if target_name == "cargo-vendor":
+        cargo_home = scratch / "cargo-home"
+        cargo_home.mkdir()
+        quoted_target = json.dumps(str(target))
+        (cargo_home / "config.toml").write_text(
+            "[source.crates-io]\n"
+            'replace-with = "vendored-sources"\n\n'
+            "[source.vendored-sources]\n"
+            f"directory = {quoted_target}\n\n"
+            "[net]\n"
+            "offline = true\n"
+        )
     return {
         "source_manifest_sha256": declaration["manifest_sha256"],
         "initial_tree_sha256": declaration["tree_sha256"],

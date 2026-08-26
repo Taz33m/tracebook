@@ -85,15 +85,23 @@ def test_copy_fixture_starts_from_frozen_hash(tmp_path, monkeypatch):
             "source": "private/cache",
             "tree_sha256": tree_hash,
             "manifest_sha256": "manifest",
-            "target": "cargo-home",
+            "target": "cargo-vendor",
         },
     }
 
     fixture = execution._copy_fixture(case, scratch)
 
     assert fixture["initial_tree_sha256"] == tree_hash
-    assert Path(fixture["target"]).name == "cargo-home"
+    assert Path(fixture["target"]).name == "cargo-vendor"
     assert execution.helpers._snapshot_digest(Path(fixture["target"])) == tree_hash
+    config = scratch / "cargo-home" / "config.toml"
+    assert config.is_file()
+    assert f'directory = "{fixture["target"]}"' in config.read_text()
+    assert "offline = true" in config.read_text()
+
+    (scratch / "cargo-home" / ".global-cache").write_text("mutable Cargo metadata")
+    execution._record_fixture_final(fixture)
+    assert fixture["mutated"] is False
 
     (Path(fixture["target"]) / "artifact").write_text("mutated")
     execution._record_fixture_final(fixture)

@@ -64,7 +64,8 @@ Each frozen case binds:
 - owner claim and excluded scope;
 - supported native commands;
 - evaluator-only gold;
-- a frozen writable dependency-cache seed and manifest-declared destination;
+- a frozen dependency seed and manifest-declared destination (vendored sources
+  for Cargo, with writable Cargo state kept separately);
   and
 - applicable evaluator adapter and machine evidence.
 
@@ -112,7 +113,7 @@ included.
 Before timing, the harness must:
 
 1. create a new origin-stripped candidate copy;
-2. create a new writable copy of the case's hashed dependency seed;
+2. create a new copy of the case's hashed dependency seed;
 3. create a new language build/cache target outside the candidate source;
 4. assert that the candidate adapter target, `.tracebook`, and declared output
    paths do not exist;
