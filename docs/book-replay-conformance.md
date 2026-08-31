@@ -95,6 +95,47 @@ python -m tracebook.book_replay run \
 Exit `0` means semantic agreement, `1` means the first semantic divergence was
 recorded, and `2` means input, process, or protocol failure.
 
+## Generated Campaigns And Reduction
+
+The v1 generator uses a specified SplitMix64 stream rather than Python's
+runtime PRNG. Each trace draws its prefix from an 18-event semantic scaffold;
+at 18 events or longer it reaches all 11 declared capabilities, then continues
+with state-aware generated adds, updates, deletes, and probes. Candidate
+behavior never feeds back into event generation.
+
+Run a deterministic campaign:
+
+```bash
+python -m tracebook.book_replay campaign \
+  --output /tmp/book-replay-campaign.json \
+  --reduced-events-output /tmp/book-replay-reduced.jsonl \
+  --seed 20260831 \
+  --traces 25 \
+  --events-per-trace 100 \
+  --candidate-cmd './book-adapter --tracebook-book-replay-stdio'
+```
+
+The runner stops at the first divergence and automatically delta-debugs its
+compared prefix. Reduction preserves the first-divergence category, rejects a
+new protocol failure while reducing a semantic failure, records its candidate
+run budget, and reports whether the result is one-minimal. Campaign artifacts
+include the generator version, campaign ID, per-trace seeds and hashes,
+capability coverage, original evidence, minimized evidence, and a stable
+failure ID.
+
+An already captured divergent trace can be minimized directly:
+
+```bash
+python -m tracebook.book_replay minimize trace.jsonl \
+  --events-output /tmp/reduced.jsonl \
+  --output /tmp/minimization.json \
+  --candidate-cmd './book-adapter --tracebook-book-replay-stdio'
+```
+
+`campaign` artifacts use `artifact_type = "tracebook.book-replay.campaign"`;
+standalone reductions use
+`artifact_type = "tracebook.book-replay.minimization"`.
+
 Python adapters can use the server helper:
 
 ```python
@@ -110,7 +151,8 @@ The complete reference-backed example is
 
 The maintained optional adapter targets NautilusTrader's native Rust-backed
 `L3_MBO` book and direct `simulate_fills(BookOrder)` Python binding. It passes
-all 17 bundled events at the pinned `2.0.0rc3` release candidate. See the
+all 17 bundled events and a pinned 2,500-event generated campaign at the
+`2.0.0rc3` release candidate. See the
 [`integrations/nautilus_trader`](../integrations/nautilus_trader) proof,
 provenance, exact command, and LGPL distribution warning.
 

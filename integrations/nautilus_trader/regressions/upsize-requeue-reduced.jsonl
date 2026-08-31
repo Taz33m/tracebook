@@ -1,0 +1,3 @@
+{"op":"add","order_id":1,"price":"100","quantity":"2","side":"BUY","symbol":"TEST"}
+{"op":"add","order_id":2,"price":"100","quantity":"3","side":"BUY","symbol":"TEST"}
+{"op":"update","order_id":1,"price":"100","quantity":"4","side":"BUY","symbol":"TEST"}

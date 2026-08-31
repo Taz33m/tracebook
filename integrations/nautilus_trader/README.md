@@ -39,6 +39,11 @@ The 17-event bundled trace covers:
 No trace order is submitted to NautilusTrader's execution engine. The only
 liquidity is the exogenous L3 state built from deltas.
 
+The scheduled proof also runs generator version 1 with seed `20260831`: 25
+independent traces of 100 events each. The stable campaign ID is
+`sha256:09b1599eaeb474d98617acc7869ace26759ed5ab8350803f06197ef572864bab`.
+It reaches all 11 declared semantic capabilities and passes all 2,500 events.
+
 ## Run The Pinned Proof
 
 Use a separate Python 3.12-3.14 environment because the v2 candidate does not
@@ -70,6 +75,24 @@ The command exits `0` and the pinned candidate produces:
   "final_state_hash": "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002"
 }
 ```
+
+## Negative Control And Retained Evidence
+
+[`faulty_adapter.py`](faulty_adapter.py) subclasses the real pinned native
+adapter and injects one deliberate fault: a same-price size increase is
+implemented as delete-plus-add, moving the order to the back of its level.
+This file is a harness negative control, not a candidate integration.
+
+The generated campaign must exit `1`, localize the first mismatch to
+`$.state.books[0].bids[0].order_id`, and reduce it to the three events in
+[`regressions/upsize-requeue-reduced.jsonl`](regressions/upsize-requeue-reduced.jsonl).
+The retained metadata in
+[`regressions/upsize-requeue-failure.json`](regressions/upsize-requeue-failure.json)
+pins failure ID `failure-dfe5c23848b63211b655`, the reduced trace hash, and
+the expected localized divergence. CI regenerates both forms and compares them
+to the retained evidence. This proves the test surface can reject a known
+native queue-priority defect; it does not imply the unmodified upstream has
+that defect.
 
 ## License Boundary
 

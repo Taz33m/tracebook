@@ -86,6 +86,11 @@ def test_nautilus_book_replay_integration_is_version_and_source_pinned():
     assert "does not claim" in readme
     assert '"nautilus-trader==2.0.0rc3"' in workflow
     assert "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002" in workflow
+    assert "sha256:09b1599eaeb474d98617acc7869ace26759ed5ab8350803f06197ef572864bab" in workflow
+    assert "failure-dfe5c23848b63211b655" in readme
+    assert (NAUTILUS_INTEGRATION / "faulty_adapter.py").is_file()
+    assert (NAUTILUS_INTEGRATION / "regressions" / "upsize-requeue-reduced.jsonl").is_file()
+    assert (NAUTILUS_INTEGRATION / "regressions" / "upsize-requeue-failure.json").is_file()
 
 
 @pytest.mark.skipif(

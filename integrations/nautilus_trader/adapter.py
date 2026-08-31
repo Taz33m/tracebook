@@ -103,13 +103,7 @@ class NautilusTraderBookReplayAdapter:
                 book = self._books[event.symbol]
                 old_order = known_orders[event.order_id]
                 native_order = self._native_order(event)
-                if old_order.side != native_order.side:
-                    # Native OrderBook.update selects one ladder from the new side. A
-                    # normalized side move is therefore delete+add at this boundary.
-                    book.delete(old_order, 0, index, index)
-                    book.add(native_order, 0, index, index)
-                else:
-                    book.update(native_order, 0, index, index)
+                self._apply_native_update(book, old_order, native_order, index)
                 known_orders[event.order_id] = native_order
         elif event.op == "delete":
             if event.order_id not in known_orders:
@@ -141,6 +135,16 @@ class NautilusTraderBookReplayAdapter:
             state_hash=state.digest(),
             order_count=state.order_count,
         )
+
+    @staticmethod
+    def _apply_native_update(book, old_order, native_order, index):
+        if old_order.side != native_order.side:
+            # Native OrderBook.update selects one ladder from the new side. A
+            # normalized side move is therefore delete+add at this boundary.
+            book.delete(old_order, 0, index, index)
+            book.add(native_order, 0, index, index)
+        else:
+            book.update(native_order, 0, index, index)
 
     def snapshot(self):
         snapshots = []

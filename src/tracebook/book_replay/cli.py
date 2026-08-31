@@ -11,9 +11,22 @@ from pathlib import Path
 from typing import List, Optional
 
 from .._version import __version__
+from .campaign import run_book_replay_campaign
 from .compare import run_book_replay
 from .external import ExternalBookReplayAdapterFactory
+from .minimize import minimize_book_replay_failure
 from .model import PROFILE_NAME, BookReplayConfig, BookReplayError, load_book_replay_events
+
+
+def _add_candidate_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--timeout", type=float, default=5.0)
+    candidate = parser.add_mutually_exclusive_group(required=True)
+    candidate.add_argument("--candidate-cmd", help="Candidate command as one shell-style string.")
+    candidate.add_argument(
+        "--candidate",
+        nargs=argparse.REMAINDER,
+        help="Adapter command and arguments; this must be the final CLI option.",
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -34,14 +47,30 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("events")
     run.add_argument("--output")
     run.add_argument("--profile", choices=[PROFILE_NAME], default=PROFILE_NAME)
-    run.add_argument("--timeout", type=float, default=5.0)
-    candidate = run.add_mutually_exclusive_group(required=True)
-    candidate.add_argument("--candidate-cmd", help="Candidate command as one shell-style string.")
-    candidate.add_argument(
-        "--candidate",
-        nargs=argparse.REMAINDER,
-        help="Adapter command and arguments; this must be the final CLI option.",
+    _add_candidate_arguments(run)
+
+    minimize = commands.add_parser(
+        "minimize",
+        help="Reduce one divergent L3 trace while preserving its failure category.",
     )
+    minimize.add_argument("events")
+    minimize.add_argument("--events-output", required=True)
+    minimize.add_argument("--output")
+    minimize.add_argument("--max-runs", type=int, default=100)
+    minimize.add_argument("--profile", choices=[PROFILE_NAME], default=PROFILE_NAME)
+    _add_candidate_arguments(minimize)
+
+    campaign = commands.add_parser(
+        "campaign",
+        help="Generate deterministic L3 traces and minimize the first divergence.",
+    )
+    campaign.add_argument("--output", required=True)
+    campaign.add_argument("--reduced-events-output")
+    campaign.add_argument("--seed", type=int, default=1337)
+    campaign.add_argument("--traces", type=int, default=25)
+    campaign.add_argument("--events-per-trace", type=int, default=100)
+    campaign.add_argument("--max-minimize-runs", type=int, default=100)
+    _add_candidate_arguments(campaign)
     return parser
 
 
@@ -80,6 +109,28 @@ def _emit(payload: dict, output: Optional[str]) -> None:
     print(f"Report written: {path}")
 
 
+def _write_events(events, output: str) -> None:
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for event in events:
+            handle.write(
+                json.dumps(
+                    event.to_dict(),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n"
+            )
+
+
+def _require_distinct_paths(*paths: Optional[str]) -> None:
+    resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
+    if len(resolved) != len(set(resolved)):
+        raise BookReplayError("input and output paths must be distinct")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
@@ -89,9 +140,38 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Profile: {PROFILE_NAME}")
             return 0
 
+        if args.command == "campaign":
+            _require_distinct_paths(args.output, args.reduced_events_output)
+            campaign = run_book_replay_campaign(
+                _candidate_factory(args),
+                seed=args.seed,
+                traces=args.traces,
+                events_per_trace=args.events_per_trace,
+                max_minimize_runs=args.max_minimize_runs,
+            )
+            _emit(campaign.to_dict(), args.output)
+            if campaign.failure is not None and args.reduced_events_output is not None:
+                _write_events(campaign.failure.minimization.events, args.reduced_events_output)
+                print(f"Reduced events written: {Path(args.reduced_events_output)}")
+            if campaign.failure is None:
+                return 0
+            return 2 if campaign.failure.minimization.report.operational_failure else 1
+
         events_path = Path(args.events).expanduser().resolve()
-        if args.output is not None and Path(args.output).expanduser().resolve() == events_path:
-            raise BookReplayError("input and output paths must be distinct")
+        events_output = args.events_output if args.command == "minimize" else None
+        _require_distinct_paths(str(events_path), args.output, events_output)
+        if args.command == "minimize":
+            minimization = minimize_book_replay_failure(
+                load_book_replay_events(str(events_path)),
+                _candidate_factory(args),
+                config=BookReplayConfig(args.profile),
+                max_runs=args.max_runs,
+                trace_name=str(events_path),
+            )
+            _write_events(minimization.events, args.events_output)
+            _emit(minimization.to_dict(), args.output)
+            print(f"Minimized events written: {Path(args.events_output)}")
+            return 2 if minimization.report.operational_failure else 1
         report = run_book_replay(
             load_book_replay_events(str(events_path)),
             _candidate_factory(args),
