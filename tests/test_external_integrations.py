@@ -40,6 +40,7 @@ INTEGRATION = ROOT / "integrations" / "python_matching_engine"
 RUST_INTEGRATION = ROOT / "integrations" / "orderbook_rs"
 GOCRONX_INTEGRATION = ROOT / "integrations" / "gocronx_matcher"
 NAUTILUS_INTEGRATION = ROOT / "integrations" / "nautilus_trader"
+INTREPID_INTEGRATION = ROOT / "integrations" / "intrepid_orderbook"
 RUST_PROTOCOL = ROOT / "integrations" / "rust_protocol"
 
 
@@ -199,6 +200,34 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "actions/upload-artifact@v7" in workflow
 
 
+def test_intrepid_orderbook_is_pinned_qualified_and_retains_the_fok_boundary():
+    go_mod = (INTREPID_INTEGRATION / "go.mod").read_text(encoding="utf-8")
+    go_sum = (INTREPID_INTEGRATION / "go.sum").read_text(encoding="utf-8")
+    readme = (INTREPID_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "intrepid-orderbook.yml").read_text(
+        encoding="utf-8"
+    )
+    root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    architecture = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+
+    assert "github.com/intrepidkarthi/orderbook v0.26.0" in go_mod
+    assert "github.com/intrepidkarthi/orderbook v0.26.0 h1:" in go_sum
+    assert "51d480cdb68b9989febb0b075d291cf891f425b3" in readme
+    assert "submitted-order versus submitted-order" in readme
+    assert "at most six non-zero quantity decimal places" in readme
+    assert "6/9" in readme
+    assert "failure-1ce2954857800b3a068d" in readme
+    assert "sha256:f8db775baabe7e665d45bbb920a67e43d405acf445de4951617df68ffa24eb69" in workflow
+    assert "sha256:08bf641bfa57da1892d744c08bca0be00f5ac1ade580ae8fcf7f195f0fcad6eb" in workflow
+    assert "sha256:81a095f9804852ff7035f4c3d428a51ae3d0e8e4b81ec335128c6af15b6f65bd" in workflow
+    assert "$.observation.outcome.reason" in workflow
+    assert "intrepidkarthi/orderbook` v0.26.0" in root_readme
+    assert "integrations/intrepid_orderbook/" in architecture
+    assert (INTREPID_INTEGRATION / "adapter_test.go").is_file()
+    assert (INTREPID_INTEGRATION / "regressions" / "fok-rejection-reduced.jsonl").is_file()
+    assert (INTREPID_INTEGRATION / "regressions" / "fok-rejection-failure.json").is_file()
+
+
 def test_native_adapters_share_one_rust_protocol_contract():
     shared_source = (RUST_PROTOCOL / "src" / "lib.rs").read_text(encoding="utf-8")
     shared_server = (RUST_PROTOCOL / "src" / "server.rs").read_text(encoding="utf-8")
@@ -223,6 +252,9 @@ def test_source_manifest_includes_native_integration_files():
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
     assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
     assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
+    assert "recursive-include integrations/intrepid_orderbook *.go" in manifest
+    assert "include integrations/intrepid_orderbook/go.mod" in manifest
+    assert "include integrations/intrepid_orderbook/go.sum" in manifest
     assert "recursive-include src/tracebook/book_replay/fixtures *.jsonl" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
