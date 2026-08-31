@@ -47,6 +47,7 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
     }
     assert package_data["tracebook.corpus.fixtures"] == ["coinbase-btcusd-synthetic-v1/*"]
     assert package_data["tracebook.conformance.fixtures.v1"] == ["*.json", "*.jsonl"]
+    assert package_data["tracebook.book_replay.fixtures"] == ["*.jsonl"]
     assert (ROOT / "src" / "tracebook" / "py.typed").is_file()
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 

@@ -1,3 +1,4 @@
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -14,6 +15,17 @@ from integrations.python_matching_engine.adapter import (
     UPSTREAM_REPOSITORY,
     PythonMatchingEngineAdapter,
 )
+from integrations.nautilus_trader.adapter import (
+    UPSTREAM_COMMIT as NAUTILUS_COMMIT,
+    UPSTREAM_REPOSITORY as NAUTILUS_REPOSITORY,
+    UPSTREAM_TAG as NAUTILUS_TAG,
+    UPSTREAM_VERSION as NAUTILUS_VERSION,
+)
+from tracebook.book_replay import (
+    ExternalBookReplayAdapter,
+    load_book_replay_events,
+    run_book_replay,
+)
 from tracebook.conformance import (
     AdapterProtocolError,
     ConformanceConfig,
@@ -27,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "integrations" / "python_matching_engine"
 RUST_INTEGRATION = ROOT / "integrations" / "orderbook_rs"
 GOCRONX_INTEGRATION = ROOT / "integrations" / "gocronx_matcher"
+NAUTILUS_INTEGRATION = ROOT / "integrations" / "nautilus_trader"
 RUST_PROTOCOL = ROOT / "integrations" / "rust_protocol"
 
 
@@ -57,6 +70,49 @@ def test_python_matching_engine_adapter_explains_a_missing_upstream(monkeypatch,
             [sys.executable, str(INTEGRATION / "adapter.py")],
             ConformanceConfig(),
         )
+
+
+def test_nautilus_book_replay_integration_is_version_and_source_pinned():
+    readme = (NAUTILUS_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "nautilus-trader-book-replay.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert NAUTILUS_REPOSITORY == "https://github.com/nautechsystems/nautilus_trader.git"
+    assert NAUTILUS_TAG == "v2.0.0rc3"
+    assert NAUTILUS_COMMIT == "648970ce64a304d93da0a29320cb6e19b905fa39"
+    assert NAUTILUS_VERSION == "2.0.0rc3"
+    assert "LGPL-3.0-only" in readme
+    assert "does not claim" in readme
+    assert '"nautilus-trader==2.0.0rc3"' in workflow
+    assert "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002" in workflow
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("nautilus_trader") is None,
+    reason="the optional pinned NautilusTrader runtime is not installed",
+)
+def test_pinned_nautilus_runtime_conforms_to_book_replay_profile():
+    events = load_book_replay_events(
+        ROOT / "src" / "tracebook" / "book_replay" / "fixtures" / "l3-book-replay-v1.jsonl"
+    )
+
+    report = run_book_replay(
+        events,
+        lambda config: ExternalBookReplayAdapter(
+            [sys.executable, str(NAUTILUS_INTEGRATION / "adapter.py")],
+            config,
+            timeout_seconds=10,
+        ),
+    )
+
+    assert report.conformant is True
+    assert report.compared_events == 17
+    assert report.candidate_engine.version == NAUTILUS_VERSION
+    assert (
+        report.final_state_hash
+        == "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002"
+    )
 
 
 def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
@@ -162,6 +218,7 @@ def test_source_manifest_includes_native_integration_files():
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
     assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
     assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
+    assert "recursive-include src/tracebook/book_replay/fixtures *.jsonl" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
     assert "recursive-include integrations/gocronx_matcher/src *.rs" in manifest

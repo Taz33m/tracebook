@@ -226,6 +226,12 @@ the canonical protocol.
 A divergence means two configured contracts disagree. It does not, by itself,
 declare either project incorrect.
 
+Order-book mirrors are tested on a deliberately different surface. The pinned
+[`NautilusTrader` L3 integration](https://github.com/Taz33m/tracebook/tree/main/integrations/nautilus_trader)
+passes `l3-book-replay-v1`, which exercises native deltas, queue snapshots, and
+non-mutating simulated fills. That result is not matching-engine conformance;
+see the [book-replay contract](https://github.com/Taz33m/tracebook/blob/main/docs/book-replay-conformance.md).
+
 ## Failure Artifacts
 
 Every stopped campaign writes an atomic, content-addressed bundle:

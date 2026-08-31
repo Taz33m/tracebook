@@ -1,0 +1,404 @@
+"""Compare one L3 replay trace and localize the first observable drift."""
+
+from __future__ import annotations
+
+from contextlib import suppress
+from dataclasses import dataclass, replace
+from typing import Any, Iterable, Optional
+
+from ..conformance.model import first_difference
+from .model import (
+    ARTIFACT_SCHEMA_VERSION,
+    PROTOCOL_VERSION,
+    BookReplayConfig,
+    BookReplayError,
+    BookReplayEvent,
+    BookReplayObservation,
+    BookReplayState,
+    EngineMetadata,
+    trace_sha256,
+)
+from .protocol import BookReplayAdapter, BookReplayAdapterFactory
+from .reference import ReferenceBookReplayAdapter
+
+
+@dataclass(frozen=True)
+class BookReplayDivergence:
+    """First observable disagreement in a book-replay trace."""
+
+    event_index: int
+    category: str
+    kind: str
+    path: str
+    message: str
+    event: Optional[dict]
+    reference: Any
+    candidate: Any
+    snapshot_error: Optional[str] = None
+    close_error: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        payload = {
+            "event_index": self.event_index,
+            "category": self.category,
+            "kind": self.kind,
+            "path": self.path,
+            "message": self.message,
+            "event": self.event,
+            "reference": self.reference,
+            "candidate": self.candidate,
+            "snapshot_error": self.snapshot_error,
+        }
+        if self.close_error is not None:
+            payload["close_error"] = self.close_error
+        return payload
+
+
+@dataclass(frozen=True)
+class BookReplayReport:
+    """Stable JSON artifact for one isolated L3 replay comparison."""
+
+    config: BookReplayConfig
+    trace_name: Optional[str]
+    trace_hash: str
+    event_count: int
+    compared_events: int
+    reference_engine: EngineMetadata
+    candidate_engine: EngineMetadata
+    conformant: bool
+    final_state_hash: Optional[str]
+    divergence: Optional[BookReplayDivergence]
+
+    @property
+    def operational_failure(self) -> bool:
+        return self.divergence is not None and (
+            self.divergence.category == "protocol"
+            or self.divergence.snapshot_error is not None
+            or self.divergence.close_error is not None
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": ARTIFACT_SCHEMA_VERSION,
+            "artifact_type": "tracebook.book-replay.report",
+            "protocol_version": PROTOCOL_VERSION,
+            "trace": {
+                "name": self.trace_name,
+                "sha256": self.trace_hash,
+                "event_count": self.event_count,
+            },
+            "config": self.config.to_dict(),
+            "reference_engine": self.reference_engine.to_dict(),
+            "candidate_engine": self.candidate_engine.to_dict(),
+            "compared_events": self.compared_events,
+            "conformant": self.conformant,
+            "final_state_hash": self.final_state_hash,
+            "divergence": self.divergence.to_dict() if self.divergence else None,
+        }
+
+
+def _divergence(
+    event: BookReplayEvent,
+    index: int,
+    category: str,
+    difference: dict,
+    message: str,
+) -> BookReplayDivergence:
+    return BookReplayDivergence(
+        event_index=index,
+        category=category,
+        kind=difference["kind"],
+        path=difference["path"],
+        message=message,
+        event=event.to_dict(),
+        reference=difference.get("reference"),
+        candidate=difference.get("candidate"),
+    )
+
+
+def _compare_observations(
+    event: BookReplayEvent,
+    index: int,
+    reference: BookReplayObservation,
+    candidate: BookReplayObservation,
+) -> Optional[BookReplayDivergence]:
+    reference_outcome = {
+        "status": reference.outcome.status,
+        "reason": reference.outcome.reason,
+    }
+    candidate_outcome = {
+        "status": candidate.outcome.status,
+        "reason": candidate.outcome.reason,
+    }
+    difference = first_difference(reference_outcome, candidate_outcome, "$.observation.outcome")
+    if difference is not None:
+        return _divergence(
+            event,
+            index,
+            "outcome",
+            difference,
+            "candidate delta acceptance differs from the reference",
+        )
+
+    difference = first_difference(
+        [fill.to_dict() for fill in reference.fills],
+        [fill.to_dict() for fill in candidate.fills],
+        "$.observation.fills",
+    )
+    if difference is not None:
+        return _divergence(
+            event,
+            index,
+            "simulated_fills",
+            difference,
+            "candidate simulated fills differ from the reference",
+        )
+
+    if reference.order_count != candidate.order_count:
+        return BookReplayDivergence(
+            event_index=index,
+            category="book_state",
+            kind="value_mismatch",
+            path="$.observation.order_count",
+            message="candidate mirrored-order count differs from the reference",
+            event=event.to_dict(),
+            reference=reference.order_count,
+            candidate=candidate.order_count,
+        )
+    if reference.state_hash != candidate.state_hash:
+        return BookReplayDivergence(
+            event_index=index,
+            category="book_state",
+            kind="value_mismatch",
+            path="$.observation.state_hash",
+            message="candidate mirrored state differs from the reference",
+            event=event.to_dict(),
+            reference=reference.state_hash,
+            candidate=candidate.state_hash,
+        )
+    return None
+
+
+def _localize_state(
+    divergence: BookReplayDivergence,
+    reference: ReferenceBookReplayAdapter,
+    candidate: BookReplayAdapter,
+    candidate_observation: Optional[BookReplayObservation],
+) -> BookReplayDivergence:
+    try:
+        reference_state = reference.snapshot()
+        candidate_state = candidate.snapshot()
+        if not isinstance(candidate_state, BookReplayState):
+            raise BookReplayError("candidate snapshot must return BookReplayState")
+    except Exception as exc:
+        return BookReplayDivergence(
+            event_index=divergence.event_index,
+            category="protocol",
+            kind="adapter_error",
+            path="$.state",
+            message=f"candidate snapshot failed: {exc}",
+            event=divergence.event,
+            reference="valid candidate snapshot",
+            candidate=None,
+            snapshot_error=f"candidate snapshot failed: {exc}",
+        )
+
+    candidate_digest = candidate_state.digest()
+    if candidate_observation is not None and candidate_digest != candidate_observation.state_hash:
+        return BookReplayDivergence(
+            event_index=divergence.event_index,
+            category="protocol",
+            kind="invalid_state_hash",
+            path="$.observation.state_hash",
+            message="candidate state_hash does not describe its snapshot",
+            event=divergence.event,
+            reference=candidate_digest,
+            candidate=candidate_observation.state_hash,
+        )
+    difference = first_difference(reference_state.to_dict(), candidate_state.to_dict(), "$.state")
+    if difference is None:
+        return divergence
+    return BookReplayDivergence(
+        event_index=divergence.event_index,
+        category="book_state",
+        kind=difference["kind"],
+        path=difference["path"],
+        message="candidate L3 orders or queue priority differ from the reference",
+        event=divergence.event,
+        reference=difference.get("reference"),
+        candidate=difference.get("candidate"),
+    )
+
+
+def _protocol_divergence(
+    event: BookReplayEvent,
+    index: int,
+    exc: Exception,
+) -> BookReplayDivergence:
+    return BookReplayDivergence(
+        event_index=index,
+        category="protocol",
+        kind="adapter_error",
+        path="$",
+        message=str(exc),
+        event=event.to_dict(),
+        reference="valid observation",
+        candidate=None,
+    )
+
+
+def run_book_replay(
+    events: Iterable[BookReplayEvent],
+    candidate_factory: BookReplayAdapterFactory,
+    config: Optional[BookReplayConfig] = None,
+    trace_name: Optional[str] = None,
+) -> BookReplayReport:
+    """Compare one candidate book mirror and stop at its first drift."""
+    normalized_events = list(events)
+    if any(not isinstance(event, BookReplayEvent) for event in normalized_events):
+        raise BookReplayError("book-replay traces contain only BookReplayEvent values")
+    config = config or BookReplayConfig()
+    reference = ReferenceBookReplayAdapter(config)
+    candidate = candidate_factory(config)
+    candidate_metadata = getattr(candidate, "metadata", None)
+    if not isinstance(candidate_metadata, EngineMetadata):
+        with suppress(Exception):
+            candidate.close()
+        reference.close()
+        raise BookReplayError("candidate adapter metadata must be EngineMetadata")
+
+    divergence: Optional[BookReplayDivergence] = None
+    compared_events = 0
+    final_state_hash: Optional[str] = None
+    last_candidate_observation: Optional[BookReplayObservation] = None
+    close_error: Optional[Exception] = None
+
+    try:
+        for index, event in enumerate(normalized_events, 1):
+            reference_observation = reference.apply(event, index)
+            try:
+                candidate_observation = candidate.apply(event, index)
+                if not isinstance(candidate_observation, BookReplayObservation):
+                    raise BookReplayError("candidate apply() must return BookReplayObservation")
+                if candidate_observation.index != index:
+                    raise BookReplayError(
+                        f"candidate observation index {candidate_observation.index} "
+                        f"does not match event {index}"
+                    )
+            except Exception as exc:
+                divergence = _protocol_divergence(event, index, exc)
+                compared_events = index
+                break
+            last_candidate_observation = candidate_observation
+            compared_events = index
+            divergence = _compare_observations(
+                event,
+                index,
+                reference_observation,
+                candidate_observation,
+            )
+            if divergence is not None:
+                if divergence.category == "book_state":
+                    divergence = _localize_state(
+                        divergence,
+                        reference,
+                        candidate,
+                        candidate_observation,
+                    )
+                break
+
+        if divergence is None:
+            reference_state = reference.snapshot()
+            final_state_hash = reference_state.digest()
+            try:
+                candidate_state = candidate.snapshot()
+                if not isinstance(candidate_state, BookReplayState):
+                    raise BookReplayError("candidate snapshot must return BookReplayState")
+                candidate_digest = candidate_state.digest()
+                if (
+                    last_candidate_observation is not None
+                    and candidate_digest != last_candidate_observation.state_hash
+                ):
+                    hashed_event = normalized_events[-1]
+                    divergence = BookReplayDivergence(
+                        event_index=len(normalized_events),
+                        category="protocol",
+                        kind="invalid_state_hash",
+                        path="$.observation.state_hash",
+                        message="candidate final state_hash does not describe its snapshot",
+                        event=hashed_event.to_dict(),
+                        reference=candidate_digest,
+                        candidate=last_candidate_observation.state_hash,
+                    )
+                else:
+                    difference = first_difference(
+                        reference_state.to_dict(),
+                        candidate_state.to_dict(),
+                        "$.state",
+                    )
+                    if difference is not None:
+                        state_event = normalized_events[-1] if normalized_events else None
+                        divergence = BookReplayDivergence(
+                            event_index=len(normalized_events),
+                            category="book_state",
+                            kind=difference["kind"],
+                            path=difference["path"],
+                            message="candidate final L3 state differs from the reference",
+                            event=state_event.to_dict() if state_event else None,
+                            reference=difference.get("reference"),
+                            candidate=difference.get("candidate"),
+                        )
+            except Exception as exc:
+                failed_event = normalized_events[-1] if normalized_events else None
+                divergence = BookReplayDivergence(
+                    event_index=len(normalized_events),
+                    category="protocol",
+                    kind="adapter_error",
+                    path="$.state",
+                    message=f"candidate final snapshot failed: {exc}",
+                    event=failed_event.to_dict() if failed_event else None,
+                    reference="valid final snapshot",
+                    candidate=None,
+                )
+    finally:
+        try:
+            candidate.close()
+        except Exception as exc:
+            close_error = exc
+        reference.close()
+
+    if close_error is not None:
+        if divergence is None:
+            closed_event = normalized_events[compared_events - 1] if compared_events else None
+            divergence = BookReplayDivergence(
+                event_index=compared_events,
+                category="protocol",
+                kind="adapter_close_error",
+                path="$",
+                message=f"candidate close failed: {close_error}",
+                event=closed_event.to_dict() if closed_event else None,
+                reference="clean adapter shutdown",
+                candidate=None,
+            )
+        else:
+            divergence = replace(divergence, close_error=f"candidate close failed: {close_error}")
+
+    return BookReplayReport(
+        config=config,
+        trace_name=trace_name,
+        trace_hash=trace_sha256(normalized_events),
+        event_count=len(normalized_events),
+        compared_events=compared_events,
+        reference_engine=reference.metadata,
+        candidate_engine=candidate_metadata,
+        conformant=divergence is None,
+        final_state_hash=final_state_hash,
+        divergence=divergence,
+    )
+
+
+__all__ = [
+    "BookReplayDivergence",
+    "BookReplayReport",
+    "run_book_replay",
+]

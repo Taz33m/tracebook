@@ -1,0 +1,17 @@
+{"op":"add","symbol":"TEST","order_id":1,"side":"BUY","price":"100","quantity":"2"}
+{"op":"add","symbol":"TEST","order_id":2,"side":"BUY","price":"100","quantity":"3"}
+{"op":"update","symbol":"TEST","order_id":1,"side":"BUY","price":"100","quantity":"4"}
+{"op":"add","symbol":"TEST","order_id":3,"side":"BUY","price":"99","quantity":"5"}
+{"op":"add","symbol":"TEST","order_id":10,"side":"SELL","price":"101","quantity":"1.5"}
+{"op":"add","symbol":"TEST","order_id":11,"side":"SELL","price":"101","quantity":"2.5"}
+{"op":"add","symbol":"TEST","order_id":12,"side":"SELL","price":"102","quantity":"4"}
+{"op":"probe","symbol":"TEST","side":"BUY","price":"102","quantity":"5"}
+{"op":"probe","symbol":"TEST","side":"SELL","price":"99","quantity":"8"}
+{"op":"update","symbol":"TEST","order_id":2,"side":"BUY","price":"99","quantity":"3"}
+{"op":"probe","symbol":"TEST","side":"SELL","price":"99","quantity":"12"}
+{"op":"delete","symbol":"TEST","order_id":1}
+{"op":"delete","symbol":"TEST","order_id":10}
+{"op":"probe","symbol":"TEST","side":"BUY","price":"101","quantity":"3"}
+{"op":"add","symbol":"ALT","order_id":1,"side":"SELL","price":"50","quantity":"7"}
+{"op":"probe","symbol":"ALT","side":"BUY","price":"50","quantity":"2"}
+{"op":"delete","symbol":"TEST","order_id":999}

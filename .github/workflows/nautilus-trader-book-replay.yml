@@ -1,0 +1,53 @@
+name: NautilusTrader L3 book replay
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 1"
+  pull_request:
+    paths:
+      - ".github/workflows/nautilus-trader-book-replay.yml"
+      - "integrations/nautilus_trader/**"
+      - "src/tracebook/book_replay/**"
+      - "tests/test_book_replay.py"
+      - "tests/test_external_integrations.py"
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-v2-book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install Tracebook and the pinned optional candidate
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "nautilus-trader==2.0.0rc3"
+
+      - name: Verify the isolated L3 book-replay profile
+        run: |
+          python -m tracebook.book_replay run \
+            src/tracebook/book_replay/fixtures/l3-book-replay-v1.jsonl \
+            --output /tmp/nautilus-book-replay.json \
+            --timeout 10 \
+            --candidate python integrations/nautilus_trader/adapter.py
+          python -c "import json; p=json.load(open('/tmp/nautilus-book-replay.json')); assert p['artifact_type'] == 'tracebook.book-replay.report'; assert p['conformant'] is True and p['compared_events'] == 17; assert p['candidate_engine']['version'] == '2.0.0rc3'; assert p['final_state_hash'] == '9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002'"
+
+      - name: Run the book-replay and integration contract tests
+        run: python -m pytest tests/test_book_replay.py tests/test_external_integrations.py
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: nautilus-trader-book-replay
+          path: /tmp/nautilus-book-replay.json
+          if-no-files-found: error
