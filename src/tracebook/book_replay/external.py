@@ -11,6 +11,7 @@ from collections import deque
 from pathlib import Path
 from typing import Deque, Mapping, Optional, Sequence
 
+from ..conformance.model import ConformanceError
 from .model import (
     PROTOCOL_NAME,
     PROTOCOL_VERSION,
@@ -46,16 +47,20 @@ class ExternalBookReplayAdapter:
             if not isinstance(argument, str) or not argument:
                 raise BookReplayError("candidate command arguments must be non-empty strings")
             normalized_command.append(argument)
+        try:
+            normalized_timeout = float(timeout_seconds)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise BookReplayError("timeout_seconds must be a positive finite number") from exc
         if (
             isinstance(timeout_seconds, bool)
             or not isinstance(timeout_seconds, (int, float))
-            or not math.isfinite(float(timeout_seconds))
-            or timeout_seconds <= 0
+            or not math.isfinite(normalized_timeout)
+            or normalized_timeout <= 0
         ):
             raise BookReplayError("timeout_seconds must be a positive finite number")
 
         self.command = tuple(normalized_command)
-        self.timeout_seconds = float(timeout_seconds)
+        self.timeout_seconds = normalized_timeout
         self._closed = False
         self._broken = False
         self._last_index = 0
@@ -112,7 +117,10 @@ class ExternalBookReplayAdapter:
                 raise BookReplayProtocolError("ready message reported the wrong protocol")
             if ready.get("protocol_version") != PROTOCOL_VERSION:
                 raise BookReplayProtocolError("ready message reported the wrong protocol version")
-            self.metadata = EngineMetadata.from_dict(ready.get("engine", {}))
+            try:
+                self.metadata = EngineMetadata.from_dict(ready.get("engine", {}))
+            except ConformanceError as exc:
+                raise BookReplayProtocolError(f"invalid ready engine metadata: {exc}") from exc
         except Exception:
             self._broken = True
             self._shutdown()

@@ -1,6 +1,7 @@
 import io
 import json
 import sys
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 import pytest
@@ -23,10 +24,162 @@ from tracebook.book_replay import (
     serve_book_replay_stdio,
 )
 from tracebook.book_replay.cli import main
+from tracebook.book_replay.model import Outcome, SimulatedFill
 
 ROOT = Path(__file__).parents[1]
 PROFILE_TRACE = ROOT / "src" / "tracebook" / "book_replay" / "fixtures" / f"{PROFILE_NAME}.jsonl"
 EXAMPLE_ADAPTER = ROOT / "examples" / "book_replay_adapter.py"
+
+
+def _serve_test(factory, *messages, hello_overrides=None):
+    hello = dict(type="hello", protocol=PROTOCOL_NAME, protocol_version=PROTOCOL_VERSION)
+    hello.update(hello_overrides or {})
+    source = io.StringIO("".join(json.dumps(item) + "\n" for item in (hello, *messages)))
+    sink = io.StringIO()
+    status = serve_book_replay_stdio(factory, source, sink)
+    return status, [json.loads(line) for line in sink.getvalue().splitlines()]
+
+
+def test_server_close_failure_is_one_terminal_adapter_error():
+    instances = []
+
+    class BrokenClose(ReferenceBookReplayAdapter):
+        def __init__(self, config):
+            super().__init__(config)
+            self.close_calls = 0
+            instances.append(self)
+
+        def close(self):
+            self.close_calls += 1
+            raise ValueError("shutdown failed")
+
+    status, messages = _serve_test(BrokenClose, dict(type="finish", event_count=0))
+    assert status == 2
+    assert [item["type"] for item in messages] == ["ready", "error"]
+    assert messages[-1]["code"] == "ADAPTER_ERROR"
+    assert instances[0].close_calls == 1
+
+
+@pytest.mark.parametrize("stage", ["factory", "apply", "snapshot"])
+@pytest.mark.parametrize("exception", [TypeError, ValueError])
+def test_server_adapter_exceptions_are_not_client_errors(stage, exception):
+    closed = []
+
+    class BrokenAdapter(ReferenceBookReplayAdapter):
+        def __init__(self, config):
+            if stage == "factory":
+                raise exception("adapter bug")
+            super().__init__(config)
+
+        def apply(self, event, index):
+            if stage == "apply":
+                raise exception("adapter bug")
+            return super().apply(event, index)
+
+        def snapshot(self):
+            raise exception("adapter bug")
+
+        def close(self):
+            closed.append(True)
+
+    request = (
+        dict(type="event", index=1, event=_event().to_dict())
+        if stage == "apply"
+        else dict(type="snapshot", index=0)
+    )
+    status, messages = _serve_test(BrokenAdapter, request)
+    assert status == 2
+    assert messages[-1]["code"] == "ADAPTER_ERROR"
+    assert len(closed) == (0 if stage == "factory" else 1)
+
+
+@pytest.mark.parametrize("kind,field", [("snapshot", "index"), ("finish", "event_count")])
+@pytest.mark.parametrize("value", [None, False, True, 0.0, "0", -1, "missing"])
+def test_server_requires_integer_session_counters(kind, field, value):
+    request = {"type": kind}
+    if value != "missing":
+        request[field] = value
+    status, messages = _serve_test(ReferenceBookReplayAdapter, request)
+    assert status == 2
+    assert [item["type"] for item in messages] == ["ready", "error"]
+    assert messages[-1]["code"] == "PROTOCOL_ERROR"
+
+
+def test_server_invalid_payload_is_a_client_error():
+    status, messages = _serve_test(
+        ReferenceBookReplayAdapter, dict(type="event", index=1, event=None)
+    )
+    assert status == 2
+    assert messages[-1]["code"] == "PROTOCOL_ERROR"
+    status, messages = _serve_test(ReferenceBookReplayAdapter, hello_overrides={"config": None})
+    assert status == 2
+    assert messages[0]["code"] == "PROTOCOL_ERROR"
+
+
+@pytest.mark.parametrize("field,value", [("outcome", {}), ("fills", (object(),)), ("fills", None)])
+def test_invalid_in_process_observation_is_classified_as_protocol_failure(field, value):
+    class Malformed(ReferenceBookReplayAdapter):
+        def apply(self, event, index):
+            fields = dict(
+                index=index,
+                outcome=Outcome("applied"),
+                fills=(),
+                state_hash=self.snapshot().digest(),
+                order_count=0,
+            )
+            fields[field] = value
+            return BookReplayObservation(**fields)
+
+    report = run_book_replay([_event()], Malformed)
+    assert report.operational_failure
+    assert report.divergence.category == "protocol"
+    assert report.divergence.kind == "adapter_error"
+
+
+@pytest.mark.parametrize("precision", [3, 28, 60])
+def test_probe_subtraction_and_canonical_values_are_exact_at_any_context_precision(precision):
+    tiny = "0.0000000000000000000000000000000000000001"
+    leftover = "0." + "9" * 40
+    with localcontext() as context:
+        context.prec = precision
+        adapter = ReferenceBookReplayAdapter(BookReplayConfig())
+        adapter.apply(_event(order_id=1, quantity=tiny), 1)
+        adapter.apply(_event(order_id=2, quantity="1"), 2)
+        before = adapter.snapshot()
+        observation = adapter.apply(_event("probe", quantity="1"), 3)
+        assert observation.fills == (SimulatedFill("100", tiny), SimulatedFill("100", leftover))
+        assert adapter.snapshot() == before
+    with localcontext() as context:
+        context.prec = 100
+        assert sum(Decimal(fill.quantity) for fill in observation.fills) == Decimal(1)
+
+
+def test_external_timeout_overflow_is_a_public_validation_error():
+    with pytest.raises(BookReplayError, match="positive finite"):
+        ExternalBookReplayAdapter(["never-started"], BookReplayConfig(), timeout_seconds=10**400)
+
+
+def test_external_invalid_metadata_is_a_protocol_error_and_child_is_reaped(monkeypatch):
+    import subprocess
+
+    processes = []
+    popen = subprocess.Popen
+
+    def capture_process(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(subprocess, "Popen", capture_process)
+    script = (
+        "import json,sys; hello=json.loads(sys.stdin.readline()); "
+        "hello.update(type='ready',engine={}); print(json.dumps(hello),flush=True); "
+        "sys.stdin.read()"
+    )
+    with pytest.raises(BookReplayProtocolError, match="invalid ready engine metadata"):
+        ExternalBookReplayAdapter([sys.executable, "-c", script], BookReplayConfig())
+    assert len(processes) == 1
+    assert processes[0].poll() is not None
 
 
 def _event(op="add", **overrides):

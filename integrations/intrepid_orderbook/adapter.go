@@ -252,7 +252,7 @@ func (book *bookHarness) checkQuantityCapacity(
 			return errors.New("quantity exceeds the native int64 pro-rata product range")
 		}
 	}
-	if orderType == "LIMIT" && quantity > math.MaxInt64-sameSideTotal {
+	if orderType != "MARKET" && quantity > math.MaxInt64-sameSideTotal {
 		return errors.New("quantity exceeds the native int64 side aggregate range")
 	}
 	return nil

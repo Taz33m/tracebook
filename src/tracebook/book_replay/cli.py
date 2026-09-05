@@ -125,7 +125,10 @@ def _emit(
 
 
 def _require_distinct_paths(*paths: Optional[str]) -> None:
-    resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
+    try:
+        resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
+    except RuntimeError as exc:
+        raise BookReplayError(f"cannot resolve book-replay path: {exc}") from exc
     if len(resolved) != len(set(resolved)) or any(
         left in right.parents or right in left.parents
         for index, left in enumerate(resolved)

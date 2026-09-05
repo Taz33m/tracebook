@@ -307,7 +307,7 @@ def measure_book_replay_coverage(
                 if previous.side == event.side and previous.price == event.price:
                     if Decimal(event.quantity or "0") > Decimal(previous.quantity or "0"):
                         covered.add("same-level-upsize")
-                else:
+                elif previous.price != event.price:
                     covered.add("price-relocation")
                 active[key] = event
             elif event.op == "delete":

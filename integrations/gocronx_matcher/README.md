@@ -50,6 +50,9 @@ traces, 10/10 covered capabilities, and 28 candidate process runs.
 The adapter scales prices into integer ticks and quantities into fixed
 twelve-place native lots. `quantity_decimal_places` controls output rounding
 only; it never rounds submitted order, reduction, or replacement quantities.
+If normalization would turn a positive fill or remainder into zero, the session
+fails with an adapter error before emitting that invalid observation. Use enough
+output precision for the trace; this does not round or resubmit native orders.
 For example, at output precision zero, crossing a `2.4` buy with a `3.5` sell
 leaves native quantity `1.1`, reported as `1`. Nonrepresentable quantities are
 rejected before submission, and invalid replacement quantities preserve the

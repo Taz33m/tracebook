@@ -304,6 +304,9 @@ func runServer(decoder *json.Decoder, writer *bufio.Writer) error {
 		}
 		switch kind {
 		case "event":
+			if raw := object["event"]; len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+				return protocolError("event payload must be an object")
+			}
 			var frame eventFrame
 			if err := decodeObject(object, &frame); err != nil {
 				return protocolError(err.Error())
@@ -321,12 +324,12 @@ func runServer(decoder *json.Decoder, writer *bufio.Writer) error {
 			}
 		case "snapshot":
 			var frame struct {
-				Index uint64 `json:"index"`
+				Index *uint64 `json:"index"`
 			}
 			if err := decodeObject(object, &frame); err != nil {
 				return protocolError(err.Error())
 			}
-			if frame.Index != lastIndex {
+			if frame.Index == nil || *frame.Index != lastIndex {
 				return protocolError("snapshot index does not match the last event")
 			}
 			state, err := adapter.snapshot()
@@ -340,12 +343,12 @@ func runServer(decoder *json.Decoder, writer *bufio.Writer) error {
 			}
 		case "finish":
 			var frame struct {
-				EventCount uint64 `json:"event_count"`
+				EventCount *uint64 `json:"event_count"`
 			}
 			if err := decodeObject(object, &frame); err != nil {
 				return protocolError(err.Error())
 			}
-			if frame.EventCount != lastIndex {
+			if frame.EventCount == nil || *frame.EventCount != lastIndex {
 				return protocolError("finish event_count does not match the last event")
 			}
 			return writeFrame(writer, map[string]any{

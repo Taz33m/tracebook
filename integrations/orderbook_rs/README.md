@@ -230,8 +230,14 @@ artifacts under `target/` are excluded.
   rounding, are stored as integer ticks, and return as canonical decimal
   strings. This is intentionally not exact decimal division at half-tick
   boundaries; for example, `1.015 / 0.01` snaps to `1.01`.
-- Quantities use fixed-point `u64` units at `quantity_decimal_places`; a value
-  that rounds to zero or overflows that range is rejected.
+- Quantities use fixed-point `u64` units at 12 native decimal places. Inputs
+  requiring finer precision or exceeding that native range are rejected without
+  rounding. `quantity_decimal_places` controls output normalization only; it
+  never changes the quantity submitted to the engine.
+  If output normalization would turn a positive fill or remainder into zero,
+  the session fails with an adapter error before emitting an invalid observation.
+  Choose enough output precision for the trace; low-precision configurations
+  outside the recorded profiles are not qualified by those results.
 - Real owners map deterministically to `Hash32`. Anonymous owners receive a
   unique per-order identity so STP does not make unrelated anonymous orders
   self-match or reject them for a missing user ID.

@@ -9,6 +9,11 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 Prepared version: **0.7.0**. See the [draft release notes](docs/releases/0.7.0.md).
 This version has not been published; 0.6.0 remains the public install target.
 
+- Addressed the release-code findings from PR #84: fail closed on L3 shutdown
+  and malformed protocol values, preserve exact decimal probe arithmetic,
+  protect staged artifacts against ordinary source-path replacement, reject
+  zero-normalized Rust observations, and enforce Go IOC/FOK numeric limits.
+  Frozen research findings remain separately documented and unresolved.
 - Kept Rust adapter input quantities independent of report display precision.
   Both native adapters now share exact checked 12-place integer encoding and
   reject quantities outside that domain rather than pre-rounding orders.

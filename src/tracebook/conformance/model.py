@@ -54,7 +54,10 @@ def canonical_decimal(value: Any, decimal_places: Optional[int] = None) -> str:
                 raise ConformanceError(f"numeric value cannot be normalized: {value!r}") from exc
     if number == 0:
         return "0"
-    return format(number.normalize(), "f")
+    # Decimal.normalize() applies the ambient precision and can silently round
+    # an otherwise exact value. Strip insignificant zeros from fixed-point text.
+    rendered = format(number, "f")
+    return rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
 
 
 def _positive_int(value: Any, field_name: str) -> int:

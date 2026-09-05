@@ -17,16 +17,77 @@ WORKFLOWS = {
 }
 
 
-def _pull_request_paths(workflow):
-    source = (ROOT / ".github" / "workflows" / f"{workflow}.yml").read_text(encoding="utf-8")
-    # Read this deliberately simple YAML sequence without adding PyYAML to the
-    # dependency-free package's test requirements. Do not search job bodies,
-    # where a mentioned path cannot cause the workflow to run.
-    match = re.search(r"^  pull_request:\n    paths:\n((?:      - .+\n)+)", source, re.M)
-    assert match is not None, f"{workflow} must declare pull_request.paths"
-    patterns = [ast.literal_eval(line.removeprefix("      - ")) for line in match[1].splitlines()]
+def _mapping_block(lines, key):
+    """Read a block in our workflows' block-style YAML subset, not job text."""
+    lines = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
+    assert lines, f"missing YAML mapping: {key}"
+    base = min(len(line) - len(line.lstrip()) for line in lines)
+    for index, line in enumerate(lines):
+        indent = len(line) - len(line.lstrip())
+        if indent != base or not re.fullmatch(rf"['\"]?{key}['\"]?:\s*(?:#.*)?", line.strip()):
+            continue
+        block = []
+        for child in lines[index + 1 :]:
+            if len(child) - len(child.lstrip()) <= indent:
+                break
+            block.append(child)
+        return block
+    raise AssertionError(f"missing YAML mapping: {key}")
+
+
+def _parse_pull_request_paths(source):
+    # Intentionally support block mappings and quoted positive path sequences
+    # used here. Unsupported YAML fails closed, without a new runtime dependency.
+    block = source.splitlines()
+    for key in ("on", "pull_request", "paths"):
+        block = _mapping_block(block, key)
+    assert block and all(line.strip().startswith("- ") for line in block)
+    patterns = [ast.literal_eval(line.strip().removeprefix("- ")) for line in block]
     assert all(isinstance(pattern, str) and not pattern.startswith("!") for pattern in patterns)
     return patterns
+
+
+def _pull_request_paths(workflow):
+    source = (ROOT / ".github" / "workflows" / f"{workflow}.yml").read_text(encoding="utf-8")
+    return _parse_pull_request_paths(source)
+
+
+@pytest.mark.parametrize("indent", [2, 4])
+def test_path_reader_allows_comments_blank_lines_and_other_trigger_keys(indent):
+    space = " " * indent
+    source = "\n".join(
+        [
+            "on:",
+            f"{space}pull_request: # keep native proofs attached",
+            f"{space * 2}branches:",
+            f"{space * 3}- 'main'",
+            "",
+            f"{space * 2}# runtime inputs",
+            f"{space * 2}paths:",
+            f"{space * 3}- 'src/**' # reference",
+            "",
+            f"{space * 3}# shared crate",
+            f'{space * 3}- "integrations/**"',
+            f"{space}push:",
+            f"{space * 2}paths:",
+            f"{space * 3}- 'ignored/**'",
+            "jobs:",
+            f"{space}pull_request:",
+            f"{space * 2}paths:",
+            f"{space * 3}- 'wrong/**'",
+        ]
+    )
+    assert _parse_pull_request_paths(source) == ["src/**", "integrations/**"]
+
+
+def test_path_reader_cannot_use_paths_from_jobs_or_another_trigger():
+    for source in (
+        "jobs:\n  pull_request:\n    paths:\n      - 'src/**'",
+        "on:\n  push:\n    paths:\n      - 'src/**'\n"
+        "  pull_request:\n    branches:\n      - 'main'",
+    ):
+        with pytest.raises(AssertionError, match="missing YAML mapping"):
+            _parse_pull_request_paths(source)
 
 
 def _matches(path, pattern):

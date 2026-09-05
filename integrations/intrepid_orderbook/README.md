@@ -42,7 +42,7 @@ precision is lower.
 The native arithmetic has a bounded domain:
 
 - price ticks and scaled quantities must be positive and fit signed `int64`;
-- before admitting a limit order, the adapter requires its full quantity plus
+- before admitting a limit, IOC, or FOK order, the adapter requires its full quantity plus
   all resting quantity on its side to fit signed `int64` (replacement excludes
   the old order);
 - under pro-rata, incoming quantity times each potentially crossed maker's

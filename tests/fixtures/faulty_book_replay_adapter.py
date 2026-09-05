@@ -12,11 +12,11 @@ from tracebook.book_replay import (
 
 
 class FaultyBookReplayAdapter:
-    def __init__(self, config):
+    def __init__(self, config, engine_name="faulty-book-replay-test-adapter"):
         self._inner = ReferenceBookReplayAdapter(config)
         self._reorder = False
         self.metadata = EngineMetadata(
-            "faulty-book-replay-test-adapter",
+            engine_name,
             "1",
             "Python",
         )

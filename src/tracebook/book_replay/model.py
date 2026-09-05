@@ -213,6 +213,12 @@ class BookReplaySnapshot:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "symbol", _symbol(self.symbol))
+        for name in ("bids", "asks"):
+            orders = getattr(self, name)
+            if not isinstance(orders, tuple) or any(
+                not isinstance(order, RestingBookOrder) for order in orders
+            ):
+                raise BookReplayError(f"{name} must be a tuple of RestingBookOrder values")
         order_ids = [order.order_id for order in self.bids + self.asks]
         if len(order_ids) != len(set(order_ids)):
             raise BookReplayError(f"book {self.symbol!r} contains duplicate order ids")
@@ -246,6 +252,10 @@ class BookReplayState:
     books: Tuple[BookReplaySnapshot, ...] = ()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.books, tuple) or any(
+            not isinstance(book, BookReplaySnapshot) for book in self.books
+        ):
+            raise BookReplayError("books must be a tuple of BookReplaySnapshot values")
         symbols = [book.symbol for book in self.books]
         if symbols != sorted(symbols) or len(symbols) != len(set(symbols)):
             raise BookReplayError("book snapshots must have unique symbols in sorted order")
@@ -282,6 +292,12 @@ class BookReplayObservation:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "index", _positive_int(self.index, "observation index"))
+        if not isinstance(self.outcome, Outcome):
+            raise BookReplayError("observation outcome must be an Outcome")
+        if not isinstance(self.fills, tuple) or any(
+            not isinstance(fill, SimulatedFill) for fill in self.fills
+        ):
+            raise BookReplayError("observation fills must be a tuple of SimulatedFill values")
         if (
             not isinstance(self.state_hash, str)
             or len(self.state_hash) != _HASH_LENGTH

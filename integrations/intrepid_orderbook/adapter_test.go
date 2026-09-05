@@ -173,6 +173,53 @@ func TestServerHandshakeAndEmptyCompletion(t *testing.T) {
 	}
 }
 
+func TestServerRejectsMissingNullAndMistypedRequiredFields(t *testing.T) {
+	for _, frame := range []string{
+		`{"type":"finish"}`, `{"type":"finish","event_count":null}`,
+		`{"type":"finish","event_count":false}`, `{"type":"finish","event_count":"0"}`,
+		`{"type":"finish","event_count":0.0}`, `{"type":"finish","event_count":-1}`,
+		`{"type":"snapshot"}`, `{"type":"snapshot","index":null}`,
+		`{"type":"snapshot","index":true}`, `{"type":"snapshot","index":"0"}`,
+		`{"type":"event","index":1}`, `{"type":"event","index":1,"event":null}`,
+		`{"type":"event","index":1,"event":[]}`, `{"type":"event","index":1,"event":false}`,
+	} {
+		t.Run(frame, func(t *testing.T) {
+			input := `{"type":"hello","protocol":"tracebook.conformance","protocol_version":1}` + "\n" + frame
+			var output bytes.Buffer
+			if status := serve(strings.NewReader(input), &output); status != 2 {
+				t.Fatalf("status = %d, output = %s", status, output.String())
+			}
+			lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+			if len(lines) != 2 || !strings.Contains(lines[1], `"code":"PROTOCOL_ERROR"`) {
+				t.Fatalf("expected ready and one protocol error: %s", output.String())
+			}
+		})
+	}
+}
+
+func TestSideAggregateEnvelopeIncludesIOCAndFOKButNotMarket(t *testing.T) {
+	for _, orderType := range []string{"LIMIT", "IOC", "FOK", "MARKET"} {
+		t.Run(orderType, func(t *testing.T) {
+			harness := testAdapter(t, configWire{})
+			first := applyForTest(t, harness, limitEvent("1", "BUY", "0.01", "4700000000000"))
+			event := limitEvent("2", "BUY", "0.01", "4700000000000")
+			event.OrderType = orderType
+			got := applyForTest(t, harness, event)
+			if got.StateHash != first.StateHash || len(got.Trades) != 0 {
+				t.Fatalf("unsupported aggregate mutated the book: %#v", got)
+			}
+			if orderType == "MARKET" {
+				if got.Outcome.Status != "applied" {
+					t.Fatalf("market order lost its aggregate exemption: %#v", got)
+				}
+			} else if got.Outcome.Status != "rejected" || got.Outcome.Message == nil ||
+				!strings.Contains(*got.Outcome.Message, "side aggregate range") {
+				t.Fatalf("expected pre-mutation aggregate rejection: %#v", got)
+			}
+		})
+	}
+}
+
 func TestServerHandshakeReportsInjectedEvidenceIdentity(t *testing.T) {
 	previousRevision, previousSnapshot := engineRevision, engineSnapshot
 	t.Cleanup(func() {
