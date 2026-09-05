@@ -61,6 +61,9 @@ impl QuantityEncoding {
     }
 
     pub fn format(&self, units: u64) -> Result<String, String> {
+        if units == 0 {
+            return Err("quantity must be positive".to_string());
+        }
         let places = self.output_decimal_places.min(NATIVE_DECIMAL_PLACES);
         let divisor = 10_u64.pow(NATIVE_DECIMAL_PLACES - places);
         let mut rounded = units / divisor;
@@ -200,6 +203,18 @@ mod tests {
                     .contains("cannot be represented")
             );
         }
-        assert!(QuantityEncoding::new(12).unwrap().format(0).is_err());
+    }
+
+    #[test]
+    fn zero_observations_report_nonpositive_quantity_not_precision_loss() {
+        for places in [0, 12, 18] {
+            assert_eq!(
+                QuantityEncoding::new(places)
+                    .unwrap()
+                    .format(0)
+                    .unwrap_err(),
+                "quantity must be positive"
+            );
+        }
     }
 }

@@ -221,6 +221,22 @@ def test_cli_symlink_loop_is_controlled_before_candidate(tmp_path, monkeypatch, 
     assert set(tmp_path.iterdir()) == {trace, loop}
 
 
+@pytest.mark.parametrize("command", ["run", "minimize"])
+def test_cli_input_symlink_loop_is_controlled_before_candidate(
+    tmp_path, monkeypatch, capsys, command
+):
+    loop = tmp_path / "loop"
+    loop.symlink_to(loop)
+    _forbid_candidate(monkeypatch)
+
+    arguments = _command(command, loop, tmp_path / "report.json", tmp_path / "reduced.jsonl")
+    assert cli.main(arguments) == 2
+    error = capsys.readouterr().err
+    assert error.startswith("Error:")
+    assert "Traceback" not in error
+    assert set(tmp_path.iterdir()) == {loop}
+
+
 def test_late_destination_creation_is_never_overwritten(tmp_path, monkeypatch):
     trace, report = tmp_path / "trace.jsonl", tmp_path / "report.json"
     _trace(trace)
@@ -379,6 +395,43 @@ def test_replacing_stage_directory_path_cannot_change_published_inode(tmp_path, 
         assert report.read_bytes() == b"owned bytes"
     assert (stage / output._stage_name).read_bytes() == b"foreign replacement"
     assert list(moved.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "replace_directory,fail_open", [(False, True), (True, True), (True, False)]
+)
+def test_stage_directory_setup_failure_cleans_only_owned_entries(
+    tmp_path, monkeypatch, replace_directory, fail_open
+):
+    reservation = artifacts.OutputReservation(tmp_path / "report.json")
+    stage = tmp_path / reservation._stage_directory_name
+    moved = tmp_path / "moved-stage"
+    open_descriptor = os.open
+    descriptors = []
+
+    def inject_stage_open(path, *args, **kwargs):
+        if path == reservation._stage_directory_name:
+            if replace_directory:
+                stage.rename(moved)
+                stage.mkdir(mode=0o500)
+            if fail_open:
+                raise OSError("injected stage directory open failure")
+        descriptor = open_descriptor(path, *args, **kwargs)
+        descriptors.append(descriptor)
+        return descriptor
+
+    monkeypatch.setattr(artifacts.os, "open", inject_stage_open)
+    monkeypatch.setattr(artifacts.os, "supports_dir_fd", os.supports_dir_fd | {inject_stage_open})
+    error = OSError if fail_open else artifacts.BookReplayError
+    with pytest.raises(error, match="open failure" if fail_open else "reservation changed"):
+        reservation.__enter__()
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert set(tmp_path.iterdir()) == ({stage, moved} if replace_directory else set())
+    if replace_directory:
+        assert list(stage.iterdir()) == list(moved.iterdir()) == []
+        assert stage.stat().st_mode & 0o777 == 0o500
 
 
 def test_cleanup_failure_still_closes_all_descriptors_and_other_sidecars(tmp_path, monkeypatch):

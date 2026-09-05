@@ -124,11 +124,15 @@ def _emit(
         print(f"Report written: {Path(output)}")
 
 
-def _require_distinct_paths(*paths: Optional[str]) -> None:
+def _resolve_path(path: str) -> Path:
     try:
-        resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
+        return Path(path).expanduser().resolve()
     except RuntimeError as exc:
         raise BookReplayError(f"cannot resolve book-replay path: {exc}") from exc
+
+
+def _require_distinct_paths(*paths: Optional[str]) -> None:
+    resolved = [_resolve_path(path) for path in paths if path is not None]
     if len(resolved) != len(set(resolved)) or any(
         left in right.parents or right in left.parents
         for index, left in enumerate(resolved)
@@ -171,7 +175,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 return 0
             return 2 if campaign.failure.minimization.report.operational_failure else 1
 
-        events_path = Path(args.events).expanduser().resolve()
+        events_path = _resolve_path(args.events)
         events_output = args.events_output if args.command == "minimize" else None
         _require_distinct_paths(str(events_path), args.output, events_output)
         with reserve_outputs(args.output, events_output) as outputs:

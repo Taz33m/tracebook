@@ -37,6 +37,7 @@ class OutputReservation:
         self._stage_name = "payload"
         self._parent_fd: Optional[int] = None
         self._stage_directory_fd: Optional[int] = None
+        self._stage_directory_identity: Optional[tuple[int, int]] = None
         self._lock_fd: Optional[int] = None
         self._stage_fd: Optional[int] = None
         self._published = False
@@ -56,11 +57,23 @@ class OutputReservation:
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
             self._lock_fd = os.open(self._lock_name, flags, 0o600, dir_fd=self._parent_fd)
             os.mkdir(self._stage_directory_name, mode=0o700, dir_fd=self._parent_fd)
-            self._stage_directory_fd = os.open(
+            # Retain the identity even if opening the newly created directory
+            # fails. Cleanup must not remove a replacement at the same name.
+            self._stage_directory_identity = _identity(
+                os.stat(self._stage_directory_name, dir_fd=self._parent_fd, follow_symlinks=False)
+            )
+            stage_directory_fd = os.open(
                 self._stage_directory_name,
                 os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
                 dir_fd=self._parent_fd,
             )
+            try:
+                if _identity(os.fstat(stage_directory_fd)) != self._stage_directory_identity:
+                    raise BookReplayError(f"book-replay output reservation changed: {self.target}")
+            except BaseException:
+                os.close(stage_directory_fd)
+                raise
+            self._stage_directory_fd = stage_directory_fd
             self._stage_fd = os.open(
                 self._stage_name, flags, 0o400, dir_fd=self._stage_directory_fd
             )
@@ -119,6 +132,21 @@ class OutputReservation:
         ):
             raise BookReplayError(f"book-replay output reservation changed: {self.target}")
         self._require_absent()
+
+    def _owns_stage_directory(self) -> bool:
+        if self._parent_fd is None or self._stage_directory_identity is None:
+            return False
+        try:
+            return (
+                _identity(
+                    os.stat(
+                        self._stage_directory_name, dir_fd=self._parent_fd, follow_symlinks=False
+                    )
+                )
+                == self._stage_directory_identity
+            )
+        except OSError:
+            return False
 
     def _same_parent(self) -> bool:
         if self._parent_fd is None:
@@ -190,18 +218,18 @@ class OutputReservation:
                     except OSError as exc:
                         error = error or exc
         self._stage_fd = self._lock_fd = None
+        try:
+            if self._owns_stage_directory():
+                os.rmdir(self._stage_directory_name, dir_fd=self._parent_fd)
+        except OSError as exc:
+            error = error or exc
+        self._stage_directory_identity = None
         if self._stage_directory_fd is not None:
             try:
-                if self._owns_entry(self._stage_directory_name, self._stage_directory_fd):
-                    os.rmdir(self._stage_directory_name, dir_fd=self._parent_fd)
+                os.close(self._stage_directory_fd)
             except OSError as exc:
                 error = error or exc
-            finally:
-                try:
-                    os.close(self._stage_directory_fd)
-                except OSError as exc:
-                    error = error or exc
-                self._stage_directory_fd = None
+            self._stage_directory_fd = None
         if self._parent_fd is not None:
             try:
                 os.close(self._parent_fd)

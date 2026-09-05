@@ -6,6 +6,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Fixed four PR #84 follow-ups: clean owned staging directories when opening
+  fails, classify adapter broken-pipe failures correctly, distinguish zero
+  quantities from precision loss, and handle symlink loops in CLI input paths.
 - Addressed the release-code findings from PR #84: fail closed on L3 shutdown
   and malformed protocol values, preserve exact decimal probe arithmetic,
   protect staged artifacts against ordinary source-path replacement, reject
