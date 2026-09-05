@@ -6,6 +6,43 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Made initial staging-identity failures explicit: report the possible residue
+  path and skipped cleanup, preserve unverified entries, and exit before starting
+  a candidate. Documented conservative manual recovery without blanket deletion.
+- Fixed four PR #84 follow-ups: clean owned staging directories when opening
+  fails, classify adapter broken-pipe failures correctly, distinguish zero
+  quantities from precision loss, and handle symlink loops in CLI input paths.
+- Addressed the release-code findings from PR #84: fail closed on L3 shutdown
+  and malformed protocol values, preserve exact decimal probe arithmetic,
+  protect staged artifacts against ordinary source-path replacement, reject
+  zero-normalized Rust observations, and enforce Go IOC/FOK numeric limits.
+  Frozen research findings remain separately documented and unresolved.
+- Kept Rust adapter input quantities independent of report display precision.
+  Both native adapters now share exact checked 12-place integer encoding and
+  reject quantities outside that domain rather than pre-rounding orders.
+- Made L3 report and reduced-trace outputs no-clobber: reserve destinations
+  before candidate execution, stage complete artifacts, and publish the report
+  only after its reduced trace. Existing files and competing writes are kept.
+- Expanded native integration CI path filters to cover reference-engine and
+  packaging changes. Local type checks now use the active Python minor version,
+  matching CI, and release instructions include distribution privacy checks.
+- Aligned release-check virtual environments with the standard POSIX symlink
+  behavior, so relocatable Python installations can run clean-install and
+  migration checks without broken copied-executable library paths.
+- Added a separate L3 book-replay contract and pinned NautilusTrader adapter.
+  This exercises market-data deltas and non-mutating FIFO fill probes, not a
+  submitted-order CLOB. Both process clients now honor the configured shutdown
+  timeout and reject forced termination even if the candidate exits zero.
+- Added a pinned native Go CLOB adapter for `intrepidkarthi/orderbook`, with
+  FIFO qualification and a retained unfillable-FOK contract difference. Adapter
+  boundaries preserve anonymous-order STP behavior, binary64 price snapping,
+  output-only quantity precision, and fail closed on unsafe native arithmetic.
+- Excluded private experiment trees and local agent/navigation metadata from
+  source distributions, with a synthetic stale-manifest regression and privacy
+  checks for source archives, wheels, and embedded source-file inventories.
+- Published the corrected 24-run agent-qualification aggregate: 1/12 safe passes
+  with public docs and 5/12 with the frozen skill. The improvement is confined
+  to boundary judgment; neither arm safely qualified the compatible engine.
 - Added a captured two-run qualification workflow. Candidate adapters can now
   report optional revision and snapshot metadata, candidate-facing commands can
   enforce a task-pinned identity before the first event, and `evidence-init` /

@@ -79,17 +79,18 @@ lint:
 	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ tools/
 
 typecheck:
-	$(PYTHON_VENV) -m mypy src/tracebook experiments tools
+	$(PYTHON_VENV) -m mypy --python-version "$$($(PYTHON_VENV) -c 'import sys; print("%d.%d" % sys.version_info[:2])')" src/tracebook experiments tools
 
 security:
 	$(PYTHON_VENV) -m bandit -q -r src integrations tools
 
 compile:
-	$(PYTHON_VENV) -m compileall -q src tests examples integrations experiments tools
+	$(PYTHON_VENV) -m compileall -q -x 'experiments/private/' src tests examples integrations experiments tools
 
 build:
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/conformance .
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+	$(PYTHON_VENV) tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
 	$(PYTHON_VENV) -m twine check dist/conformance/* dist/simulator/*
 	$(PYTHON_VENV) tools/verify_sdist_wheel_agreement.py \
 		--conformance-wheel dist/conformance/*.whl \

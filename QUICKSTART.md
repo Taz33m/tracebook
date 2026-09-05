@@ -121,7 +121,10 @@ Use `--algorithm PRO_RATA` to compare the pro-rata path.
 
 ## Start The Dashboard
 
+Install the optional dashboard dependencies before starting the interactive UI:
+
 ```bash
+python -m pip install "tracebook-sim[dashboard]==0.6.0"
 tracebook-dashboard --port 8050 --demo-simulation
 ```
 

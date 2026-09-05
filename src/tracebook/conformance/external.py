@@ -253,19 +253,28 @@ class ExternalProcessAdapter:
             )
         finally:
             self._closed = True
-            self._shutdown()
-        if not was_broken and close_error is None and self._process.returncode != 0:
-            close_error = AdapterProtocolError(
-                f"candidate exited with code {self._process.returncode} after complete"
+            shutdown_timed_out = self._shutdown(
+                timeout_seconds=self.timeout_seconds if not self._broken else 0.5
             )
+        if not was_broken and close_error is None:
+            if shutdown_timed_out:
+                close_error = AdapterProtocolError(
+                    f"candidate timed out exiting after complete ({self.timeout_seconds:g}s)"
+                )
+            elif self._process.returncode != 0:
+                close_error = AdapterProtocolError(
+                    f"candidate exited with code {self._process.returncode} after complete"
+                )
         if close_error is not None:
             raise close_error
 
-    def _shutdown(self) -> None:
+    def _shutdown(self, *, timeout_seconds: float = 0.5) -> bool:
+        timed_out = False
         if self._process.poll() is None:
             try:
-                self._process.wait(timeout=0.5)
+                self._process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
+                timed_out = True
                 self._process.terminate()
                 try:
                     self._process.wait(timeout=0.5)
@@ -285,6 +294,7 @@ class ExternalProcessAdapter:
                     stream.close()
                 except OSError:
                     pass
+        return timed_out
 
 
 class ExternalProcessAdapterFactory:

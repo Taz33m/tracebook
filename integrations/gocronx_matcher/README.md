@@ -47,8 +47,20 @@ traces, 10/10 covered capabilities, and 28 candidate process runs.
 | `clear` | replace the symbol's `OrderBook` |
 | full queue state | decode snapshot format version 1, then canonicalize bids descending and asks ascending |
 
-The adapter scales prices into integer ticks and quantities into configured
-fixed-point units. Source owners are retained in adapter metadata because
+The adapter scales prices into integer ticks and quantities into fixed
+twelve-place native lots. `quantity_decimal_places` controls output rounding
+only; it never rounds submitted order, reduction, or replacement quantities.
+If normalization would turn a positive fill or remainder into zero, the session
+fails with an adapter error before emitting that invalid observation. Use enough
+output precision for the trace; this does not round or resubmit native orders.
+For example, at output precision zero, crossing a `2.4` buy with a `3.5` sell
+leaves native quantity `1.1`, reported as `1`. Nonrepresentable quantities are
+rejected before submission, and invalid replacement quantities preserve the
+existing order. See the shared crate's [numeric boundary](../rust_protocol/README.md)
+for range and precision limits, including accepted configurations that remain
+unqualified.
+
+Source owners are retained in adapter metadata because
 `matcher` does not store them, then reconciled against the native snapshot after
 every event.
 

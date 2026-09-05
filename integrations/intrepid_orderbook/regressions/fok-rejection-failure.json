@@ -1,0 +1,58 @@
+{
+  "artifact_type": "tracebook.conformance.failure",
+  "budget_exhausted": false,
+  "campaign_id": "sha256:61464afc70170352bc6eecb6ccb22f120d05166d6f5cb7926ce5d43adf8a6b41",
+  "campaign_seed": 42,
+  "candidate_engine": {
+    "language": "Go",
+    "name": "intrepidkarthi/orderbook CLOB",
+    "version": "v0.26.0@51d480cdb68b"
+  },
+  "config": {
+    "matching_algorithm": "fifo",
+    "quantity_decimal_places": 12,
+    "self_trade_policy": "NONE",
+    "tick_size": "0.01"
+  },
+  "expected_reduced_divergence": {
+    "candidate": "INVALID_ORDER",
+    "category": "outcome",
+    "event": {
+      "op": "new",
+      "order_id": 2,
+      "order_type": "FOK",
+      "owner": 4,
+      "price": 99.99,
+      "quantity": 1.0,
+      "side": "SELL",
+      "symbol": "BETA",
+      "timestamp_ns": 7
+    },
+    "event_index": 1,
+    "kind": "type_mismatch",
+    "message": "candidate applied/rejected semantics differ from the reference",
+    "path": "$.observation.outcome.reason",
+    "reference": null,
+    "snapshot_error": null
+  },
+  "failure_class": "order-outcome drift",
+  "failure_id": "failure-1ce2954857800b3a068d",
+  "generator_version": 2,
+  "one_minimal": true,
+  "original_divergence_event": 7,
+  "original_event_count": 7,
+  "original_trace_sha256": "sha256:be56a106f547a3ed17988bd8b6e448b91ed18e111678c9ac1dc9bd384fce7f8f",
+  "paths": {
+    "campaign": "campaign.json",
+    "minimization": "failure/minimization.json",
+    "original": "original.jsonl",
+    "reduced": "reduced.jsonl"
+  },
+  "profile": "fifo-full-v1",
+  "reduced_event_count": 1,
+  "reduced_trace_sha256": "sha256:395c88526cdd81445205298f8234d8b57afcef71534f8fd7312608fc43862706",
+  "schema_version": 1,
+  "target_category": "outcome",
+  "trace_index": 1,
+  "trace_seed": 2949826092126892291
+}

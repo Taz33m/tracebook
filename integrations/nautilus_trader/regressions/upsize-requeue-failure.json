@@ -1,0 +1,38 @@
+{
+  "artifact_type": "tracebook.book-replay.negative-control",
+  "budget_exhausted": false,
+  "campaign_id": "sha256:983b4500cf7665fddb7f20d3eb5b3b53817e5852dee3eac68ae37355cde39e22",
+  "candidate_engine": {
+    "language": "Rust/Python",
+    "name": "NautilusTrader L3 negative control: upsize requeue",
+    "version": "2.0.0rc3"
+  },
+  "failure_class": "book_state:value_mismatch",
+  "failure_id": "failure-dfe5c23848b63211b655",
+  "minimized_event_count": 3,
+  "minimized_trace_sha256": "d9eeb771c7c469c0762c67be7dc76a63a09f36d46c1dd2cda1dbb3cbb47c0b29",
+  "one_minimal": true,
+  "original_divergence_event": 3,
+  "original_event_count": 3,
+  "original_trace_sha256": "d9eeb771c7c469c0762c67be7dc76a63a09f36d46c1dd2cda1dbb3cbb47c0b29",
+  "reduced_divergence": {
+    "candidate": 2,
+    "category": "book_state",
+    "event": {
+      "op": "update",
+      "order_id": 1,
+      "price": "100",
+      "quantity": "4",
+      "side": "BUY",
+      "symbol": "TEST"
+    },
+    "event_index": 3,
+    "kind": "value_mismatch",
+    "message": "candidate L3 orders or queue priority differ from the reference",
+    "path": "$.state.books[0].bids[0].order_id",
+    "reference": 1,
+    "snapshot_error": null
+  },
+  "schema_version": 1,
+  "trace_index": 1
+}

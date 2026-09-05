@@ -7,11 +7,17 @@ on:
   pull_request:
     paths:
       - ".github/workflows/python-matching-engine.yml"
+      - "pyproject.toml"
+      - "MANIFEST.in"
       - "integrations/python_matching_engine/**"
+      - "src/tracebook/__init__.py"
+      - "src/tracebook/_version.py"
+      - "src/tracebook/core/**"
       - "src/tracebook/conformance/**"
-      - "src/tracebook/events/market_replay.py"
+      - "src/tracebook/events/**"
       - "tests/test_conformance_campaign.py"
       - "tests/test_external_integrations.py"
+      - "tests/test_integration_workflow_coverage.py"
 
 permissions:
   contents: read

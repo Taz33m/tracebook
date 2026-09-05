@@ -1,0 +1,201 @@
+name: intrepidkarthi orderbook integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 7 * * 2"
+  pull_request:
+    paths:
+      - ".github/workflows/intrepid-orderbook.yml"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "integrations/intrepid_orderbook/**"
+      - "src/tracebook/__init__.py"
+      - "src/tracebook/_version.py"
+      - "src/tracebook/core/**"
+      - "src/tracebook/conformance/**"
+      - "src/tracebook/events/**"
+      - "tests/test_external_integrations.py"
+      - "tests/test_integration_workflow_coverage.py"
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-go-clob:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.5"
+          cache-dependency-path: integrations/intrepid_orderbook/go.sum
+
+      - name: Configure integration paths
+        run: |
+          echo "ADAPTER=$RUNNER_TEMP/tracebook-intrepid-orderbook" >> "$GITHUB_ENV"
+          echo "REPORT_ROOT=$RUNNER_TEMP/intrepid-orderbook" >> "$GITHUB_ENV"
+
+      - name: Install Tracebook
+        run: python -m pip install -e .
+
+      - name: Build and test the pinned adapter
+        working-directory: integrations/intrepid_orderbook
+        run: |
+          test -z "$(gofmt -l .)"
+          go mod verify
+          test "$(go list -m -f '{{.Version}}' github.com/intrepidkarthi/orderbook)" = "v0.26.0"
+          go vet ./...
+          go test ./...
+          go build -trimpath -o "$ADAPTER" .
+
+      - name: Verify the nine-case suite boundary
+        run: |
+          set +e
+          tracebook-conformance suite \
+            src/tracebook/conformance/fixtures/v2 \
+            --output "$REPORT_ROOT/suite.json" \
+            --timeout 10 \
+            --candidate "$ADAPTER"
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads((Path(os.environ["REPORT_ROOT"]) / "suite.json").read_text())
+          assert report["case_count"] == 9
+          assert report["conformant_cases"] == 6
+          failed = {
+              case["name"]: case["report"]["divergence"]
+              for case in report["cases"]
+              if not case["report"]["conformant"]
+          }
+          assert set(failed) == {
+              "order-instructions",
+              "pro-rata-allocation",
+              "stp-cancel-incoming",
+          }
+          for divergence in failed.values():
+              assert divergence["category"] == "outcome"
+              assert divergence["path"] == "$.observation.outcome.reason"
+              assert divergence["candidate"] == "INVALID_ORDER"
+              assert divergence["reference"] is None
+          PY
+
+      - name: Qualify fifo-limit-v1
+        run: |
+          tracebook-conformance qualify \
+            --profile fifo-limit-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --max-minimize-runs 100 \
+            --candidate-cmd "$ADAPTER" \
+            --output-dir "$REPORT_ROOT/fifo-limit"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "fifo-limit" / "qualification.json").read_text()
+          )
+          assert report["qualified"] is True
+          assert report["qualification_id"] == "sha256:f8db775baabe7e665d45bbb920a67e43d405acf445de4951617df68ffa24eb69"
+          assert report["campaign"]["campaign_id"] == "sha256:59d70645ff13f12fa4af23af69631714df22ef5f25cd1104b0c1124f98f71f6a"
+          assert report["candidate_runs"] == 28
+          assert report["suite"]["report"]["conformant_cases"] == 3
+          assert report["campaign"]["completed_traces"] == 25
+          assert report["campaign"]["generated_events"] == 5000
+          assert report["campaign"]["semantic_coverage"]["covered_count"] == 10
+          assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
+          PY
+
+      - name: Qualify fifo-partial-fill-v1
+        run: |
+          tracebook-conformance qualify \
+            --profile fifo-partial-fill-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --max-minimize-runs 100 \
+            --candidate-cmd "$ADAPTER" \
+            --output-dir "$REPORT_ROOT/fifo-partial"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "fifo-partial" / "qualification.json").read_text()
+          )
+          assert report["qualified"] is True
+          assert report["qualification_id"] == "sha256:08bf641bfa57da1892d744c08bca0be00f5ac1ade580ae8fcf7f195f0fcad6eb"
+          assert report["campaign"]["campaign_id"] == "sha256:297f895b99ac26f92287ababd1dcc25b68b0be98787e9b9d814d5cd241769cf9"
+          assert report["candidate_runs"] == 28
+          assert report["suite"]["report"]["conformant_cases"] == 3
+          assert report["campaign"]["completed_traces"] == 25
+          assert report["campaign"]["generated_events"] == 5000
+          assert report["campaign"]["semantic_coverage"]["covered_count"] == 10
+          assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
+          PY
+
+      - name: Regenerate the full-profile FOK divergence
+        run: |
+          set +e
+          tracebook-conformance qualify \
+            --profile fifo-full-v1 \
+            --seed 42 \
+            --traces 25 \
+            --events-per-trace 200 \
+            --max-minimize-runs 100 \
+            --candidate-cmd "$ADAPTER" \
+            --output-dir "$REPORT_ROOT/fifo-full"
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          cmp \
+            integrations/intrepid_orderbook/regressions/fok-rejection-reduced.jsonl \
+            "$REPORT_ROOT/fifo-full/reduced.jsonl"
+          cmp \
+            integrations/intrepid_orderbook/regressions/fok-rejection-failure.json \
+            "$REPORT_ROOT/fifo-full/failure.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "fifo-full" / "qualification.json").read_text()
+          )
+          failure = report["campaign"]["failure"]
+          retained = json.loads(
+              (Path(os.environ["REPORT_ROOT"]) / "fifo-full" / "failure.json").read_text()
+          )
+          assert report["qualified"] is False
+          assert report["qualification_id"] == "sha256:81a095f9804852ff7035f4c3d428a51ae3d0e8e4b81ec335128c6af15b6f65bd"
+          assert report["campaign"]["campaign_id"] == "sha256:61464afc70170352bc6eecb6ccb22f120d05166d6f5cb7926ce5d43adf8a6b41"
+          assert failure["failure_id"] == "failure-1ce2954857800b3a068d"
+          assert failure["original_event_count"] == 7
+          assert failure["minimized_event_count"] == 1
+          assert failure["one_minimal"] is True
+          assert retained["expected_reduced_divergence"]["path"] == "$.observation.outcome.reason"
+          PY
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: intrepid-orderbook-qualification
+          path: ${{ runner.temp }}/intrepid-orderbook
+          if-no-files-found: error

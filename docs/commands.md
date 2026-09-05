@@ -133,6 +133,9 @@ fixed semantic surface.
 
 Prepare and verify a release-grade two-run evidence pair:
 
+These two evidence commands are unreleased. Use a pinned source build, not the
+published 0.6.0 wheel, and record its revision and wheel hash.
+
 ```bash
 tracebook-conformance evidence-init /path/to/candidate \
   --workspace .tracebook/release-evidence \
@@ -254,7 +257,10 @@ Options:
 
 ## Dashboard CLI
 
+Install the optional dashboard dependencies before starting the interactive UI:
+
 ```bash
+python -m pip install "tracebook-sim[dashboard]==0.6.0"
 tracebook-dashboard --port 8050 --demo-simulation --demo-throughput 200 --seed 1337
 ```
 

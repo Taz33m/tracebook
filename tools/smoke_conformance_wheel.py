@@ -51,9 +51,14 @@ for package in ("numpy", "psutil"):
         raise SystemExit(f"{package} unexpectedly installed in isolated environment")
 
 import tracebook.conformance
+import tracebook.book_replay
 import importlib.metadata
+from importlib import resources
 
 assert importlib.metadata.version("tracebook-conformance") == tracebook.__version__
+assert resources.files("tracebook.book_replay.fixtures").joinpath(
+    "l3-book-replay-v1.jsonl"
+).is_file()
 """
     _run([str(python), "-c", probe])
 
@@ -136,7 +141,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         root = Path(temporary)
         environment = root / "venv"
         output = root / "qualification"
-        venv.EnvBuilder(with_pip=True, clear=True).create(environment)
+        # Match `python -m venv`: keep executable-relative runtime libraries
+        # reachable on POSIX, while retaining the default Windows copy mode.
+        venv.EnvBuilder(with_pip=True, clear=True, symlinks=os.name != "nt").create(environment)
         python = _environment_python(environment)
         conformance = _environment_script(environment, "tracebook-conformance")
 

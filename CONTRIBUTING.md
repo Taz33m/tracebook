@@ -20,7 +20,7 @@ Run these before opening a pull request:
 ```bash
 python -m black --check src tests examples integrations experiments tools
 python -m flake8 src tests examples integrations experiments tools
-python -m mypy src/tracebook experiments tools
+python -m mypy --python-version "$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')" src/tracebook experiments tools
 python -m bandit -q -r src integrations tools
 python -m compileall -q src tests examples integrations experiments tools
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
@@ -37,6 +37,7 @@ For packaging changes, also run:
 ```bash
 python -m build --sdist --wheel --outdir dist/conformance .
 python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+python tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
 python -m twine check dist/conformance/* dist/simulator/*
 python tools/verify_distribution_split.py \
   --expected-version 0.6.0 \
@@ -51,6 +52,11 @@ python tools/verify_sdist_wheel_agreement.py \
   --expected-version 0.6.0
 python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 ```
+
+Type-check against the active interpreter, as CI does for each supported Python
+version. Newer optional dependencies can contain syntax that cannot be parsed
+when a newer environment is accidentally checked as Python 3.10. Passing on one
+interpreter does not replace the Python 3.10–3.13 CI matrix.
 
 Normalized feed adapters should emit `tracebook.MarketEvent` values and keep
 venue-specific parsing, sequence checks, and assumptions outside the core replay

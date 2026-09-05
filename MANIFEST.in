@@ -10,13 +10,6 @@ include SECURITY.md
 include SUPPORT.md
 
 recursive-include docs *.md *.png *.svg
-exclude docs/openwiki.md
-exclude docs/graphify.md
-exclude AGENTS.md
-exclude CLAUDE.md
-prune openwiki
-prune graphify-out
-prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
 recursive-include packaging *.md
@@ -24,6 +17,9 @@ include packaging/tracebook-sim/pyproject.toml
 include packaging/tracebook-sim/LICENSE
 recursive-include tools *.py
 recursive-include integrations *.py *.md *.json *.jsonl
+recursive-include integrations/intrepid_orderbook *.go
+include integrations/intrepid_orderbook/go.mod
+include integrations/intrepid_orderbook/go.sum
 recursive-include integrations/orderbook_rs/src *.rs
 include integrations/orderbook_rs/Cargo.toml
 include integrations/orderbook_rs/Cargo.lock
@@ -44,4 +40,18 @@ recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl
 recursive-include src/tracebook/conformance/fixtures *.json *.jsonl
+recursive-include src/tracebook/book_replay/fixtures *.jsonl
 include src/tracebook/py.typed
+
+# Apply exclusions last, including to entries retained in an old SOURCES.txt.
+prune experiments/private
+prune .agents
+prune .codex
+prune openwiki
+prune graphify-out
+prune .local-tools
+exclude docs/openwiki.md
+exclude docs/graphify.md
+exclude AGENTS.md
+exclude CLAUDE.md
+global-exclude AGENTS.md CLAUDE.md skills-lock.json

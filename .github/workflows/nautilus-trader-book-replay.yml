@@ -1,0 +1,146 @@
+name: NautilusTrader L3 book replay
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 1"
+  pull_request:
+    paths:
+      - ".github/workflows/nautilus-trader-book-replay.yml"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "integrations/__init__.py"
+      - "integrations/nautilus_trader/**"
+      - "integrations/python_matching_engine/__init__.py"
+      - "integrations/python_matching_engine/adapter.py"
+      - "src/tracebook/__init__.py"
+      - "src/tracebook/_version.py"
+      - "src/tracebook/core/**"
+      - "src/tracebook/conformance/**"
+      - "src/tracebook/events/**"
+      - "src/tracebook/book_replay/**"
+      - "examples/book_replay_adapter.py"
+      - "tests/conftest.py"
+      - "tests/test_book_replay*.py"
+      - "tests/fixtures/faulty_book_replay_adapter.py"
+      - "tests/test_external_integrations.py"
+      - "tests/test_integration_workflow_coverage.py"
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-v2-book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install Tracebook and the pinned optional candidate
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "nautilus-trader==2.0.0rc3" "pytest>=9.1.1"
+
+      - name: Verify the isolated L3 book-replay profile
+        run: |
+          python -m tracebook.book_replay run \
+            src/tracebook/book_replay/fixtures/l3-book-replay-v1.jsonl \
+            --output /tmp/nautilus-book-replay.json \
+            --timeout 10 \
+            --candidate python integrations/nautilus_trader/adapter.py
+          python -c "import json; p=json.load(open('/tmp/nautilus-book-replay.json')); assert p['artifact_type'] == 'tracebook.book-replay.report'; assert p['conformant'] is True and p['compared_events'] == 17; assert p['candidate_engine']['version'] == '2.0.0rc3'; assert p['final_state_hash'] == '9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002'"
+
+      - name: Run the deterministic generated campaign
+        run: |
+          python -m tracebook.book_replay campaign \
+            --output /tmp/nautilus-book-campaign.json \
+            --seed 20260831 \
+            --traces 25 \
+            --events-per-trace 100 \
+            --timeout 10 \
+            --candidate python -m integrations.nautilus_trader.adapter
+          python - <<'PY'
+          import json
+
+          with open("/tmp/nautilus-book-campaign.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          assert payload["campaign_id"] == "sha256:09b1599eaeb474d98617acc7869ace26759ed5ab8350803f06197ef572864bab"
+          assert payload["conformant"] is True
+          assert payload["completed_traces"] == 25
+          assert payload["generated_events"] == 2500
+          assert payload["semantic_coverage"]["complete"] is True
+          assert payload["semantic_coverage"]["covered"] == 11
+          PY
+
+      - name: Prove the harness catches and reduces a native queue-priority fault
+        run: |
+          set +e
+          python -m tracebook.book_replay campaign \
+            --output /tmp/nautilus-negative-control.json \
+            --reduced-events-output /tmp/nautilus-negative-control.jsonl \
+            --seed 20260831 \
+            --traces 10 \
+            --events-per-trace 100 \
+            --timeout 10 \
+            --candidate python -m integrations.nautilus_trader.faulty_adapter
+          status=$?
+          set -e
+          test "$status" -eq 1
+          cmp \
+            integrations/nautilus_trader/regressions/upsize-requeue-reduced.jsonl \
+            /tmp/nautilus-negative-control.jsonl
+          python - <<'PY'
+          import json
+
+          with open("/tmp/nautilus-negative-control.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          with open(
+              "integrations/nautilus_trader/regressions/upsize-requeue-failure.json",
+              encoding="utf-8",
+          ) as handle:
+              expected = json.load(handle)
+          failure = payload["failure"]
+          actual = {
+              "artifact_type": "tracebook.book-replay.negative-control",
+              "budget_exhausted": failure["budget_exhausted"],
+              "campaign_id": payload["campaign_id"],
+              "candidate_engine": payload["candidate_engine"],
+              "failure_class": failure["failure_class"],
+              "failure_id": failure["failure_id"],
+              "minimized_event_count": failure["minimized_event_count"],
+              "minimized_trace_sha256": failure["minimized_trace_sha256"],
+              "one_minimal": failure["one_minimal"],
+              "original_divergence_event": failure["original_divergence_event"],
+              "original_event_count": failure["original_event_count"],
+              "original_trace_sha256": failure["original_trace_sha256"],
+              "reduced_divergence": failure["minimization"]["book_replay_report"]["divergence"],
+              "schema_version": payload["schema_version"],
+              "trace_index": failure["trace_index"],
+          }
+          assert actual == expected
+          PY
+
+      - name: Run the book-replay and integration contract tests
+        run: >-
+          python -m pytest
+          tests/test_book_replay.py
+          tests/test_book_replay_campaign.py
+          tests/test_book_replay_artifacts.py
+          tests/test_external_integrations.py
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: nautilus-trader-book-replay
+          path: |
+            /tmp/nautilus-book-replay.json
+            /tmp/nautilus-book-campaign.json
+            /tmp/nautilus-negative-control.json
+            /tmp/nautilus-negative-control.jsonl
+          if-no-files-found: error

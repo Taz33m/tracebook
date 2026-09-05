@@ -3,8 +3,10 @@ use serde_json::{Number, Value};
 use sha2::{Digest, Sha256};
 use std::io::{self, Write};
 
+mod quantity;
 mod server;
 
+pub use quantity::QuantityEncoding;
 pub use server::{EngineAdapter, EngineIdentity, run};
 
 pub const PROTOCOL_NAME: &str = "tracebook.conformance";

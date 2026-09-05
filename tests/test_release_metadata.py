@@ -47,6 +47,7 @@ def test_distribution_name_cli_and_typing_metadata_are_release_ready():
     }
     assert package_data["tracebook.corpus.fixtures"] == ["coinbase-btcusd-synthetic-v1/*"]
     assert package_data["tracebook.conformance.fixtures.v1"] == ["*.json", "*.jsonl"]
+    assert package_data["tracebook.book_replay.fixtures"] == ["*.jsonl"]
     assert (ROOT / "src" / "tracebook" / "py.typed").is_file()
     assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
 
@@ -184,7 +185,7 @@ def test_release_publishes_and_verifies_the_source_owner_before_the_facade():
     )
 
 
-def test_sdist_excludes_local_navigation_material():
+def test_sdist_excludes_private_experiments_and_local_navigation_material():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     for directive in (
@@ -195,12 +196,35 @@ def test_sdist_excludes_local_navigation_material():
         "prune openwiki",
         "prune graphify-out",
         "prune .local-tools",
+        "prune experiments/private",
+        "prune .agents",
+        "prune .codex",
+        "global-exclude AGENTS.md CLAUDE.md skills-lock.json",
         "recursive-include packaging *.md",
         "include packaging/tracebook-sim/pyproject.toml",
         "include packaging/tracebook-sim/LICENSE",
         "recursive-include tools *.py",
     ):
         assert directive in manifest
+
+    for path in (
+        "Makefile",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "CONTRIBUTING.md",
+        "docs/release.md",
+    ):
+        workflow = (ROOT / path).read_text(encoding="utf-8")
+        assert (
+            "tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*" in workflow
+        )
+
+
+def test_local_typecheck_uses_the_active_python_like_ci():
+    for path in ("Makefile", "CONTRIBUTING.md", "docs/release.md"):
+        contents = (ROOT / path).read_text(encoding="utf-8")
+        assert "mypy --python-version" in contents
+        assert "sys.version_info[:2]" in contents
 
 
 def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():

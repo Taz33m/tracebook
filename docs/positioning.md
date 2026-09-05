@@ -16,8 +16,12 @@ Strong open-source systems already own broader categories:
   focuses on replaying historical Level 3 orders and latency-aware HFT strategy
   simulation.
 - [NautilusTrader](https://nautilustrader.io/docs/latest/concepts/order_book/)
-  provides a Rust L1-L3 order book inside a much larger backtesting and live
-  trading platform.
+  provides a native Rust L1-L3 market-data book inside a much larger backtesting
+  and live trading platform. Its backtest matching engine simulates candidate
+  fills against that exogenous book; it is not a submitted-order CLOB matching
+  candidate for Tracebook's `fifo-*` profiles. The separate
+  [`l3-book-replay-v1`](book-replay-conformance.md) surface checks the book
+  mirror and non-mutating fill walk without making that category claim.
 
 Building a smaller general-purpose simulator beside those projects would leave
 Tracebook between categories: too slow and incomplete for production exchange
