@@ -9,6 +9,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 Prepared version: **0.7.0**. See the [draft release notes](docs/releases/0.7.0.md).
 This version has not been published; 0.6.0 remains the public install target.
 
+- Made initial staging-identity failures explicit: report the possible residue
+  path and skipped cleanup, preserve unverified entries, and exit before starting
+  a candidate. Documented conservative manual recovery without blanket deletion.
 - Fixed four PR #84 follow-ups: clean owned staging directories when opening
   fails, classify adapter broken-pipe failures correctly, distinguish zero
   quantities from precision loss, and handle symlink loops in CLI input paths.

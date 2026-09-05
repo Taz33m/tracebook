@@ -434,6 +434,114 @@ def test_stage_directory_setup_failure_cleans_only_owned_entries(
         assert stage.stat().st_mode & 0o777 == 0o500
 
 
+@pytest.mark.parametrize("replacement", ["none", "empty", "populated", "symlink", "missing"])
+def test_initial_stage_stat_failure_reports_unverified_entry_without_removing_it(
+    tmp_path, monkeypatch, replacement
+):
+    reservation = artifacts.OutputReservation(tmp_path / "report.json")
+    stage = tmp_path / reservation._stage_directory_name
+    moved = tmp_path / "moved-stage"
+    stat, open_descriptor = os.stat, os.open
+    descriptors = []
+    failure = OSError("injected initial staging stat failure")
+
+    def fail_stage_stat(path, *args, **kwargs):
+        if path == reservation._stage_directory_name:
+            if replacement != "none":
+                stage.rename(moved)
+                if replacement in ("empty", "populated"):
+                    stage.mkdir()
+                    if replacement == "populated":
+                        (stage / "foreign").write_bytes(b"another writer's evidence")
+                    stage.chmod(0o500)
+                elif replacement == "symlink":
+                    stage.symlink_to(moved, target_is_directory=True)
+            raise failure
+        return stat(path, *args, **kwargs)
+
+    def track_open(*args, **kwargs):
+        descriptor = open_descriptor(*args, **kwargs)
+        descriptors.append(descriptor)
+        return descriptor
+
+    monkeypatch.setattr(artifacts.os, "stat", fail_stage_stat)
+    monkeypatch.setattr(artifacts.os, "open", track_open)
+    monkeypatch.setattr(
+        artifacts.os, "supports_dir_fd", os.supports_dir_fd | {fail_stage_stat, track_open}
+    )
+    monkeypatch.setattr(
+        artifacts.os, "rmdir", lambda *_args, **_kwargs: pytest.fail("removing unverified entry")
+    )
+    monkeypatch.setattr(
+        artifacts.os, "fchmod", lambda *_args: pytest.fail("changing unverified permissions")
+    )
+
+    with pytest.raises(
+        artifacts.BookReplayError, match="automatic directory cleanup skipped"
+    ) as caught:
+        reservation.__enter__()
+    assert caught.value.__cause__ is failure
+    assert repr(str(stage)) in str(caught.value)
+    assert "possible staging residue" in str(caught.value)
+    assert "ownership could not be verified" in str(caught.value)
+    assert len(descriptors) == 2  # Only the parent and lock were opened.
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    expected = {stage} if replacement == "none" else {moved}
+    if replacement not in ("none", "missing"):
+        expected.add(stage)
+    assert set(tmp_path.iterdir()) == expected
+    if replacement in ("empty", "populated"):
+        assert stage.stat().st_mode & 0o777 == 0o500
+    if replacement == "populated":
+        assert (stage / "foreign").read_bytes() == b"another writer's evidence"
+    elif replacement == "symlink":
+        assert stage.is_symlink() and stage.readlink() == moved
+    if moved.exists():
+        assert list(moved.iterdir()) == []
+
+
+@pytest.mark.parametrize("command", ["run", "minimize", "campaign", "sample"])
+def test_cli_reports_initial_stage_stat_failure_before_candidate(
+    tmp_path, monkeypatch, capsys, command
+):
+    trace = tmp_path / "trace.jsonl"
+    _trace(trace)
+    _forbid_candidate(monkeypatch)
+    stat = os.stat
+    stages = []
+
+    def fail_stage_stat(path, *args, **kwargs):
+        if isinstance(path, str) and path.startswith(".tracebook-stage-"):
+            stages.append(path)
+            raise OSError("injected initial staging stat failure")
+        return stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(artifacts.os, "stat", fail_stage_stat)
+    monkeypatch.setattr(artifacts.os, "supports_dir_fd", os.supports_dir_fd | {fail_stage_stat})
+    arguments = (
+        ["sample", str(tmp_path / "sample")]
+        if command == "sample"
+        else _command(command, trace, tmp_path / "report.json", tmp_path / "reduced.jsonl")
+    )
+    assert cli.main(arguments) == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err.startswith("Error:") and "Traceback" not in output.err
+    assert "automatic directory cleanup skipped" in output.err
+    assert len(stages) == 1
+    parent = tmp_path / "sample" if command == "sample" else tmp_path
+    stage = parent / stages[0]
+    assert repr(str(stage)) in output.err
+    assert stage.is_dir() and list(stage.iterdir()) == []
+    if command == "sample":
+        assert set(parent.iterdir()) == {stage}
+        assert set(tmp_path.iterdir()) == {trace, parent}
+    else:
+        assert set(tmp_path.iterdir()) == {trace, stage}
+
+
 def test_cleanup_failure_still_closes_all_descriptors_and_other_sidecars(tmp_path, monkeypatch):
     reservation = artifacts.OutputReservation(tmp_path / "report.json")
     reservation.__enter__()

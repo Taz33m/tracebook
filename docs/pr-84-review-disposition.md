@@ -2,7 +2,8 @@
 
 This records the 30 comments in the initial automated review of
 [PR #84](https://github.com/Taz33m/tracebook/pull/84), against `0c98e18`,
-and the four follow-up comments against `e65416a`.
+the four follow-up comments against `e65416a`, and the cleanup follow-up
+against `f035e0c`.
 It is a disposition of that review, not release approval or a new experiment
 result. Source and regression tests, not the review's severity labels, determine
 the implemented changes.
@@ -66,6 +67,28 @@ Existing campaign and reduced-failure identities remain covered by regression
 tests. Its stale release-code conversation was resolved with source and test
 evidence; it is not a deferred research issue.
 
+## Initial staging identity failure — agreed conservative handling
+
+Comment [3939788196](https://github.com/Taz33m/tracebook/pull/84#discussion_r3939788196)
+correctly identifies a possible empty-directory residue when the first `stat`
+after `mkdir` fails. With neither an identity nor a directory descriptor, the
+runner cannot safely distinguish that entry from a competing replacement.
+
+The maintainer explicitly approved retaining an unverified entry, reporting
+an explicit error, and adding tests/documentation before merge. The runner now
+raises `BookReplayError` with the original possible-residue path and the reason
+automatic directory cleanup was skipped. CLI commands exit `2` before candidate
+execution, retain the underlying exception as the cause, and still attempt
+owned-lock cleanup and close open descriptors. Known-ownership cleanup remains
+unchanged. This addresses silent residue through an agreed, observable failure
+contract; it does not claim automatic removal when ownership is unknown.
+
+Regression tests cover the original empty directory, empty and populated
+competing directories, a replacement symlink, a moved-away entry, descriptor
+closure, and all four CLI commands. Recovery instructions in
+[book-replay conformance](book-replay-conformance.md) require independently
+verified ownership and prohibit blanket or recursive removal of uncertain paths.
+
 ## Frozen research findings — explicitly deferred, not fixed
 
 These 13 findings are in the historical/hash-bound research harness. The
@@ -121,6 +144,12 @@ protocol and both adapters passed with Rust 1.88, along with clippy and rustfmt.
 Python formatting, lint, type checking, static security checks, and compilation
 also passed. This follow-up did not recollect provider runs or rewrite retained
 qualification artifacts; the initial verification above remains historical.
+
+The final initial-identity error handling passed 670 Python 3.13 tests with one
+skip and 82.39% coverage, plus all 123 focused L3 tests on Python 3.10. Its nine
+new regression cases failed before the change and passed afterward. Formatting,
+lint, type checking, static security checks, compilation, and whitespace checks
+passed. No frozen research files or retained qualification artifacts changed.
 
 The agreed transfer to issue #85 supersedes the earlier instruction to keep
 these 13 PR conversations open pending a disposition. Keep the follow-up issue

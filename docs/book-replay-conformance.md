@@ -118,6 +118,22 @@ leave sidecars. After a forced stop or cleanup failure, retain the artifacts
 and use fresh output names for a new invocation; do not remove a live process's
 reservations.
 
+If the first metadata read after creating a staging directory fails, the
+command exits `2` before starting a candidate. It explicitly reports that
+ownership could not be verified, automatic directory cleanup was skipped, and
+the original path of possible staging residue. That entry is left untouched:
+it may be the empty directory from this attempt, a competing replacement, or
+already moved/deleted. Owned lock cleanup is still attempted and opened
+descriptors are closed. This is a reported cleanup limitation, not a guarantee
+that every failed setup leaves no sidecars.
+
+For recovery, first ensure no process is using the output directory. Inspect
+the reported path and any parent-directory moves; the diagnostic is not proof
+of ownership. Remove only an empty directory independently confirmed to belong
+to the failed attempt, using non-recursive removal. Leave uncertain entries,
+symlinks, other writers' data, and nonempty directories untouched, and use fresh
+output names. Do not run a blanket cleanup of `.tracebook-stage-*` paths.
+
 Staged payloads live in owner-only, read-only directories and publication uses
 the open directory descriptor, so replacing a staging directory's parent entry
 cannot substitute another payload. Published files are owner-readable. This
