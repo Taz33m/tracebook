@@ -40,7 +40,7 @@ python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
 python tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
 python -m twine check dist/conformance/* dist/simulator/*
 python tools/verify_distribution_split.py \
-  --expected-version 0.6.0 \
+  --expected-version 0.7.0 \
   --conformance-wheel dist/conformance/*.whl \
   --sim-wheel dist/simulator/*.whl \
   --resolver-runtime-checks
@@ -49,7 +49,7 @@ python tools/verify_sdist_wheel_agreement.py \
   --conformance-sdist dist/conformance/*.tar.gz \
   --sim-wheel dist/simulator/*.whl \
   --sim-sdist dist/simulator/*.tar.gz \
-  --expected-version 0.6.0
+  --expected-version 0.7.0
 python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 ```
 

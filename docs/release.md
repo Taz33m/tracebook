@@ -2,6 +2,11 @@
 
 `tracebook` is still alpha software. Use this checklist before cutting any public release or tagged benchmark claim.
 
+The prepared source version is **0.7.0**, not yet published. The
+[draft 0.7.0 notes](releases/0.7.0.md) list the release scope and remaining
+publication gates. Public installation examples, citation metadata, and
+support policy still describe the latest public release, 0.6.0.
+
 ## Version And Changelog
 
 1. Update `src/tracebook/_version.py`.
@@ -41,7 +46,7 @@ python -m pip download \
   --dest dist/legacy \
   "tracebook-sim==0.5.0"
 python tools/verify_distribution_split.py \
-  --expected-version 0.6.0 \
+  --expected-version 0.7.0 \
   --conformance-wheel dist/conformance/*.whl \
   --sim-wheel dist/simulator/*.whl \
   --legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl \
@@ -52,7 +57,7 @@ python tools/verify_sdist_wheel_agreement.py \
   --conformance-sdist dist/conformance/*.tar.gz \
   --sim-wheel dist/simulator/*.whl \
   --sim-sdist dist/simulator/*.tar.gz \
-  --expected-version 0.6.0
+  --expected-version 0.7.0
 python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 python -m pip check
 (
@@ -92,10 +97,10 @@ Configure a PyPI Trusted Publisher for both distribution names:
 - workflow: `release.yml`
 - environment: `pypi`
 
-`tracebook-conformance` is a new project name in 0.6.0, so create its pending
-Trusted Publisher on PyPI before publishing the first release. Do not publish
-the facade until that exact conformance version can be downloaded from the
-public index.
+`tracebook-conformance` was introduced in 0.6.0. Confirm both existing Trusted
+Publishers still match the workflow and environment before the next release.
+Do not publish the facade until that exact conformance version can be
+downloaded from the public index.
 
 Repository settings enforce pull requests and the Ubuntu/Python 3.10-3.13 CI
 matrix on `main`. The `pypi` deployment environment accepts only `v*` tags;
@@ -110,11 +115,11 @@ and only then publishes `tracebook-sim`.
 After publishing, verify the lightweight path from a clean environment:
 
 ```bash
-python -m pip install --no-cache-dir "tracebook-conformance==0.6.0"
+python -m pip install --no-cache-dir "tracebook-conformance==0.7.0"
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-conformance --help
 python -m pip check
-python -m pip download --no-deps --no-binary=:all: "tracebook-conformance==0.6.0"
+python -m pip download --no-deps --no-binary=:all: "tracebook-conformance==0.7.0"
 ```
 
 Extract the downloaded sdist in a blank repository, build
@@ -127,8 +132,8 @@ binary on the reduced regression case.
 Verify the full facade independently in a second clean environment:
 
 ```bash
-python -m pip install --no-cache-dir "tracebook-sim==0.6.0"
-python -c "import importlib.metadata as m; assert m.version('tracebook-conformance') == m.version('tracebook-sim') == '0.6.0'"
+python -m pip install --no-cache-dir "tracebook-sim==0.7.0"
+python -c "import importlib.metadata as m; assert m.version('tracebook-conformance') == m.version('tracebook-sim') == '0.7.0'"
 tracebook-sim --version
 tracebook-benchmark --version
 tracebook-dashboard --version
@@ -146,7 +151,7 @@ that move to `tracebook-conformance`:
 ```bash
 python -m pip install "tracebook-sim==0.5.0"
 python -m pip uninstall -y tracebook-sim
-python -m pip install "tracebook-sim==0.6.0"
+python -m pip install "tracebook-sim==0.7.0"
 python -m pip check
 ```
 
@@ -161,7 +166,8 @@ Release notes should include:
 - compatibility notes
 - known limitations
 
-For 0.6.0, begin with [`docs/releases/0.6.0.md`](releases/0.6.0.md). The
+For the next release, begin with the [draft 0.7.0 notes](releases/0.7.0.md).
+The [0.6.0 notes](releases/0.6.0.md) document the distribution split. The
 [0.5.0 notes](releases/0.5.0.md) document qualification as a public contract,
 the [0.4.1 notes](releases/0.4.1.md) document the first upstream semantic
 review, and the [0.4.0 notes](releases/0.4.0.md) document the failure-corpus
