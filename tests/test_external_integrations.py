@@ -1,3 +1,4 @@
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -14,6 +15,17 @@ from integrations.python_matching_engine.adapter import (
     UPSTREAM_REPOSITORY,
     PythonMatchingEngineAdapter,
 )
+from integrations.nautilus_trader.adapter import (
+    UPSTREAM_COMMIT as NAUTILUS_COMMIT,
+    UPSTREAM_REPOSITORY as NAUTILUS_REPOSITORY,
+    UPSTREAM_TAG as NAUTILUS_TAG,
+    UPSTREAM_VERSION as NAUTILUS_VERSION,
+)
+from tracebook.book_replay import (
+    ExternalBookReplayAdapter,
+    load_book_replay_events,
+    run_book_replay,
+)
 from tracebook.conformance import (
     AdapterProtocolError,
     ConformanceConfig,
@@ -27,6 +39,8 @@ ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "integrations" / "python_matching_engine"
 RUST_INTEGRATION = ROOT / "integrations" / "orderbook_rs"
 GOCRONX_INTEGRATION = ROOT / "integrations" / "gocronx_matcher"
+NAUTILUS_INTEGRATION = ROOT / "integrations" / "nautilus_trader"
+INTREPID_INTEGRATION = ROOT / "integrations" / "intrepid_orderbook"
 RUST_PROTOCOL = ROOT / "integrations" / "rust_protocol"
 
 
@@ -57,6 +71,54 @@ def test_python_matching_engine_adapter_explains_a_missing_upstream(monkeypatch,
             [sys.executable, str(INTEGRATION / "adapter.py")],
             ConformanceConfig(),
         )
+
+
+def test_nautilus_book_replay_integration_is_version_and_source_pinned():
+    readme = (NAUTILUS_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "nautilus-trader-book-replay.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert NAUTILUS_REPOSITORY == "https://github.com/nautechsystems/nautilus_trader.git"
+    assert NAUTILUS_TAG == "v2.0.0rc3"
+    assert NAUTILUS_COMMIT == "648970ce64a304d93da0a29320cb6e19b905fa39"
+    assert NAUTILUS_VERSION == "2.0.0rc3"
+    assert "LGPL-3.0-only" in readme
+    assert "does not claim" in readme
+    assert '"nautilus-trader==2.0.0rc3"' in workflow
+    assert "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002" in workflow
+    assert "sha256:09b1599eaeb474d98617acc7869ace26759ed5ab8350803f06197ef572864bab" in workflow
+    assert "failure-dfe5c23848b63211b655" in readme
+    assert (NAUTILUS_INTEGRATION / "faulty_adapter.py").is_file()
+    assert (NAUTILUS_INTEGRATION / "regressions" / "upsize-requeue-reduced.jsonl").is_file()
+    assert (NAUTILUS_INTEGRATION / "regressions" / "upsize-requeue-failure.json").is_file()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("nautilus_trader") is None,
+    reason="the optional pinned NautilusTrader runtime is not installed",
+)
+def test_pinned_nautilus_runtime_conforms_to_book_replay_profile():
+    events = load_book_replay_events(
+        ROOT / "src" / "tracebook" / "book_replay" / "fixtures" / "l3-book-replay-v1.jsonl"
+    )
+
+    report = run_book_replay(
+        events,
+        lambda config: ExternalBookReplayAdapter(
+            [sys.executable, str(NAUTILUS_INTEGRATION / "adapter.py")],
+            config,
+            timeout_seconds=10,
+        ),
+    )
+
+    assert report.conformant is True
+    assert report.compared_events == 17
+    assert report.candidate_engine.version == NAUTILUS_VERSION
+    assert (
+        report.final_state_hash
+        == "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002"
+    )
 
 
 def test_orderbook_rs_integration_pins_engine_toolchain_and_dependency_graph():
@@ -138,6 +200,34 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "actions/upload-artifact@v7" in workflow
 
 
+def test_intrepid_orderbook_is_pinned_qualified_and_retains_the_fok_boundary():
+    go_mod = (INTREPID_INTEGRATION / "go.mod").read_text(encoding="utf-8")
+    go_sum = (INTREPID_INTEGRATION / "go.sum").read_text(encoding="utf-8")
+    readme = (INTREPID_INTEGRATION / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "intrepid-orderbook.yml").read_text(
+        encoding="utf-8"
+    )
+    root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    architecture = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+
+    assert "github.com/intrepidkarthi/orderbook v0.26.0" in go_mod
+    assert "github.com/intrepidkarthi/orderbook v0.26.0 h1:" in go_sum
+    assert "51d480cdb68b9989febb0b075d291cf891f425b3" in readme
+    assert "submitted-order versus submitted-order" in readme
+    assert "at most six non-zero quantity decimal places" in readme
+    assert "6/9" in readme
+    assert "failure-1ce2954857800b3a068d" in readme
+    assert "sha256:f8db775baabe7e665d45bbb920a67e43d405acf445de4951617df68ffa24eb69" in workflow
+    assert "sha256:08bf641bfa57da1892d744c08bca0be00f5ac1ade580ae8fcf7f195f0fcad6eb" in workflow
+    assert "sha256:81a095f9804852ff7035f4c3d428a51ae3d0e8e4b81ec335128c6af15b6f65bd" in workflow
+    assert "$.observation.outcome.reason" in workflow
+    assert "intrepidkarthi/orderbook` v0.26.0" in root_readme
+    assert "integrations/intrepid_orderbook/" in architecture
+    assert (INTREPID_INTEGRATION / "adapter_test.go").is_file()
+    assert (INTREPID_INTEGRATION / "regressions" / "fok-rejection-reduced.jsonl").is_file()
+    assert (INTREPID_INTEGRATION / "regressions" / "fok-rejection-failure.json").is_file()
+
+
 def test_native_adapters_share_one_rust_protocol_contract():
     shared_source = (RUST_PROTOCOL / "src" / "lib.rs").read_text(encoding="utf-8")
     shared_server = (RUST_PROTOCOL / "src" / "server.rs").read_text(encoding="utf-8")
@@ -162,6 +252,10 @@ def test_source_manifest_includes_native_integration_files():
     assert "recursive-include integrations/orderbook_rs/src *.rs" in manifest
     assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
     assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
+    assert "recursive-include integrations/intrepid_orderbook *.go" in manifest
+    assert "include integrations/intrepid_orderbook/go.mod" in manifest
+    assert "include integrations/intrepid_orderbook/go.sum" in manifest
+    assert "recursive-include src/tracebook/book_replay/fixtures *.jsonl" in manifest
     assert "include integrations/orderbook_rs/Cargo.lock" in manifest
     assert "prune integrations/orderbook_rs/target" in manifest
     assert "recursive-include integrations/gocronx_matcher/src *.rs" in manifest

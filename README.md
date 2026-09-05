@@ -225,6 +225,7 @@ the canonical protocol.
 
 | Candidate | Native surface | Evidence |
 | --- | --- | --- |
+| [`intrepidkarthi/orderbook` v0.26.0](https://github.com/Taz33m/tracebook/tree/main/integrations/intrepid_orderbook) | Go submitted-order CLOB using native process, cancel, reduce, replace, FIFO/pro-rata, STP, trades, and resting-order inspection | `fifo-limit-v1` and `fifo-partial-fill-v1` each pass 3/3 fixed cases, 25/25 generated traces, 5,000 events, and 10/10 capabilities; one native unfillable-FOK rejection is retained as the explicit `fifo-full-v1` contract difference |
 | [`orderbook-rs` 0.12.0](https://github.com/Taz33m/tracebook/tree/main/integrations/orderbook_rs) | Rust FIFO lifecycle, market/IOC/FOK, STP, deterministic trade IDs, consumption-order queue snapshots | Conformant generated FIFO campaign; `7/9` standard cases with pro-rata and one STP policy difference explicit; semantics reviewed in upstream [issue #203](https://github.com/joaquinbejar/OrderBook-rs/issues/203) and Tracebook [issue #57](https://github.com/Taz33m/tracebook/issues/57) |
 | [`gocronx/matcher` 0.2.0](https://github.com/Taz33m/tracebook/tree/main/integrations/gocronx_matcher) | Pinned Rust FIFO limit lifecycle over native events and snapshot format v1 | `fifo-limit-v1` qualification passes 3/3 fixed cases, 25/25 generated traces, and 10/10 capabilities; upstream observation and replacement questions remain explicitly pending in [issue #7](https://github.com/gocronx/matcher/issues/7) |
 | Historical `orderbook-rs` issue #88 | Exact affected Rust dependency behind an opt-in Cargo feature | Flash sequence `15738` and generated event `173` independently reduce to four-event regressions |
@@ -234,6 +235,12 @@ the canonical protocol.
 
 A divergence means two configured contracts disagree. It does not, by itself,
 declare either project incorrect.
+
+Order-book mirrors are tested on a deliberately different surface. The pinned
+[`NautilusTrader` L3 integration](https://github.com/Taz33m/tracebook/tree/main/integrations/nautilus_trader)
+passes `l3-book-replay-v1`, which exercises native deltas, queue snapshots, and
+non-mutating simulated fills. That result is not matching-engine conformance;
+see the [book-replay contract](https://github.com/Taz33m/tracebook/blob/main/docs/book-replay-conformance.md).
 
 ## Failure Artifacts
 

@@ -86,6 +86,7 @@ tracebook = ["py.typed"]
 "tracebook.corpus.fixtures" = ["coinbase-btcusd-synthetic-v1/*"]
 "tracebook.conformance.fixtures.v1" = ["*.json", "*.jsonl"]
 "tracebook.conformance.fixtures.v2" = ["*.json", "*.jsonl"]
+"tracebook.book_replay.fixtures" = ["*.jsonl"]
 "tracebook.visualization.web" = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
@@ -95,6 +96,9 @@ addopts = "-q"
 [tool.black]
 line-length = 100
 target-version = ["py310"]
+# This runner is hash-bound by the frozen v2 cohort and cannot be reformatted
+# without invalidating the preregistration.
+extend-exclude = "^/experiments/agent_qualification_generalization.py$"
 
 [tool.mypy]
 python_version = "3.10"
@@ -103,6 +107,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_configs = true
+exclude = "^experiments/private/"
 
 [tool.coverage.run]
 source = ["tracebook"]

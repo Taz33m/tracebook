@@ -69,3 +69,6 @@ trace_reports/
 benchmark_results/
 /corpora/
 video/
+
+# Evaluator-only agent transcripts, gold manifests, and origin-stripped cases
+/experiments/private/

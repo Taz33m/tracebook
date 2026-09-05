@@ -51,9 +51,14 @@ for package in ("numpy", "psutil"):
         raise SystemExit(f"{package} unexpectedly installed in isolated environment")
 
 import tracebook.conformance
+import tracebook.book_replay
 import importlib.metadata
+from importlib import resources
 
 assert importlib.metadata.version("tracebook-conformance") == tracebook.__version__
+assert resources.files("tracebook.book_replay.fixtures").joinpath(
+    "l3-book-replay-v1.jsonl"
+).is_file()
 """
     _run([str(python), "-c", probe])
 

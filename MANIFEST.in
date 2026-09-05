@@ -24,6 +24,9 @@ include packaging/tracebook-sim/pyproject.toml
 include packaging/tracebook-sim/LICENSE
 recursive-include tools *.py
 recursive-include integrations *.py *.md *.json *.jsonl
+recursive-include integrations/intrepid_orderbook *.go
+include integrations/intrepid_orderbook/go.mod
+include integrations/intrepid_orderbook/go.sum
 recursive-include integrations/orderbook_rs/src *.rs
 include integrations/orderbook_rs/Cargo.toml
 include integrations/orderbook_rs/Cargo.lock
@@ -44,4 +47,5 @@ recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl
 recursive-include src/tracebook/conformance/fixtures *.json *.jsonl
+recursive-include src/tracebook/book_replay/fixtures *.jsonl
 include src/tracebook/py.typed

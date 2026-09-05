@@ -81,6 +81,7 @@ flowchart TD
 | `src/tracebook/conformance/suite.py` | Hash verification, materialization, and execution of standard adversarial cases |
 | `integrations/orderbook_rs/` | Native Rust protocol server and semantic adapter over pinned `orderbook-rs` |
 | `integrations/gocronx_matcher/` | Native Rust protocol server and `fifo-limit-v1` adapter over pinned `gocronx/matcher` |
+| `integrations/intrepid_orderbook/` | Native Go protocol server over a pinned submitted-order CLOB, with FIFO qualification and an explicit FOK contract difference |
 | `integrations/rust_protocol/` | Shared Rust protocol framing, validation, canonical state hashing, and server loop |
 | `src/tracebook/simulation/order_generator.py` | Synthetic order streams and event objects |
 | `src/tracebook/simulation/simulation_engine.py` | Multi-symbol simulation loop and lifecycle event injection |
