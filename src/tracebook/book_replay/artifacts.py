@@ -59,9 +59,22 @@ class OutputReservation:
             os.mkdir(self._stage_directory_name, mode=0o700, dir_fd=self._parent_fd)
             # Retain the identity even if opening the newly created directory
             # fails. Cleanup must not remove a replacement at the same name.
-            self._stage_directory_identity = _identity(
-                os.stat(self._stage_directory_name, dir_fd=self._parent_fd, follow_symlinks=False)
-            )
+            try:
+                self._stage_directory_identity = _identity(
+                    os.stat(
+                        self._stage_directory_name, dir_fd=self._parent_fd, follow_symlinks=False
+                    )
+                )
+            except OSError as exc:
+                # mkdir gives no inode/descriptor. Do not guess ownership or
+                # remove a replacement when this first identity read fails.
+                residue = self.target.parent / self._stage_directory_name
+                raise BookReplayError(
+                    "staging directory ownership could not be verified; "
+                    "automatic directory cleanup skipped; "
+                    f"possible staging residue at original path {str(residue)!r}. "
+                    f"Inspect its location and ownership before manual cleanup: {exc}"
+                ) from exc
             stage_directory_fd = os.open(
                 self._stage_directory_name,
                 os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
