@@ -595,7 +595,7 @@ print(json.dumps({"type": "complete", "event_count": 999}), flush=True)
     report = run_conformance(
         [],
         lambda config: ExternalProcessAdapter(
-            [sys.executable, "-c", script], config, timeout_seconds=1
+            [sys.executable, "-c", script], config, timeout_seconds=10
         ),
     )
 

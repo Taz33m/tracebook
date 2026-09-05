@@ -7,11 +7,24 @@ on:
   pull_request:
     paths:
       - ".github/workflows/nautilus-trader-book-replay.yml"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "integrations/__init__.py"
       - "integrations/nautilus_trader/**"
+      - "integrations/python_matching_engine/__init__.py"
+      - "integrations/python_matching_engine/adapter.py"
+      - "src/tracebook/__init__.py"
+      - "src/tracebook/_version.py"
+      - "src/tracebook/core/**"
+      - "src/tracebook/conformance/**"
+      - "src/tracebook/events/**"
       - "src/tracebook/book_replay/**"
+      - "examples/book_replay_adapter.py"
+      - "tests/conftest.py"
       - "tests/test_book_replay*.py"
       - "tests/fixtures/faulty_book_replay_adapter.py"
       - "tests/test_external_integrations.py"
+      - "tests/test_integration_workflow_coverage.py"
 
 permissions:
   contents: read
@@ -118,6 +131,7 @@ jobs:
           python -m pytest
           tests/test_book_replay.py
           tests/test_book_replay_campaign.py
+          tests/test_book_replay_artifacts.py
           tests/test_external_integrations.py
 
       - uses: actions/upload-artifact@v7

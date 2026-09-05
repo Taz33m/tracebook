@@ -574,7 +574,9 @@ def validate_legacy_wheel(
 
 def _new_environment(root: Path, name: str) -> tuple[Path, Path]:
     environment = root / name
-    venv.EnvBuilder(with_pip=True, clear=True).create(environment)
+    # Match `python -m venv`: copying a POSIX executable can break its
+    # executable-relative libpython/framework loader paths (notably on macOS).
+    venv.EnvBuilder(with_pip=True, clear=True, symlinks=os.name != "nt").create(environment)
     return environment, _environment_python(environment)
 
 

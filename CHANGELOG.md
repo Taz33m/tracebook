@@ -6,6 +6,18 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Kept Rust adapter input quantities independent of report display precision.
+  Both native adapters now share exact checked 12-place integer encoding and
+  reject quantities outside that domain rather than pre-rounding orders.
+- Made L3 report and reduced-trace outputs no-clobber: reserve destinations
+  before candidate execution, stage complete artifacts, and publish the report
+  only after its reduced trace. Existing files and competing writes are kept.
+- Expanded native integration CI path filters to cover reference-engine and
+  packaging changes. Local type checks now use the active Python minor version,
+  matching CI, and release instructions include distribution privacy checks.
+- Aligned release-check virtual environments with the standard POSIX symlink
+  behavior, so relocatable Python installations can run clean-install and
+  migration checks without broken copied-executable library paths.
 - Added a separate L3 book-replay contract and pinned NautilusTrader adapter.
   This exercises market-data deltas and non-mutating FIFO fill probes, not a
   submitted-order CLOB. Both process clients now honor the configured shutdown

@@ -30,9 +30,19 @@ flowchart LR
 ```
 
 The shared [`rust_protocol`](../rust_protocol) crate owns framing, protocol
-validation, and canonical SHA-256 state serialization. `adapter.rs` owns numeric
-conversion, source IDs, owners, lifecycle operations, trade translation, and
-complete queue snapshots. `orderbook-rs` performs all matching.
+validation, canonical SHA-256 state serialization, and exact quantity encoding.
+`adapter.rs` owns price conversion, source IDs, owners, lifecycle operations,
+trade translation, and complete queue snapshots. `orderbook-rs` performs all
+matching.
+
+Quantities use fixed twelve-place native lots, regardless of the configured
+output precision. `quantity_decimal_places` rounds observations only: a `2.4`
+buy crossed by a `3.5` sell at output precision zero leaves a native `1.1`
+remainder, reported as `1`. It must not become a two-unit remainder through
+input rounding. Nonrepresentable quantities are rejected before submission;
+invalid replacement quantities preserve the existing order. See the shared
+crate's [numeric boundary](../rust_protocol/README.md) for range and precision
+limits, including accepted configurations that remain unqualified.
 
 ## Run The Proof
 

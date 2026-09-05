@@ -7,13 +7,19 @@ on:
   pull_request:
     paths:
       - ".github/workflows/orderbook-rs.yml"
+      - "pyproject.toml"
+      - "MANIFEST.in"
       - "integrations/flash_benchmark/**"
       - "integrations/orderbook_rs/**"
       - "integrations/rust_protocol/**"
+      - "src/tracebook/__init__.py"
+      - "src/tracebook/_version.py"
+      - "src/tracebook/core/**"
       - "src/tracebook/conformance/**"
-      - "src/tracebook/events/market_replay.py"
+      - "src/tracebook/events/**"
       - "tests/test_external_integrations.py"
       - "tests/test_flash_bridge.py"
+      - "tests/test_integration_workflow_coverage.py"
 
 permissions:
   contents: read

@@ -1,10 +1,9 @@
 use crate::wire::{
-    BookSnapshot, BookState, ConfigWire, MarketEvent, ObservationFrame, Outcome, RestingOrder,
-    TradeFill,
+    BookSnapshot, BookState, ConfigWire, MarketEvent, ObservationFrame, Outcome, QuantityEncoding,
+    RestingOrder, TradeFill,
 };
 use matcher::{BookEvent, Order, OrderBook, OrderId, Quantity, RejectReason, Side, Trade};
-use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal::Decimal;
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
@@ -18,8 +17,7 @@ const KIND_ICEBERG: u8 = 6;
 struct AdapterConfig {
     tick_size: Decimal,
     tick_size_f64: f64,
-    quantity_decimal_places: u32,
-    quantity_scale: u64,
+    quantity_encoding: QuantityEncoding,
 }
 
 impl AdapterConfig {
@@ -30,9 +28,7 @@ impl AdapterConfig {
         if config.self_trade_policy != "NONE" {
             return Err("self_trade_policy must be NONE".to_string());
         }
-        if config.quantity_decimal_places > 18 {
-            return Err("quantity_decimal_places must be between 0 and 18".to_string());
-        }
+        let quantity_encoding = QuantityEncoding::new(config.quantity_decimal_places)?;
 
         let tick_size = Decimal::from_str(&config.tick_size)
             .map_err(|_| "tick_size must be a positive finite decimal".to_string())?;
@@ -46,15 +42,10 @@ impl AdapterConfig {
         if !tick_size_f64.is_finite() || tick_size_f64 <= 0.0 {
             return Err("tick_size must be a positive finite decimal".to_string());
         }
-        let quantity_scale = 10_u64
-            .checked_pow(config.quantity_decimal_places)
-            .ok_or_else(|| "quantity scale exceeds u64".to_string())?;
-
         Ok(Self {
             tick_size,
             tick_size_f64,
-            quantity_decimal_places: config.quantity_decimal_places,
-            quantity_scale,
+            quantity_encoding,
         })
     }
 
@@ -74,25 +65,7 @@ impl AdapterConfig {
     }
 
     fn quantity_units(&self, value: &serde_json::Number) -> Result<u64, String> {
-        let quantity = Decimal::from_str(&value.to_string())
-            .map_err(|_| "quantity must be a finite decimal".to_string())?;
-        if quantity <= Decimal::ZERO {
-            return Err("quantity must be positive".to_string());
-        }
-        let normalized = quantity.round_dp_with_strategy(
-            self.quantity_decimal_places,
-            RoundingStrategy::MidpointNearestEven,
-        );
-        let scaled = normalized
-            .checked_mul(Decimal::from(self.quantity_scale))
-            .ok_or_else(|| "quantity exceeds the adapter's integer range".to_string())?;
-        let units = scaled
-            .to_u64()
-            .ok_or_else(|| "quantity exceeds the adapter's integer range".to_string())?;
-        if units == 0 {
-            return Err("quantity rounds to zero at the configured precision".to_string());
-        }
-        Ok(units)
+        self.quantity_encoding.units(value)
     }
 
     fn format_price(&self, ticks: u64) -> Result<String, String> {
@@ -103,7 +76,7 @@ impl AdapterConfig {
     }
 
     fn format_quantity(&self, units: u64) -> String {
-        canonical_decimal(Decimal::from(units) / Decimal::from(self.quantity_scale))
+        self.quantity_encoding.format(units)
     }
 }
 
@@ -613,6 +586,85 @@ mod tests {
 
     fn event(value: serde_json::Value) -> MarketEvent {
         serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn output_precision_does_not_change_native_matching() {
+        let mut adapter = Adapter::new(ConfigWire {
+            quantity_decimal_places: 0,
+            ..ConfigWire::default()
+        })
+        .unwrap();
+        let values = [
+            serde_json::json!({"op":"new","symbol":"TEST","order_id":1,"side":"BUY","price":100,"quantity":2.4}),
+            serde_json::json!({"op":"new","symbol":"TEST","order_id":2,"side":"SELL","price":100,"quantity":3.5}),
+        ];
+        let mut last = None;
+        for (index, value) in values.into_iter().enumerate() {
+            let observation = adapter.apply(&event(value), index as u64 + 1).unwrap();
+            assert_eq!(observation.outcome.status, "applied");
+            last = Some(observation);
+        }
+        let observation = last.unwrap();
+        assert_eq!(observation.trades.len(), 1);
+        assert_eq!(observation.trades[0].quantity, "2");
+        assert_eq!(
+            observation.state_hash,
+            "443d82df2af0902942c8614bcce6dc8d763a24db85e81917cc4843a9f4726300"
+        );
+        let state = adapter.snapshot().unwrap();
+        assert_eq!(state.books[0].asks.len(), 1);
+        assert_eq!(state.books[0].asks[0].remaining_quantity, "1");
+    }
+
+    #[test]
+    fn output_precision_does_not_round_reduce_or_replace_inputs() {
+        let mut adapter = Adapter::new(ConfigWire {
+            quantity_decimal_places: 0,
+            ..ConfigWire::default()
+        })
+        .unwrap();
+        for (index, value) in [
+            serde_json::json!({"op":"new","symbol":"TEST","order_id":1,"side":"BUY","price":100,"quantity":2.4}),
+            serde_json::json!({"op":"reduce","symbol":"TEST","order_id":1,"quantity":0.4}),
+            serde_json::json!({"op":"replace","symbol":"TEST","order_id":1,"quantity":3.5}),
+            serde_json::json!({"op":"new","symbol":"TEST","order_id":2,"side":"SELL","price":100,"quantity":1.4}),
+        ].into_iter().enumerate() {
+            let observation = adapter.apply(&event(value), index as u64 + 1).unwrap();
+            assert_eq!(observation.outcome.status, "applied");
+        }
+        let state = adapter.snapshot().unwrap();
+        assert_eq!(state.books[0].bids.len(), 1);
+        assert_eq!(state.books[0].bids[0].remaining_quantity, "2");
+    }
+
+    #[test]
+    fn nonrepresentable_quantities_preserve_existing_state() {
+        let mut adapter = Adapter::new(ConfigWire::default()).unwrap();
+        let first = event(serde_json::json!({
+            "op":"new","symbol":"TEST","order_id":1,"side":"BUY","price":100,"quantity":2.4,"owner":9
+        }));
+        let initial = adapter.apply(&first, 1).unwrap();
+        for quantity in ["0.0000000000001", "18446745"] {
+            for op in ["new", "reduce", "replace"] {
+                let next = event(serde_json::json!({
+                    "op":op,"symbol":"TEST","order_id":if op == "new" {2} else {1},
+                    "side":"BUY","price":100,"quantity":serde_json::Number::from_str(quantity).unwrap()
+                }));
+                let observation = adapter.apply(&next, 2).unwrap();
+                assert_eq!(observation.outcome.status, "rejected");
+                assert_eq!(
+                    observation.outcome.reason,
+                    Some(if op == "replace" {
+                        "INVALID_REPLACEMENT"
+                    } else {
+                        "INVALID_ORDER"
+                    })
+                );
+                assert_eq!(observation.state_hash, initial.state_hash);
+                assert!(observation.trades.is_empty());
+            }
+        }
     }
 
     #[test]

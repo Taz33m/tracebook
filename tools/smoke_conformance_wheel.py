@@ -141,7 +141,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         root = Path(temporary)
         environment = root / "venv"
         output = root / "qualification"
-        venv.EnvBuilder(with_pip=True, clear=True).create(environment)
+        # Match `python -m venv`: keep executable-relative runtime libraries
+        # reachable on POSIX, while retaining the default Windows copy mode.
+        venv.EnvBuilder(with_pip=True, clear=True, symlinks=os.name != "nt").create(environment)
         python = _environment_python(environment)
         conformance = _environment_script(environment, "tracebook-conformance")
 

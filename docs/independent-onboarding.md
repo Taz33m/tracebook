@@ -130,7 +130,14 @@ is neither. Report the attempt through the existing Engine qualification issue
 form, adding the wheel hash, evidence manifest and human-correction log. Remove
 credentials, proprietary traces and machine-specific paths before publication.
 
-## Proposed Maintainer Invitation (Not Sent)
+## Maintainer Invitation
+
+Sent on 2026-09-05 (UTC) in
+[intrepidkarthi/orderbook issue #25](https://github.com/intrepidkarthi/orderbook/issues/25),
+with the packet pinned to verified Tracebook commit
+`55e3c4b010c8cc1bc967db59f94f593ffa0f6838` and the local rehearsal's artifact
+hashes. Sending the invitation is not independent use or a retention decision;
+the measurement fields above remain unobserved.
 
 > We have a pinned, out-of-tree Tracebook adapter for your v0.26.0 CLOB. FIFO
 > limit qualification passes; the broader FOK profile stops on your native
@@ -140,6 +147,5 @@ credentials, proprietary traces and machine-specific paths before publication.
 > change or in-tree adapter commitment is requested. We would record setup
 > time, corrections, and your retention decision, including a failed attempt.
 
-Attach the reviewed Tracebook source revision and artifact hashes before
-sending. A maintainer response and any independent result must be recorded as
-new evidence; this prepared invitation establishes neither.
+A maintainer response and any independent result must be recorded as new
+evidence; the sent invitation establishes neither.

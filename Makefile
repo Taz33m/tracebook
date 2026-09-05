@@ -79,7 +79,7 @@ lint:
 	$(PYTHON_VENV) -m flake8 src/ tests/ examples/ integrations/ experiments/ tools/
 
 typecheck:
-	$(PYTHON_VENV) -m mypy src/tracebook experiments tools
+	$(PYTHON_VENV) -m mypy --python-version "$$($(PYTHON_VENV) -c 'import sys; print("%d.%d" % sys.version_info[:2])')" src/tracebook experiments tools
 
 security:
 	$(PYTHON_VENV) -m bandit -q -r src integrations tools

@@ -21,7 +21,7 @@ python -m pip install -e ".[dev]"
 python -m pip install -e "./packaging/tracebook-sim[dashboard]"
 python -m black --check src tests examples integrations experiments tools
 python -m flake8 src tests examples integrations experiments tools
-python -m mypy src/tracebook experiments tools
+python -m mypy --python-version "$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')" src/tracebook experiments tools
 python -m bandit -q -r src integrations tools
 python -m compileall -q src tests examples integrations experiments tools
 python -m pytest --cov=tracebook --cov-report=term-missing --cov-fail-under=75
@@ -33,6 +33,7 @@ tracebook-coinbase examples/data/coinbase_btcusd_l3_snapshot.json examples/data/
 tracebook-corpus verify src/tracebook/corpus/fixtures/coinbase-btcusd-synthetic-v1
 python -m build --sdist --wheel --outdir dist/conformance .
 python -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+python tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
 python -m twine check dist/conformance/* dist/simulator/*
 python -m pip download \
   --no-deps \
@@ -69,6 +70,9 @@ python -m pip check
 - Confirm the native `orderbook-rs` integration passes its fixed trace, `7/9`
   suite profile, generated campaign, and intentional-drift negative control.
 - Confirm the pinned PythonMatchingEngine integration workflow passes.
+- Confirm the pinned Go CLOB's FIFO qualifications and retained FOK divergence,
+  and the separate Nautilus L3 campaign and injected queue-priority control.
+  These are distinct contracts, not interchangeable qualification claims.
 - Check both generated package metadata sets and their disjoint wheel RECORDs.
 - Check that Dependabot has no urgent security update waiting.
 - Confirm no README badge or proof table overstates the current CI/test state.

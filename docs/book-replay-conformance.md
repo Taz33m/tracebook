@@ -99,6 +99,25 @@ python -m tracebook.book_replay run \
 Exit `0` means semantic agreement, `1` means the first semantic divergence was
 recorded, and `2` means input, process, or protocol failure.
 
+File outputs must be new paths. Existing files, directories, and symlinks are
+refused with exit `2`; input/output aliases and outputs nested inside one
+another are also refused. All requested destinations are reserved before the
+candidate starts, including a campaign's optional reduced trace even when the
+campaign ultimately passes. A passing campaign leaves no reduced-trace file.
+
+Reports and traces are staged completely before atomic publication without
+overwriting another writer's file. When producing a pair, the reduced trace is
+published first and the report last; a caught publication failure rolls back
+files created by that attempt. These are individual file commits, not a
+filesystem-wide transaction: abrupt process termination can leave a complete
+trace without its report. Only use the pair after the command completes.
+Sibling `.NAME.tracebook-in-progress` reservations and `.tracebook-stage-*`
+temporary files are removed on normal completion, with cleanup attempted on
+handled errors. Filesystem cleanup failures or competing replacements can
+leave sidecars. After a forced stop or cleanup failure, retain the artifacts
+and use fresh output names for a new invocation; do not remove a live process's
+reservations.
+
 ## Generated Campaigns And Reduction
 
 The v1 generator uses a specified SplitMix64 stream rather than Python's

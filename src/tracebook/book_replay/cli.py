@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .._version import __version__
+from .artifacts import OutputReservation, publish_outputs, reserve_outputs
 from .campaign import run_book_replay_campaign
 from .compare import run_book_replay
 from .external import ExternalBookReplayAdapterFactory
@@ -90,45 +91,49 @@ def _copy_sample(destination: str) -> Path:
     target = root / f"{PROFILE_NAME}.jsonl"
     if root.exists() and not root.is_dir():
         raise BookReplayError("sample destination must be a directory")
-    if target.exists():
-        raise BookReplayError(f"sample trace already exists: {target}")
-    root.mkdir(parents=True, exist_ok=True)
     source = resources.files("tracebook.book_replay.fixtures").joinpath(f"{PROFILE_NAME}.jsonl")
-    target.write_bytes(source.read_bytes())
+    with reserve_outputs(str(target)) as outputs:
+        publish_outputs([(outputs[str(target)], source.read_bytes())])
     return target
 
 
-def _emit(payload: dict, output: Optional[str]) -> None:
+def _emit(
+    payload: dict,
+    output: Optional[str],
+    outputs: dict[str, OutputReservation],
+    *,
+    events=None,
+    events_output: Optional[str] = None,
+) -> None:
     rendered = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    files = []
+    if events_output is not None and events is not None:
+        event_bytes = "".join(
+            json.dumps(event.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
+            + "\n"
+            for event in events
+        ).encode("utf-8")
+        files.append((outputs[events_output], event_bytes))
+    if output is not None:
+        files.append((outputs[output], rendered.encode("utf-8")))
+    # Publish the report last so a successful report never precedes its trace.
+    publish_outputs(files)
     if output is None:
         print(rendered, end="")
-        return
-    path = Path(output)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered, encoding="utf-8")
-    print(f"Report written: {path}")
-
-
-def _write_events(events, output: str) -> None:
-    path = Path(output)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        for event in events:
-            handle.write(
-                json.dumps(
-                    event.to_dict(),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                )
-                + "\n"
-            )
+    else:
+        print(f"Report written: {Path(output)}")
 
 
 def _require_distinct_paths(*paths: Optional[str]) -> None:
     resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
-    if len(resolved) != len(set(resolved)):
-        raise BookReplayError("input and output paths must be distinct")
+    if len(resolved) != len(set(resolved)) or any(
+        left in right.parents or right in left.parents
+        for index, left in enumerate(resolved)
+        for right in resolved[index + 1 :]
+    ):
+        raise BookReplayError(
+            "input and output paths must be distinct and cannot contain one another"
+        )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -142,17 +147,23 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         if args.command == "campaign":
             _require_distinct_paths(args.output, args.reduced_events_output)
-            campaign = run_book_replay_campaign(
-                _candidate_factory(args),
-                seed=args.seed,
-                traces=args.traces,
-                events_per_trace=args.events_per_trace,
-                max_minimize_runs=args.max_minimize_runs,
-            )
-            _emit(campaign.to_dict(), args.output)
-            if campaign.failure is not None and args.reduced_events_output is not None:
-                _write_events(campaign.failure.minimization.events, args.reduced_events_output)
-                print(f"Reduced events written: {Path(args.reduced_events_output)}")
+            with reserve_outputs(args.output, args.reduced_events_output) as outputs:
+                campaign = run_book_replay_campaign(
+                    _candidate_factory(args),
+                    seed=args.seed,
+                    traces=args.traces,
+                    events_per_trace=args.events_per_trace,
+                    max_minimize_runs=args.max_minimize_runs,
+                )
+                _emit(
+                    campaign.to_dict(),
+                    args.output,
+                    outputs,
+                    events=campaign.failure.minimization.events if campaign.failure else None,
+                    events_output=args.reduced_events_output,
+                )
+                if campaign.failure is not None and args.reduced_events_output is not None:
+                    print(f"Reduced events written: {Path(args.reduced_events_output)}")
             if campaign.failure is None:
                 return 0
             return 2 if campaign.failure.minimization.report.operational_failure else 1
@@ -160,26 +171,31 @@ def main(argv: Optional[List[str]] = None) -> int:
         events_path = Path(args.events).expanduser().resolve()
         events_output = args.events_output if args.command == "minimize" else None
         _require_distinct_paths(str(events_path), args.output, events_output)
-        if args.command == "minimize":
-            minimization = minimize_book_replay_failure(
+        with reserve_outputs(args.output, events_output) as outputs:
+            if args.command == "minimize":
+                minimization = minimize_book_replay_failure(
+                    load_book_replay_events(str(events_path)),
+                    _candidate_factory(args),
+                    config=BookReplayConfig(args.profile),
+                    max_runs=args.max_runs,
+                    trace_name=str(events_path),
+                )
+                _emit(
+                    minimization.to_dict(),
+                    args.output,
+                    outputs,
+                    events=minimization.events,
+                    events_output=args.events_output,
+                )
+                print(f"Minimized events written: {Path(args.events_output)}")
+                return 2 if minimization.report.operational_failure else 1
+            report = run_book_replay(
                 load_book_replay_events(str(events_path)),
                 _candidate_factory(args),
                 config=BookReplayConfig(args.profile),
-                max_runs=args.max_runs,
                 trace_name=str(events_path),
             )
-            _write_events(minimization.events, args.events_output)
-            _emit(minimization.to_dict(), args.output)
-            print(f"Minimized events written: {Path(args.events_output)}")
-            return 2 if minimization.report.operational_failure else 1
-        report = run_book_replay(
-            load_book_replay_events(str(events_path)),
-            _candidate_factory(args),
-            config=BookReplayConfig(args.profile),
-            trace_name=str(events_path),
-        )
-        payload = report.to_dict()
-        _emit(payload, args.output)
+            _emit(report.to_dict(), args.output, outputs)
         if report.operational_failure:
             return 2
         return 0 if report.conformant else 1
