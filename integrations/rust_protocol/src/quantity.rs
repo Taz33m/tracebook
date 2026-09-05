@@ -60,7 +60,7 @@ impl QuantityEncoding {
         coefficient.checked_mul(multiplier).ok_or_else(range_error)
     }
 
-    pub fn format(&self, units: u64) -> String {
+    pub fn format(&self, units: u64) -> Result<String, String> {
         let places = self.output_decimal_places.min(NATIVE_DECIMAL_PLACES);
         let divisor = 10_u64.pow(NATIVE_DECIMAL_PLACES - places);
         let mut rounded = units / divisor;
@@ -71,15 +71,23 @@ impl QuantityEncoding {
             // With divisor >= 10, incrementing the quotient cannot overflow.
             rounded += 1;
         }
+        if rounded == 0 {
+            return Err(format!(
+                "positive quantity cannot be represented at quantity_decimal_places={}",
+                self.output_decimal_places
+            ));
+        }
         let scale = 10_u64.pow(places);
         let whole = rounded / scale;
         let fraction = rounded % scale;
         if fraction == 0 {
-            return whole.to_string();
+            return Ok(whole.to_string());
         }
-        format!("{whole}.{fraction:0width$}", width = places as usize)
-            .trim_end_matches('0')
-            .to_string()
+        Ok(
+            format!("{whole}.{fraction:0width$}", width = places as usize)
+                .trim_end_matches('0')
+                .to_string(),
+        )
     }
 }
 
@@ -155,7 +163,7 @@ mod tests {
         ] {
             assert!(encoding.units(&number(text)).is_err(), "{text}");
         }
-        assert_eq!(encoding.format(u64::MAX), "18446744.073709551615");
+        assert_eq!(encoding.format(u64::MAX).unwrap(), "18446744.073709551615");
     }
 
     #[test]
@@ -170,10 +178,28 @@ mod tests {
         ] {
             let encoding = QuantityEncoding::new(places).unwrap();
             assert_eq!(
-                encoding.format(encoding.units(&number(text)).unwrap()),
+                encoding
+                    .format(encoding.units(&number(text)).unwrap())
+                    .unwrap(),
                 expected
             );
         }
         assert!(QuantityEncoding::new(19).is_err());
+    }
+
+    #[test]
+    fn unrepresentable_positive_observations_fail_instead_of_emitting_zero() {
+        for (places, text) in [(0, "0.4"), (0, "0.5"), (3, "0.0004"), (11, "1e-12")] {
+            let encoding = QuantityEncoding::new(places).unwrap();
+            let units = encoding.units(&number(text)).unwrap();
+            assert!(units > 0);
+            assert!(
+                encoding
+                    .format(units)
+                    .unwrap_err()
+                    .contains("cannot be represented")
+            );
+        }
+        assert!(QuantityEncoding::new(12).unwrap().format(0).is_err());
     }
 }

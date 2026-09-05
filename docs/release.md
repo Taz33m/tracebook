@@ -65,6 +65,8 @@ python -m pip check
 
 ## Remote Verification
 
+- Review the [PR #84 disposition](pr-84-review-disposition.md): release-code
+  fixes do not close the separately frozen research findings or authorize a release.
 - Push to a branch and wait for Ubuntu GitHub Actions on Python 3.10 through
   3.13.
 - Confirm the native `orderbook-rs` integration passes its fixed trace, `7/9`

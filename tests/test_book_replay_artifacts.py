@@ -204,6 +204,23 @@ def test_second_publication_failure_rolls_back_first_file(tmp_path, monkeypatch,
     assert set(tmp_path.iterdir()) == {trace}
 
 
+@pytest.mark.parametrize("command", ["run", "sample"])
+def test_cli_symlink_loop_is_controlled_before_candidate(tmp_path, monkeypatch, capsys, command):
+    trace = tmp_path / "trace.jsonl"
+    _trace(trace)
+    loop = tmp_path / "loop"
+    loop.symlink_to(loop)
+    _forbid_candidate(monkeypatch)
+    arguments = (
+        ["sample", str(loop)]
+        if command == "sample"
+        else _command("run", trace, loop / "report.json", tmp_path / "unused")
+    )
+    assert cli.main(arguments) == 2
+    assert "Traceback" not in capsys.readouterr().err
+    assert set(tmp_path.iterdir()) == {trace, loop}
+
+
 def test_late_destination_creation_is_never_overwritten(tmp_path, monkeypatch):
     trace, report = tmp_path / "trace.jsonl", tmp_path / "report.json"
     _trace(trace)
@@ -314,10 +331,65 @@ def test_interruption_after_report_link_rolls_back_both_published_files(tmp_path
     assert set(tmp_path.iterdir()) == {trace}
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can deliberately bypass directory permissions")
+def test_stage_entry_cannot_be_replaced_between_validation_and_link(tmp_path, monkeypatch):
+    report = tmp_path / "report.json"
+    link = os.link
+
+    def replace_stage(source, target, **kwargs):
+        # The old implementation allowed this unlink, then linked the foreign
+        # replacement and left it at report.json after its failed validation.
+        os.unlink(source, dir_fd=kwargs["src_dir_fd"])
+        descriptor = os.open(
+            source, os.O_WRONLY | os.O_CREAT | os.O_EXCL, dir_fd=kwargs["src_dir_fd"]
+        )
+        os.write(descriptor, b"foreign bytes")
+        os.close(descriptor)
+        link(source, target, **kwargs)
+
+    monkeypatch.setattr(artifacts.os, "link", replace_stage)
+    monkeypatch.setattr(artifacts.os, "supports_dir_fd", os.supports_dir_fd | {replace_stage})
+    with artifacts.reserve_outputs(str(report)) as outputs:
+        with pytest.raises(PermissionError):
+            artifacts.publish_outputs([(outputs[str(report)], b"owned bytes")])
+    assert not report.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_replacing_stage_directory_path_cannot_change_published_inode(tmp_path, monkeypatch):
+    report = tmp_path / "report.json"
+    link = os.link
+    with artifacts.reserve_outputs(str(report)) as outputs:
+        output = outputs[str(report)]
+        stage = tmp_path / output._stage_directory_name
+        moved = tmp_path / "moved-stage"
+
+        def replace_directory(source, target, **kwargs):
+            # macOS requires write permission on a directory being renamed;
+            # emulate a writer that can rename it, then restore its protection.
+            stage.chmod(0o700)
+            stage.rename(moved)
+            moved.chmod(0o500)
+            stage.mkdir()
+            (stage / source).write_bytes(b"foreign replacement")
+            link(source, target, **kwargs)
+
+        monkeypatch.setattr(artifacts.os, "link", replace_directory)
+        artifacts.publish_outputs([(output, b"owned bytes")])
+        assert report.read_bytes() == b"owned bytes"
+    assert (stage / output._stage_name).read_bytes() == b"foreign replacement"
+    assert list(moved.iterdir()) == []
+
+
 def test_cleanup_failure_still_closes_all_descriptors_and_other_sidecars(tmp_path, monkeypatch):
     reservation = artifacts.OutputReservation(tmp_path / "report.json")
     reservation.__enter__()
-    descriptors = (reservation._stage_fd, reservation._lock_fd, reservation._parent_fd)
+    descriptors = (
+        reservation._stage_fd,
+        reservation._lock_fd,
+        reservation._stage_directory_fd,
+        reservation._parent_fd,
+    )
     unlink = os.unlink
 
     def fail_stage_cleanup(name, **kwargs):
@@ -332,7 +404,8 @@ def test_cleanup_failure_still_closes_all_descriptors_and_other_sidecars(tmp_pat
     for descriptor in descriptors:
         with pytest.raises(OSError):
             os.fstat(descriptor)
-    assert {path.name for path in tmp_path.iterdir()} == {reservation._stage_name}
+    assert {path.name for path in tmp_path.iterdir()} == {reservation._stage_directory_name}
+    assert (tmp_path / reservation._stage_directory_name / reservation._stage_name).is_file()
 
 
 def test_trace_serialization_failure_precedes_any_artifact_write(tmp_path, monkeypatch):

@@ -3,15 +3,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.fixtures.faulty_book_replay_adapter import FaultyBookReplayAdapter
 
 from tracebook.book_replay import (
     BOOK_REPLAY_CAPABILITIES,
     BookReplayError,
     BookReplayEvent,
-    BookReplayObservation,
-    BookReplaySnapshot,
-    BookReplayState,
-    EngineMetadata,
     ReferenceBookReplayAdapter,
     generate_book_replay_trace,
     measure_book_replay_coverage,
@@ -25,39 +22,17 @@ ROOT = Path(__file__).parents[1]
 FAULTY_ADAPTER = ROOT / "tests" / "fixtures" / "faulty_book_replay_adapter.py"
 
 
-class _ReorderingAdapter:
+class _ReorderingAdapter(FaultyBookReplayAdapter):
     def __init__(self, config):
-        self._inner = ReferenceBookReplayAdapter(config)
-        self._reorder = False
-        self.metadata = EngineMetadata("reordering-test-adapter", "1", "Python")
+        super().__init__(config, engine_name="reordering-test-adapter")
 
-    def apply(self, event, index):
-        observation = self._inner.apply(event, index)
-        if event.op == "update" and event.order_id == 1:
-            self._reorder = True
-        state = self.snapshot()
-        return BookReplayObservation(
-            index,
-            observation.outcome,
-            observation.fills,
-            state.digest(),
-            state.order_count,
-        )
 
-    def snapshot(self):
-        state = self._inner.snapshot()
-        if not self._reorder:
-            return state
-        books = []
-        for book in state.books:
-            bids = list(book.bids)
-            if book.symbol == "TEST" and len(bids) >= 2:
-                bids[0], bids[1] = bids[1], bids[0]
-            books.append(BookReplaySnapshot(book.symbol, tuple(bids), book.asks))
-        return BookReplayState(tuple(books))
-
-    def close(self):
-        self._inner.close()
+def test_side_only_update_does_not_claim_price_relocation_coverage():
+    add = BookReplayEvent("add", "TEST", 1, "BUY", "100", "1")
+    side_change = BookReplayEvent("update", "TEST", 1, "SELL", "100", "1")
+    price_change = BookReplayEvent("update", "TEST", 1, "SELL", "101", "1")
+    assert "price-relocation" not in measure_book_replay_coverage([[add, side_change]]).covered
+    assert "price-relocation" in measure_book_replay_coverage([[add, price_change]]).covered
 
 
 def test_generator_is_deterministic_and_scaffold_covers_every_capability():

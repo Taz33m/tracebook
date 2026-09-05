@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Dict, List, Tuple, cast
 
 from .._version import __version__
@@ -159,7 +159,15 @@ class ReferenceBookReplayAdapter:
                         quantity=canonical_decimal(quantity),
                     )
                 )
-                remaining -= quantity
+                # Align both coefficients before subtracting. The ambient
+                # Decimal context must not erase small FIFO fills.
+                with localcontext() as context:
+                    exponent = min(
+                        cast(int, remaining.as_tuple().exponent),
+                        cast(int, quantity.as_tuple().exponent),
+                    )
+                    context.prec = max(remaining.adjusted(), quantity.adjusted()) - exponent + 2
+                    remaining -= quantity
                 if remaining == 0:
                     return tuple(fills)
         return tuple(fills)

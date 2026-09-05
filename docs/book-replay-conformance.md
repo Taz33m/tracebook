@@ -112,11 +112,19 @@ files created by that attempt. These are individual file commits, not a
 filesystem-wide transaction: abrupt process termination can leave a complete
 trace without its report. Only use the pair after the command completes.
 Sibling `.NAME.tracebook-in-progress` reservations and `.tracebook-stage-*`
-temporary files are removed on normal completion, with cleanup attempted on
+private staging directories are removed on normal completion, with cleanup attempted on
 handled errors. Filesystem cleanup failures or competing replacements can
 leave sidecars. After a forced stop or cleanup failure, retain the artifacts
 and use fresh output names for a new invocation; do not remove a live process's
 reservations.
+
+Staged payloads live in owner-only, read-only directories and publication uses
+the open directory descriptor, so replacing a staging directory's parent entry
+cannot substitute another payload. Published files are owner-readable. This
+protects against ordinary concurrent file writers, not privileged processes or
+same-user code deliberately changing permissions or writing through an already
+open descriptor. Use a trusted output directory; these filesystem guards are
+not a sandbox for hostile code running as your user.
 
 ## Generated Campaigns And Reduction
 

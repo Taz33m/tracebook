@@ -75,7 +75,7 @@ impl AdapterConfig {
         Ok(canonical_decimal(price))
     }
 
-    fn format_quantity(&self, units: u64) -> String {
+    fn format_quantity(&self, units: u64) -> Result<String, String> {
         self.quantity_encoding.format(units)
     }
 }
@@ -389,7 +389,7 @@ impl Adapter {
             buy_order_id: trade.buy_id.get(),
             sell_order_id: trade.sell_id.get(),
             price: self.config.format_price(trade.price.get())?,
-            quantity: self.config.format_quantity(trade.quantity.get()),
+            quantity: self.config.format_quantity(trade.quantity.get())?,
         })
     }
 
@@ -432,7 +432,7 @@ impl Adapter {
                 Ok(RestingOrder {
                     order_id: order.order_id,
                     price: self.config.format_price(order.price)?,
-                    remaining_quantity: self.config.format_quantity(order.remaining),
+                    remaining_quantity: self.config.format_quantity(order.remaining)?,
                     owner,
                     order_type: "LIMIT",
                 })
@@ -615,6 +615,35 @@ mod tests {
         let state = adapter.snapshot().unwrap();
         assert_eq!(state.books[0].asks.len(), 1);
         assert_eq!(state.books[0].asks[0].remaining_quantity, "1");
+    }
+
+    #[test]
+    fn positive_fills_and_remainders_cannot_be_emitted_as_zero() {
+        for (maker, taker) in [(0.4, None), (1.0, Some(0.4)), (1.0, Some(0.6))] {
+            let mut adapter = Adapter::new(ConfigWire {
+                quantity_decimal_places: 0,
+                ..ConfigWire::default()
+            })
+            .unwrap();
+            let first = serde_json::from_value::<MarketEvent>(serde_json::json!({
+                "op":"new","symbol":"TEST","order_id":1,"side":"BUY","price":100,"quantity":maker
+            }))
+            .unwrap();
+            let result = if let Some(quantity) = taker {
+                adapter.apply(&first, 1).unwrap();
+                let second = serde_json::from_value::<MarketEvent>(serde_json::json!({
+                    "op":"new","symbol":"TEST","order_id":2,"side":"SELL","price":100,"quantity":quantity
+                })).unwrap();
+                adapter.apply(&second, 2)
+            } else {
+                adapter.apply(&first, 1)
+            };
+            assert!(
+                result
+                    .unwrap_err()
+                    .contains("positive quantity cannot be represented")
+            );
+        }
     }
 
     #[test]

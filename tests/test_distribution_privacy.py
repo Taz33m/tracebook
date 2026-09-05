@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tarfile
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,24 @@ import pytest
 from tools.verify_distribution_privacy import PrivacyError, main, verify_artifact
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_privacy_gate_handles_corrupt_deflated_inventory(tmp_path, capsys):
+    artifact = tmp_path / "corrupt.whl"
+    with zipfile.ZipFile(artifact, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("fixture.egg-info/SOURCES.txt", "pyproject.toml\n")
+    # Preserve the ZIP index, but corrupt the compressed block's type bits.
+    data = bytearray(artifact.read_bytes())
+    filename_length = int.from_bytes(data[26:28], "little")
+    extra_length = int.from_bytes(data[28:30], "little")
+    data[30 + filename_length + extra_length] = 7
+    artifact.write_bytes(data)
+    with pytest.raises(zlib.error):
+        verify_artifact(artifact)
+    assert main([str(artifact)]) == 1
+    assert "distribution privacy check failed" in capsys.readouterr().err
+
+
 PRIVATE_PATHS = (
     "experiments/private/agent-qualification-v2/gold.json",
     "experiments/private/agent-qualification-v2/execution/controller.py",

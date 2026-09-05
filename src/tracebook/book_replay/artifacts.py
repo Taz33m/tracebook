@@ -28,10 +28,15 @@ class OutputReservation:
     def __init__(self, destination: str | Path) -> None:
         path = Path(destination).expanduser()
         self._requested_target = path.absolute()
-        self.target = path.parent.resolve() / path.name
+        try:
+            self.target = path.parent.resolve() / path.name
+        except RuntimeError as exc:
+            raise BookReplayError(f"cannot resolve book-replay path: {exc}") from exc
         self._lock_name = f".{self.target.name}.tracebook-in-progress"
-        self._stage_name = f".tracebook-stage-{uuid.uuid4().hex}"
+        self._stage_directory_name = f".tracebook-stage-{uuid.uuid4().hex}"
+        self._stage_name = "payload"
         self._parent_fd: Optional[int] = None
+        self._stage_directory_fd: Optional[int] = None
         self._lock_fd: Optional[int] = None
         self._stage_fd: Optional[int] = None
         self._published = False
@@ -50,7 +55,21 @@ class OutputReservation:
             self._require_absent()
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
             self._lock_fd = os.open(self._lock_name, flags, 0o600, dir_fd=self._parent_fd)
-            self._stage_fd = os.open(self._stage_name, flags, 0o600, dir_fd=self._parent_fd)
+            os.mkdir(self._stage_directory_name, mode=0o700, dir_fd=self._parent_fd)
+            self._stage_directory_fd = os.open(
+                self._stage_directory_name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=self._parent_fd,
+            )
+            self._stage_fd = os.open(
+                self._stage_name, flags, 0o400, dir_fd=self._stage_directory_fd
+            )
+            # Keep the source entry in a private, non-writable directory. The
+            # write descriptor remains usable, but another normal file writer
+            # cannot replace the source entry in the validate/link window.
+            # Linking relative to this directory's descriptor also survives a
+            # competing rename/replacement of its entry in the output parent.
+            os.fchmod(self._stage_directory_fd, 0o500)
             self.validate()
         except BaseException:
             try:
@@ -74,13 +93,16 @@ class OutputReservation:
             return
         raise BookReplayError(f"book-replay output already exists: {self.target}")
 
-    def _owns_entry(self, name: str, descriptor: Optional[int]) -> bool:
-        if self._parent_fd is None or descriptor is None:
+    def _owns_entry(
+        self, name: str, descriptor: Optional[int], *, directory: Optional[int] = None
+    ) -> bool:
+        directory = self._parent_fd if directory is None else directory
+        if directory is None or descriptor is None:
             return False
         try:
-            return _identity(
-                os.stat(name, dir_fd=self._parent_fd, follow_symlinks=False)
-            ) == _identity(os.fstat(descriptor))
+            return _identity(os.stat(name, dir_fd=directory, follow_symlinks=False)) == _identity(
+                os.fstat(descriptor)
+            )
         except OSError:
             return False
 
@@ -90,7 +112,10 @@ class OutputReservation:
         if (
             not self._same_parent()
             or not self._owns_entry(self._lock_name, self._lock_fd)
-            or not self._owns_entry(self._stage_name, self._stage_fd)
+            or not self._owns_entry(self._stage_directory_name, self._stage_directory_fd)
+            or not self._owns_entry(
+                self._stage_name, self._stage_fd, directory=self._stage_directory_fd
+            )
         ):
             raise BookReplayError(f"book-replay output reservation changed: {self.target}")
         self._require_absent()
@@ -123,7 +148,7 @@ class OutputReservation:
         os.link(
             self._stage_name,
             self.target.name,
-            src_dir_fd=self._parent_fd,
+            src_dir_fd=self._stage_directory_fd,
             dst_dir_fd=self._parent_fd,
             follow_symlinks=False,
         )
@@ -144,14 +169,19 @@ class OutputReservation:
 
     def close(self) -> None:
         error: Optional[OSError] = None
-        for name, descriptor in (
-            (self._stage_name, self._stage_fd),
-            (self._lock_name, self._lock_fd),
+        if self._stage_directory_fd is not None:
+            try:
+                os.fchmod(self._stage_directory_fd, 0o700)
+            except OSError as exc:
+                error = exc
+        for name, descriptor, directory in (
+            (self._stage_name, self._stage_fd, self._stage_directory_fd),
+            (self._lock_name, self._lock_fd, self._parent_fd),
         ):
             if descriptor is not None:
                 try:
-                    if self._owns_entry(name, descriptor):
-                        os.unlink(name, dir_fd=self._parent_fd)
+                    if self._owns_entry(name, descriptor, directory=directory):
+                        os.unlink(name, dir_fd=directory)
                 except OSError as exc:
                     error = error or exc
                 finally:
@@ -160,6 +190,18 @@ class OutputReservation:
                     except OSError as exc:
                         error = error or exc
         self._stage_fd = self._lock_fd = None
+        if self._stage_directory_fd is not None:
+            try:
+                if self._owns_entry(self._stage_directory_name, self._stage_directory_fd):
+                    os.rmdir(self._stage_directory_name, dir_fd=self._parent_fd)
+            except OSError as exc:
+                error = error or exc
+            finally:
+                try:
+                    os.close(self._stage_directory_fd)
+                except OSError as exc:
+                    error = error or exc
+                self._stage_directory_fd = None
         if self._parent_fd is not None:
             try:
                 os.close(self._parent_fd)

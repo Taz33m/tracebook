@@ -12,6 +12,7 @@ import argparse
 import sys
 import tarfile
 import zipfile
+import zlib
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Sequence
 
@@ -112,7 +113,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         for artifact in args.artifacts:
             verify_artifact(artifact)
-    except (PrivacyError, OSError, tarfile.TarError, zipfile.BadZipFile) as error:
+    except (PrivacyError, OSError, tarfile.TarError, zipfile.BadZipFile, zlib.error) as error:
         print(f"distribution privacy check failed: {error}", file=sys.stderr)
         return 1
     print(f"Distribution privacy verified for {len(args.artifacts)} artifacts.")
