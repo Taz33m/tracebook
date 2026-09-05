@@ -40,7 +40,8 @@ def _serve_test(factory, *messages, hello_overrides=None):
     return status, [json.loads(line) for line in sink.getvalue().splitlines()]
 
 
-def test_server_close_failure_is_one_terminal_adapter_error():
+@pytest.mark.parametrize("exception", [ValueError, BrokenPipeError])
+def test_server_close_failure_is_one_terminal_adapter_error(exception):
     instances = []
 
     class BrokenClose(ReferenceBookReplayAdapter):
@@ -51,7 +52,7 @@ def test_server_close_failure_is_one_terminal_adapter_error():
 
         def close(self):
             self.close_calls += 1
-            raise ValueError("shutdown failed")
+            raise exception("shutdown failed")
 
     status, messages = _serve_test(BrokenClose, dict(type="finish", event_count=0))
     assert status == 2
@@ -61,7 +62,7 @@ def test_server_close_failure_is_one_terminal_adapter_error():
 
 
 @pytest.mark.parametrize("stage", ["factory", "apply", "snapshot"])
-@pytest.mark.parametrize("exception", [TypeError, ValueError])
+@pytest.mark.parametrize("exception", [TypeError, ValueError, BrokenPipeError])
 def test_server_adapter_exceptions_are_not_client_errors(stage, exception):
     closed = []
 
@@ -91,6 +92,23 @@ def test_server_adapter_exceptions_are_not_client_errors(stage, exception):
     assert status == 2
     assert messages[-1]["code"] == "ADAPTER_ERROR"
     assert len(closed) == (0 if stage == "factory" else 1)
+
+
+def test_server_broken_output_pipe_returns_failure_and_closes_adapter_once():
+    closed = []
+
+    class Adapter(ReferenceBookReplayAdapter):
+        def close(self):
+            closed.append(True)
+
+    class BrokenSink(io.StringIO):
+        def write(self, value):
+            raise BrokenPipeError("output pipe closed")
+
+    hello = dict(type="hello", protocol=PROTOCOL_NAME, protocol_version=PROTOCOL_VERSION)
+    source = io.StringIO(json.dumps(hello) + "\n")
+    assert serve_book_replay_stdio(Adapter, source, BrokenSink()) == 2
+    assert closed == [True]
 
 
 @pytest.mark.parametrize("kind,field", [("snapshot", "index"), ("finish", "event_count")])

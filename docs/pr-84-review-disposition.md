@@ -1,7 +1,8 @@
 # PR #84 Review Disposition
 
 This records the 30 comments in the initial automated review of
-[PR #84](https://github.com/Taz33m/tracebook/pull/84), against `0c98e18`.
+[PR #84](https://github.com/Taz33m/tracebook/pull/84), against `0c98e18`,
+and the four follow-up comments against `e65416a`.
 It is a disposition of that review, not release approval or a new experiment
 result. Source and regression tests, not the review's severity labels, determine
 the implemented changes.
@@ -45,6 +46,25 @@ Two limits matter when interpreting these fixes:
   not overwrite destinations, and rollback preserves competing files. The
   directory-permission test is intentionally skipped when running as root.
 
+## Follow-up release-code fixes
+
+All four follow-up findings are addressed without changing positive-value
+normalization, matching semantics, or frozen research files.
+
+| Comment ID | Change | Regression / verification surface |
+| --- | --- | --- |
+| 3939212113 | Retain the staging directory's identity before opening it, remove only a matching entry on setup failure, and reject an opened replacement before writing or changing its permissions. | `test_stage_directory_setup_failure_cleans_only_owned_entries`: failed open, competing replacement, and descriptor closure |
+| 3939212117 | Reserve `PROTOCOL_ERROR` for explicit client validation failures; adapter `BrokenPipeError` follows the adapter-error path, including shutdown. | Close/factory/apply/snapshot regressions plus a broken output pipe; close remains single-shot |
+| 3939212124 | Diagnose an exact zero as a nonpositive quantity; retain the separate precision-loss error for positive quantities that round to zero. | Shared Rust zero-diagnostic test at 0, 12, and 18 places, plus existing positive rounding tests |
+| 3939212131 | Use the same narrow path-resolution guard for CLI inputs and distinct-path checks. | Actual input symlink loops for both `run` and `minimize`, including Python 3.10's `RuntimeError` behavior |
+
+The still-open duplicate-fixture comment, `3939089005`, is already addressed
+by `e65416a`: `tests/test_book_replay_campaign.py` imports the shared
+`FaultyBookReplayAdapter`. Its small `_ReorderingAdapter` subclass only supplies
+the historical engine name; it contains no fault, snapshot, or shutdown logic.
+Existing campaign and reduced-failure identities remain covered by regression
+tests. This is a stale release-code conversation, not a deferred research issue.
+
 ## Frozen research findings — open, not silently patched
 
 These 13 findings are in the historical/hash-bound research harness. The
@@ -78,7 +98,7 @@ belong in a provider request or this public document.
 
 ## Release gate
 
-Local verification of the fixes passed: Python 3.13 had 651 passing tests,
+Local verification of the initial fixes passed: Python 3.13 had 651 passing tests,
 one skip, and 82.38% coverage; the focused Python 3.10 regressions passed too.
 Formatting, lint, type checking, static security checks, pinned Rust 1.88/Go
 1.23.5 checks, distribution privacy, and sdist/wheel agreement passed.
@@ -87,6 +107,14 @@ FIFO-limit, and Go partial-fill identities. The Go full-profile FOK failure and
 the Nautilus 2,500-event positive campaign/three-event negative control retained
 their expected identities and reduced trace. These are local checks; consult
 the PR for the latest remote CI and review state.
+
+Follow-up verification passed separately: Python 3.13 had 661 passing tests,
+one skip, and 82.38% coverage. The focused L3 protocol, artifact, and campaign
+suite passed all 114 tests on Python 3.10. All 33 Rust tests across the shared
+protocol and both adapters passed with Rust 1.88, along with clippy and rustfmt.
+Python formatting, lint, type checking, static security checks, and compilation
+also passed. This follow-up did not recollect provider runs or rewrite retained
+qualification artifacts; the initial verification above remains historical.
 
 Keep the research conversations open until their disposition is agreed. Passing
 release tests does not justify dismissing those comments, bypassing repository

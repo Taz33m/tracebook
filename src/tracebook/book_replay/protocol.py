@@ -134,7 +134,7 @@ def serve_book_replay_stdio(
             else:
                 raise _RequestError(f"unsupported protocol message type: {message_type!r}")
         raise _RequestError("protocol ended before finish")
-    except (_RequestError, BrokenPipeError) as exc:
+    except _RequestError as exc:
         try:
             _write_message(sink, {"type": "error", "code": "PROTOCOL_ERROR", "message": str(exc)})
         except BrokenPipeError:
