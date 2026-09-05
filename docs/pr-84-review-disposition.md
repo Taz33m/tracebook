@@ -58,19 +58,25 @@ normalization, matching semantics, or frozen research files.
 | 3939212124 | Diagnose an exact zero as a nonpositive quantity; retain the separate precision-loss error for positive quantities that round to zero. | Shared Rust zero-diagnostic test at 0, 12, and 18 places, plus existing positive rounding tests |
 | 3939212131 | Use the same narrow path-resolution guard for CLI inputs and distinct-path checks. | Actual input symlink loops for both `run` and `minimize`, including Python 3.10's `RuntimeError` behavior |
 
-The still-open duplicate-fixture comment, `3939089005`, is already addressed
+The duplicate-fixture comment, `3939089005`, was already addressed
 by `e65416a`: `tests/test_book_replay_campaign.py` imports the shared
 `FaultyBookReplayAdapter`. Its small `_ReorderingAdapter` subclass only supplies
 the historical engine name; it contains no fault, snapshot, or shutdown logic.
 Existing campaign and reduced-failure identities remain covered by regression
-tests. This is a stale release-code conversation, not a deferred research issue.
+tests. Its stale release-code conversation was resolved with source and test
+evidence; it is not a deferred research issue.
 
-## Frozen research findings — open, not silently patched
+## Frozen research findings — explicitly deferred, not fixed
 
 These 13 findings are in the historical/hash-bound research harness. The
 accepted scope leaves that code, frozen inputs, evaluator material, and retained
-results unchanged. They remain open pending a separate research disposition;
-the release fixes above do not resolve them.
+results unchanged. On 2026-09-05 the maintainer explicitly authorized transferring
+all 13 findings to [follow-up issue #85](https://github.com/Taz33m/tracebook/issues/85)
+so this release-code PR can merge after its remaining fix and checks. That issue
+preserves every original review link and an unchecked item for each finding.
+The PR conversations are resolved only as an agreed transfer: these findings
+remain open in the follow-up, not fixed or dismissed as false positives. The
+release fixes above do not resolve the underlying research risks.
 
 | Comment ID | Reported issue | Required next decision/check |
 | --- | --- | --- |
@@ -116,7 +122,10 @@ Python formatting, lint, type checking, static security checks, and compilation
 also passed. This follow-up did not recollect provider runs or rewrite retained
 qualification artifacts; the initial verification above remains historical.
 
-Keep the research conversations open until their disposition is agreed. Passing
-release tests does not justify dismissing those comments, bypassing repository
-protections, merging the PR, or publishing a tag. The previous maintainer
-invitation and its immutable source/wheel references remain unchanged.
+The agreed transfer to issue #85 supersedes the earlier instruction to keep
+these 13 PR conversations open pending a disposition. Keep the follow-up issue
+open until its evidence-backed completion criteria are reviewed. Passing release
+tests does not dismiss those risks or justify bypassing repository protections.
+The remaining release-code review and required checks must pass before the
+authorized merge; no tag or package publication is authorized. The previous
+maintainer invitation and its immutable source/wheel references remain unchanged.
