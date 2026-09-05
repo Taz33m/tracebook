@@ -97,12 +97,12 @@ build:
 		--conformance-sdist dist/conformance/*.tar.gz \
 		--sim-wheel dist/simulator/*.whl \
 		--sim-sdist dist/simulator/*.tar.gz \
-		--expected-version 0.6.0
+		--expected-version 0.7.0
 
 # Prove wheel ownership, clean installs, migration, and uninstall safety
 verify-distribution-split: build
 	$(PYTHON_VENV) tools/verify_distribution_split.py \
-		--expected-version 0.6.0 \
+		--expected-version 0.7.0 \
 		--conformance-wheel dist/conformance/*.whl \
 		--sim-wheel dist/simulator/*.whl
 

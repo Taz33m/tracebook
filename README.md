@@ -28,6 +28,9 @@ failure to a deterministic JSONL reproducer.
 
 ## Quick Start
 
+The source tree is preparing **0.7.0**; see the [draft release notes](docs/releases/0.7.0.md).
+It is not published yet. The install commands below intentionally use public 0.6.0.
+
 Tracebook requires Python 3.10-3.13. Install the dependency-light conformance
 distribution and materialize the current hash-verified adversarial suite:
 

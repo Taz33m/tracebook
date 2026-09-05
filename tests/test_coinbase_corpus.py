@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from tracebook import __version__
+from tracebook.corpus import coinbase as corpus_module
 from tracebook.corpus import (
     CoinbaseCorpusError,
     CoinbaseSanitizer,
@@ -124,6 +126,7 @@ def test_compact_sanitizer_rewrites_schema_when_removing_fields():
 def test_prepare_verify_and_tamper_detection(tmp_path):
     corpus, manifest = _prepare(tmp_path)
 
+    assert manifest["tool"] == {"name": "tracebook", "version": __version__}
     assert set(path.name for path in corpus.iterdir()) == {
         "snapshot.json",
         "feed.jsonl",
@@ -164,7 +167,12 @@ def test_checked_synthetic_corpus_reproduces_exactly():
     }
 
 
-def test_checked_synthetic_corpus_regenerates_byte_for_byte(tmp_path):
+def test_checked_synthetic_corpus_regenerates_byte_for_byte(tmp_path, monkeypatch):
+    # The corpus identity includes producer-version provenance. Pin only that
+    # historical metadata when testing byte reproduction; normal preparation
+    # above must still record the current version. Keep the frozen fixture intact.
+    historical = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(corpus_module, "__version__", historical["tool"]["version"])
     regenerated = tmp_path / "regenerated"
     prepare_coinbase_corpus(
         SNAPSHOT,
