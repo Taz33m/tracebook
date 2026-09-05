@@ -13,6 +13,7 @@ from tracebook.book_replay import (
     BookReplayError,
     BookReplayEvent,
     BookReplayObservation,
+    BookReplayProtocolError,
     BookReplaySnapshot,
     BookReplayState,
     EngineMetadata,
@@ -230,12 +231,75 @@ def test_external_example_adapter_conforms():
         lambda config: ExternalBookReplayAdapter(
             [sys.executable, str(EXAMPLE_ADAPTER)],
             config,
-            timeout_seconds=2,
+            timeout_seconds=10,
         ),
     )
 
     assert report.conformant is True
     assert report.candidate_engine.name == "example-book-replay-adapter"
+
+
+def _shutdown_test_adapter(delay, exit_code, *, handle_terminate=False):
+    script = """
+import json
+import signal
+import sys
+import time
+
+delay, exit_code, handle_terminate = json.loads(sys.argv[1])
+if handle_terminate:
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+hello = json.loads(sys.stdin.readline())
+print(json.dumps({
+    "type": "ready",
+    "protocol": hello["protocol"],
+    "protocol_version": hello["protocol_version"],
+    "engine": {"name": "shutdown-test", "version": "1", "language": "Python"},
+}), flush=True)
+finish = json.loads(sys.stdin.readline())
+print(json.dumps({"type": "complete", "event_count": finish["event_count"]}), flush=True)
+time.sleep(delay)
+sys.exit(exit_code)
+"""
+    return ExternalBookReplayAdapter(
+        [
+            sys.executable,
+            "-I",
+            "-u",
+            "-c",
+            script,
+            json.dumps([delay, exit_code, handle_terminate]),
+        ],
+        BookReplayConfig(),
+        timeout_seconds=10,
+    )
+
+
+def test_external_close_allows_configured_time_for_clean_exit():
+    adapter = _shutdown_test_adapter(0.75, 0)
+
+    adapter.close()
+    adapter.close()
+
+    assert adapter._process.returncode == 0
+
+
+def test_external_close_rejects_nonzero_exit_after_complete():
+    adapter = _shutdown_test_adapter(0, 7)
+
+    with pytest.raises(BookReplayProtocolError, match="exited with code 7 after complete"):
+        adapter.close()
+
+
+def test_external_close_rejects_timeout_even_when_termination_exits_zero():
+    adapter = _shutdown_test_adapter(60, 0, handle_terminate=True)
+    # Startup has its own generous budget; now isolate the exit timeout.
+    adapter.timeout_seconds = 0.2
+
+    with pytest.raises(BookReplayProtocolError, match="timed out exiting after complete"):
+        adapter.close()
+
+    assert adapter._process.returncode is not None
 
 
 def test_cli_sample_and_external_run(tmp_path, capsys):

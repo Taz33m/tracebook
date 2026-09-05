@@ -10,13 +10,6 @@ include SECURITY.md
 include SUPPORT.md
 
 recursive-include docs *.md *.png *.svg
-exclude docs/openwiki.md
-exclude docs/graphify.md
-exclude AGENTS.md
-exclude CLAUDE.md
-prune openwiki
-prune graphify-out
-prune .local-tools
 recursive-include examples *.py *.json *.jsonl *.yml
 recursive-include experiments *.py *.json
 recursive-include packaging *.md
@@ -49,3 +42,16 @@ recursive-include src/tracebook/corpus/fixtures *.json *.jsonl
 recursive-include src/tracebook/conformance/fixtures *.json *.jsonl
 recursive-include src/tracebook/book_replay/fixtures *.jsonl
 include src/tracebook/py.typed
+
+# Apply exclusions last, including to entries retained in an old SOURCES.txt.
+prune experiments/private
+prune .agents
+prune .codex
+prune openwiki
+prune graphify-out
+prune .local-tools
+exclude docs/openwiki.md
+exclude docs/graphify.md
+exclude AGENTS.md
+exclude CLAUDE.md
+global-exclude AGENTS.md CLAUDE.md skills-lock.json

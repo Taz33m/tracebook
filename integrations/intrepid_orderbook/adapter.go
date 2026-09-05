@@ -17,6 +17,7 @@ import (
 type adapterConfig struct {
 	matchingAlgorithm string
 	tickSize          decimal.Decimal
+	tickSizeFloat     float64
 	quantityPlaces    uint32
 	nativeQtyPlaces   uint32
 	quantityScale     int64
@@ -39,6 +40,10 @@ func parseConfig(wire configWire) (adapterConfig, error) {
 	if err != nil || !tick.IsPositive() {
 		return adapterConfig{}, errors.New("tick_size must be a positive finite decimal")
 	}
+	tickFloat, err := strconv.ParseFloat(tickText, 64)
+	if err != nil || math.IsInf(tickFloat, 0) || math.IsNaN(tickFloat) || tickFloat <= 0 {
+		return adapterConfig{}, errors.New("tick_size must be a positive finite binary64 value")
+	}
 	places := uint32(12)
 	if wire.QuantityDecimalPlaces != nil {
 		places = *wire.QuantityDecimalPlaces
@@ -46,18 +51,11 @@ func parseConfig(wire configWire) (adapterConfig, error) {
 	if places > 18 {
 		return adapterConfig{}, errors.New("quantity_decimal_places must be between 0 and 18")
 	}
-	// The upstream pro-rata path multiplies two int64 lot counts. Scaling all
-	// protocol quantities by 10^12 would overflow that native multiplication on
-	// ordinary five-lot fixtures. Six decimal places preserve the campaign's
-	// exact values while keeping its bounded native arithmetic safely in range.
-	nativePlaces := min(places, uint32(6))
-	scale := int64(1)
-	for range nativePlaces {
-		if scale > math.MaxInt64/10 {
-			return adapterConfig{}, errors.New("quantity scale exceeds int64")
-		}
-		scale *= 10
-	}
+	// Protocol precision controls observations, not submitted quantities.
+	// Keep six native decimal places regardless of that output setting, and
+	// reject inputs that would require rounding before the engine sees them.
+	const nativePlaces = uint32(6)
+	const scale = int64(1_000_000)
 	policy := wire.SelfTradePolicy
 	if policy == "" {
 		policy = "NONE"
@@ -75,26 +73,30 @@ func parseConfig(wire configWire) (adapterConfig, error) {
 			"self_trade_policy must be NONE, CANCEL_RESTING, or CANCEL_INCOMING",
 		)
 	}
-	return adapterConfig{algorithm, tick, places, nativePlaces, scale, stp}, nil
+	return adapterConfig{
+		matchingAlgorithm: algorithm, tickSize: tick, tickSizeFloat: tickFloat,
+		quantityPlaces: places, nativeQtyPlaces: nativePlaces, quantityScale: scale, stp: stp,
+	}, nil
 }
 
 func (config adapterConfig) priceTicks(value *jsonNumber) (int64, error) {
 	if value == nil {
 		return 0, errors.New("price is required")
 	}
-	price, err := decimal.NewFromString(value.String())
-	if err != nil {
+	price, err := strconv.ParseFloat(value.String(), 64)
+	if err != nil || math.IsInf(price, 0) || math.IsNaN(price) {
 		return 0, errors.New("price must be finite")
 	}
-	ticks := price.Div(config.tickSize).RoundBank(0).BigInt()
-	if !ticks.IsInt64() || ticks.Sign() <= 0 {
+	// The reference snaps the normalized binary64 input with ties to even.
+	// Decimal division differs at boundaries such as 1.015 / 0.01.
+	ticks := math.RoundToEven(price / config.tickSizeFloat)
+	if math.IsInf(ticks, 0) || math.IsNaN(ticks) || ticks <= 0 || ticks >= math.Exp2(63) {
 		return 0, errors.New("price snaps to a non-positive or unsupported tick")
 	}
-	return ticks.Int64(), nil
+	return int64(ticks), nil
 }
 
-// jsonNumber is an alias so conversion helpers read cleanly without allowing
-// floating-point parsing into this integer-tick boundary.
+// jsonNumber preserves the wire text for each explicit numeric conversion.
 type jsonNumber = json.Number
 
 func (config adapterConfig) quantityUnits(value *jsonNumber) (int64, error) {
@@ -105,8 +107,7 @@ func (config adapterConfig) quantityUnits(value *jsonNumber) (int64, error) {
 	if err != nil || !quantity.IsPositive() {
 		return 0, errors.New("quantity must be positive")
 	}
-	normalized := quantity.RoundBank(int32(config.quantityPlaces))
-	scaled := normalized.Mul(
+	scaled := quantity.Mul(
 		decimal.NewFromInt(config.quantityScale),
 	)
 	if !scaled.Equal(scaled.Truncate(0)) {
@@ -127,13 +128,15 @@ func (config adapterConfig) formatPrice(ticks int64) string {
 }
 
 func (config adapterConfig) formatQuantity(units int64) string {
-	return decimal.NewFromInt(units).Div(decimal.NewFromInt(config.quantityScale)).String()
+	return decimal.NewFromInt(units).Shift(-int32(config.nativeQtyPlaces)).
+		RoundBank(int32(config.quantityPlaces)).String()
 }
 
 type bookHarness struct {
 	engine         *matching.Engine
 	sourceToNative map[int64]int64
 	nativeToSource map[int64]int64
+	nativeToOwner  map[int64]int64
 }
 
 func newBook(symbol string, config adapterConfig) *bookHarness {
@@ -145,6 +148,7 @@ func newBook(symbol string, config adapterConfig) *bookHarness {
 		engine:         matching.NewEngine(nativeConfig),
 		sourceToNative: make(map[int64]int64),
 		nativeToSource: make(map[int64]int64),
+		nativeToOwner:  make(map[int64]int64),
 	}
 }
 
@@ -156,6 +160,7 @@ func (book *bookHarness) reconcile() {
 	for nativeID, sourceID := range book.nativeToSource {
 		if !active[nativeID] {
 			delete(book.nativeToSource, nativeID)
+			delete(book.nativeToOwner, nativeID)
 			if book.sourceToNative[sourceID] == nativeID {
 				delete(book.sourceToNative, sourceID)
 			}
@@ -201,6 +206,56 @@ func eventOwner(event marketEvent) int64 {
 		return -1
 	}
 	return *event.Owner
+}
+
+func nativeOwner(sourceID, owner int64) string {
+	if owner == -1 {
+		// Anonymous source orders never self-match. Give each active anonymous
+		// order its own native account, disjoint from every numeric owner id.
+		return "anonymous:" + strconv.FormatInt(sourceID, 10)
+	}
+	return strconv.FormatInt(owner, 10)
+}
+
+// checkQuantityCapacity rejects unsupported native arithmetic before mutation.
+// It reserves the entire incoming limit quantity on its side, even if some
+// would execute immediately, and checks each potentially crossed pro-rata
+// maker conservatively using the entire incoming quantity. This is a numeric
+// envelope, not a replacement for the engine's liquidity or matching decisions.
+func (book *bookHarness) checkQuantityCapacity(
+	config adapterConfig, side types.Side, price, quantity int64,
+	orderType string, replacedID int64,
+) error {
+	// Process checks this for native limit orders (including IOC/FOK). Repeat
+	// the same representability check before Replace can cancel its old order.
+	// Market orders have no submitted notional and retain the native exemption.
+	if orderType != "MARKET" && price > math.MaxInt64/quantity {
+		return types.ErrNotionalOverflow
+	}
+	var sameSideTotal int64
+	for _, resting := range book.engine.RestingOrders() {
+		if resting.ID == replacedID {
+			continue
+		}
+		if resting.Side == side {
+			if resting.RemainingQty > math.MaxInt64-sameSideTotal {
+				return errors.New("resting quantity exceeds the native int64 aggregate range")
+			}
+			sameSideTotal += resting.RemainingQty
+			continue
+		}
+		crosses := orderType == "MARKET" ||
+			(side == types.SideBuy && price >= resting.Price) ||
+			(side == types.SideSell && price <= resting.Price)
+		if config.matchingAlgorithm == "pro_rata" && crosses &&
+			quantity > math.MaxInt64/resting.RemainingQty {
+			return errors.New("quantity exceeds the native int64 pro-rata product range")
+		}
+	}
+	if orderType == "LIMIT" && quantity > math.MaxInt64-sameSideTotal {
+		return errors.New("quantity exceeds the native int64 side aggregate range")
+	}
+	return nil
 }
 
 func nativeSide(value *string) (types.Side, error) {
@@ -337,7 +392,11 @@ func (adapter *adapter) applyNew(
 	default:
 		return rejected("INVALID_ORDER", "unsupported order_type"), nil, nil
 	}
-	owner := strconv.FormatInt(eventOwner(event), 10)
+	if err := book.checkQuantityCapacity(adapter.config, side, price, quantity, orderType, 0); err != nil {
+		return rejected("INVALID_ORDER", err.Error()), nil, nil
+	}
+	sourceOwner := eventOwner(event)
+	owner := nativeOwner(source, sourceOwner)
 	order, err := types.NewOrder(owner, event.Symbol, side, nativeType, price, quantity, tif)
 	if err != nil {
 		return rejected("INVALID_ORDER", err.Error()), nil, nil
@@ -345,6 +404,7 @@ func (adapter *adapter) applyNew(
 	order.ClientOrderID = strconv.FormatInt(source, 10)
 	match := book.engine.Process(order)
 	book.nativeToSource[order.ID] = source
+	book.nativeToOwner[order.ID] = sourceOwner
 	converted, err := adapter.convertTrades(book, event.Symbol, match.Trades)
 	if err != nil {
 		return outcome{}, nil, err
@@ -388,6 +448,10 @@ func (adapter *adapter) applyLifecycle(
 		return rejected("ORDER_NOT_ACTIVE", "order is not active"), nil, nil
 	}
 	owner := current.UserID
+	sourceOwner, ok := book.nativeToOwner[nativeID]
+	if !ok {
+		return outcome{}, nil, fmt.Errorf("adapter has no source owner for native order %d", nativeID)
+	}
 	switch event.Op {
 	case "cancel":
 		if _, err := book.engine.Cancel(nativeID, owner); err != nil {
@@ -431,6 +495,11 @@ func (adapter *adapter) applyLifecycle(
 				return rejected("INVALID_REPLACEMENT", err.Error()), nil, nil
 			}
 		}
+		if err := book.checkQuantityCapacity(
+			adapter.config, current.Side, price, quantity, "LIMIT", nativeID,
+		); err != nil {
+			return rejected("INVALID_REPLACEMENT", err.Error()), nil, nil
+		}
 		replacement, err := types.NewOrder(
 			owner, event.Symbol, current.Side, types.OrderTypeLimit,
 			price, quantity, types.TIFGoodTillCancel,
@@ -444,6 +513,7 @@ func (adapter *adapter) applyLifecycle(
 			return rejected("INVALID_REPLACEMENT", err.Error()), nil, nil
 		}
 		book.nativeToSource[replacement.ID] = source
+		book.nativeToOwner[replacement.ID] = sourceOwner
 		converted, err := adapter.convertTrades(book, event.Symbol, match.Trades)
 		if err != nil {
 			return outcome{}, nil, err
@@ -484,12 +554,11 @@ func (adapter *adapter) snapshot() (bookState, error) {
 					native.ID,
 				)
 			}
-			owner, err := strconv.ParseInt(native.UserID, 10, 64)
-			if err != nil {
+			owner, ok := book.nativeToOwner[native.ID]
+			if !ok {
 				return bookState{}, fmt.Errorf(
-					"adapter has invalid source owner for native order %d: %w",
+					"adapter has no source owner for native order %d",
 					native.ID,
-					err,
 				)
 			}
 			resting := restingOrder{

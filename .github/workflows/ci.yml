@@ -65,6 +65,9 @@ jobs:
       - name: Validate both distributions
         run: python -m twine check dist/conformance/* dist/simulator/*
 
+      - name: Reject private paths in both distributions
+        run: python tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
+
       - name: Rebuild wheels from sdists and verify artifact agreement
         if: matrix.python-version == '3.13'
         run: |

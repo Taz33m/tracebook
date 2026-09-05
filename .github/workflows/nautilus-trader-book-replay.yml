@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
@@ -32,7 +32,7 @@ jobs:
       - name: Install Tracebook and the pinned optional candidate
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . "nautilus-trader==2.0.0rc3"
+          python -m pip install -e . "nautilus-trader==2.0.0rc3" "pytest>=9.1.1"
 
       - name: Verify the isolated L3 book-replay profile
         run: |

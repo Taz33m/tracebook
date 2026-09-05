@@ -77,6 +77,10 @@ alias for `tracebook.conformance`.
 
 ## Run It
 
+Book replay is unreleased and is not present in the published 0.6.0 wheel.
+Install this source checkout (`python -m pip install -e .`) or its built wheel,
+and record the exact source revision with any evidence.
+
 Copy the bundled trace:
 
 ```bash

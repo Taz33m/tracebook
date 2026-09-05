@@ -193,7 +193,7 @@ class PerformanceDashboard:
 
     def _create_app(self) -> dash.Dash:
         """Create the Dash application."""
-        app = dash.Dash(__name__)
+        app = dash.Dash(__name__, title="Tracebook · Performance Dashboard")
 
         app.layout = html.Div(  # type: ignore[misc]  # Dash types layout as read-only
             [

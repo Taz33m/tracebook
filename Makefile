@@ -90,6 +90,7 @@ compile:
 build:
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/conformance .
 	$(PYTHON_VENV) -m build --sdist --wheel --outdir dist/simulator packaging/tracebook-sim
+	$(PYTHON_VENV) tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*
 	$(PYTHON_VENV) -m twine check dist/conformance/* dist/simulator/*
 	$(PYTHON_VENV) tools/verify_sdist_wheel_agreement.py \
 		--conformance-wheel dist/conformance/*.whl \

@@ -86,6 +86,9 @@ def test_nautilus_book_replay_integration_is_version_and_source_pinned():
     assert "LGPL-3.0-only" in readme
     assert "does not claim" in readme
     assert '"nautilus-trader==2.0.0rc3"' in workflow
+    assert "actions/setup-python@v7" in workflow
+    assert 'python -m pip install -e . "nautilus-trader==2.0.0rc3" "pytest>=9.1.1"' in workflow
+    assert "python -m pytest" in workflow
     assert "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002" in workflow
     assert "sha256:09b1599eaeb474d98617acc7869ace26759ed5ab8350803f06197ef572864bab" in workflow
     assert "failure-dfe5c23848b63211b655" in readme
@@ -212,9 +215,14 @@ def test_intrepid_orderbook_is_pinned_qualified_and_retains_the_fok_boundary():
 
     assert "github.com/intrepidkarthi/orderbook v0.26.0" in go_mod
     assert "github.com/intrepidkarthi/orderbook v0.26.0 h1:" in go_sum
+    assert "actions/setup-python@v7" in workflow
     assert "51d480cdb68b9989febb0b075d291cf891f425b3" in readme
     assert "submitted-order versus submitted-order" in readme
-    assert "at most six non-zero quantity decimal places" in readme
+    assert "Inputs requiring more than six" in readme
+    assert "non-zero decimal places are explicitly rejected" in readme
+    assert "rounds output quantities only" in readme
+    assert "maps to a distinct native account" in readme
+    assert "incoming quantity times each potentially crossed maker's" in readme
     assert "6/9" in readme
     assert "failure-1ce2954857800b3a068d" in readme
     assert "sha256:f8db775baabe7e665d45bbb920a67e43d405acf445de4951617df68ffa24eb69" in workflow

@@ -6,6 +6,20 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added a separate L3 book-replay contract and pinned NautilusTrader adapter.
+  This exercises market-data deltas and non-mutating FIFO fill probes, not a
+  submitted-order CLOB. Both process clients now honor the configured shutdown
+  timeout and reject forced termination even if the candidate exits zero.
+- Added a pinned native Go CLOB adapter for `intrepidkarthi/orderbook`, with
+  FIFO qualification and a retained unfillable-FOK contract difference. Adapter
+  boundaries preserve anonymous-order STP behavior, binary64 price snapping,
+  output-only quantity precision, and fail closed on unsafe native arithmetic.
+- Excluded private experiment trees and local agent/navigation metadata from
+  source distributions, with a synthetic stale-manifest regression and privacy
+  checks for source archives, wheels, and embedded source-file inventories.
+- Published the corrected 24-run agent-qualification aggregate: 1/12 safe passes
+  with public docs and 5/12 with the frozen skill. The improvement is confined
+  to boundary judgment; neither arm safely qualified the compatible engine.
 - Added a captured two-run qualification workflow. Candidate adapters can now
   report optional revision and snapshot metadata, candidate-facing commands can
   enforce a task-pinned identity before the first event, and `evidence-init` /

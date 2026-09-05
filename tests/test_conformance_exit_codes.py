@@ -301,7 +301,7 @@ print("not-json", flush=True)
     assert "not valid JSON" in payload["divergence"]["message"]
 
 
-def test_cli_returns_two_for_mid_run_timeout(tmp_path):
+def test_cli_returns_two_for_mid_run_timeout(tmp_path, monkeypatch):
     events = tmp_path / "events.jsonl"
     report_path = tmp_path / "report.json"
     adapter = tmp_path / "timeout_adapter.py"
@@ -325,6 +325,16 @@ time.sleep(2)
         encoding="utf-8",
     )
 
+    class MidRunTimeoutFactory(conformance_cli.ExternalProcessAdapterFactory):
+        def __call__(self, config):
+            candidate = super().__call__(config)
+            # Exercise the response timeout after ready, not interpreter startup
+            # on a busy host. Startup failures intentionally have no run report.
+            candidate.timeout_seconds = 0.2
+            return candidate
+
+    monkeypatch.setattr(conformance_cli, "ExternalProcessAdapterFactory", MidRunTimeoutFactory)
+
     exit_code = main(
         [
             "run",
@@ -332,7 +342,7 @@ time.sleep(2)
             "--output",
             str(report_path),
             "--timeout",
-            "0.2",
+            "10",
             "--candidate",
             sys.executable,
             str(adapter),
@@ -342,7 +352,7 @@ time.sleep(2)
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert exit_code == 2
     assert payload["divergence"]["category"] == "protocol"
-    assert "timed out" in payload["divergence"]["message"]
+    assert "timed out waiting for 'observation'" in payload["divergence"]["message"]
 
 
 @pytest.mark.parametrize(

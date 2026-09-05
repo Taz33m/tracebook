@@ -21,6 +21,7 @@ handler or trading infrastructure.
 src/tracebook/
   core/             matching, lifecycle, snapshots, deterministic replay
   conformance/      adapters, campaigns, semantic diffing, minimization, standard suite
+  book_replay/      separate L3 delta/probe contract; never venue-order matching
   events/           normalized event replay and offline venue adapters
   corpus/           safe local capture, manifests, golden state, import benchmarks
   simulation/       synthetic order flow and paced workload execution
@@ -31,6 +32,8 @@ integrations/
   python_matching_engine/  pinned external adapter and compatibility trace
   orderbook_rs/             native Rust adapter, faulty example, regression proof
   gocronx_matcher/          pinned Rust adapter and profile qualification
+  intrepid_orderbook/      pinned Go CLOB adapter and explicit FOK divergence
+  nautilus_trader/         pinned L3 book replay, not CLOB qualification
 ```
 
 ## External Validation
@@ -94,6 +97,13 @@ onboarding work.
 
 ## Current Product Hypothesis
 
+The corrected, held-out [24-run agent study](docs/agent-qualification-generalization-v2-results.md)
+completed on 2026-08-29. The frozen skill raised safe passes from 1/12 to 5/12,
+entirely through better profile-boundary decisions; compatible-engine evidence
+passed in neither arm (0/6 each). The now-implemented captured two-run workflow
+addresses candidate identity and artifact freshness mechanically. Its effect on
+independent onboarding remains unmeasured; the study did not test that workflow.
+
 The immediate bottleneck is adoption, not another matching algorithm. An engine
 author should be able to move from an adapter command to a trustworthy,
 profile-scoped compatibility artifact in one invocation. Qualification version
@@ -134,10 +144,15 @@ experiments rather than presumed roadmap wins.
 
 ## Next Milestones
 
-1. Complete one independent public-package onboarding. Start from a concrete,
-   tested semantic artifact, ask one narrow ownership question, and record
-   whether an external maintainer runs the tool or retains its output. Do not
-   count Tracebook-owned scheduled integrations as adoption.
+1. Complete one independent onboarding of the captured two-run workflow. Start
+   from a concrete, tested semantic artifact, record the exact Tracebook source
+   revision and wheel hash (the workflow is not in the published 0.6.0 package),
+   ask one narrow ownership question, and measure time to the first verified
+   pair, human corrections, and whether an external maintainer retains the
+   output. Tracebook-owned rehearsals and scheduled integrations are not
+   adoption. The [prepared Go evidence packet](docs/independent-onboarding.md)
+   supplies a concrete starting point; independent public-package use remains
+   the release gate below.
 2. Keep the raw Flash-to-Tracebook forensic handoff opportunistic. If an
    untriaged divergence appears, measure localization, minimization, translation
    into a native regression, and maintainer retention honestly; do not keep

@@ -189,6 +189,10 @@ these are separate version boundaries. `fifo-limit-v1` qualification does not
 run STP or pro-rata cases, so unsupported features stay explicit without
 becoming false failures.
 
+The captured evidence commands below are unreleased source features, not part
+of the published 0.6.0 wheel. Record the exact source revision and built wheel
+hash when evaluating them.
+
 For release evidence, do not rely on one successful workspace. Start a captured
 pair with `tracebook-conformance evidence-init`, run the canonical qualification
 once in each generated clean root with the plan's pinned candidate name,

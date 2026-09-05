@@ -57,6 +57,7 @@ python3.14 -m venv /tmp/tracebook-nautilus
 /tmp/tracebook-nautilus/bin/python -m tracebook.book_replay run \
   src/tracebook/book_replay/fixtures/l3-book-replay-v1.jsonl \
   --output /tmp/nautilus-book-replay.json \
+  --timeout 10 \
   --candidate /tmp/tracebook-nautilus/bin/python \
     integrations/nautilus_trader/adapter.py
 ```
@@ -75,6 +76,12 @@ The command exits `0` and the pinned candidate produces:
   "final_state_hash": "9e0af6be935dce940a87497788c7a9a799c71f05e34a0204c9d294fce611b002"
 }
 ```
+
+The timeout also bounds the candidate's natural exit after its `complete`
+frame. A nonzero exit or a forced shutdown is a protocol failure, even if all
+event observations matched. The integration CI installs `pytest` explicitly
+before running the book-replay and integration contract tests; the base package
+does not include test dependencies.
 
 ## Negative Control And Retained Evidence
 

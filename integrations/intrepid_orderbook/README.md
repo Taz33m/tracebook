@@ -26,16 +26,58 @@ engine's matching decisions.
 
 The protocol configuration maps FIFO and pro-rata allocation plus `NONE`,
 `CANCEL_RESTING`, and `CANCEL_INCOMING` self-trade policies to their native
-settings. Prices are converted exactly to integer ticks. Quantities are first
-normalized at the protocol precision and then represented as integer native
-lots. The adapter accepts at most six non-zero quantity decimal places because
-the upstream pro-rata implementation multiplies two `int64` lot values; values
-that cannot be represented exactly at that boundary are explicitly rejected.
+settings. The anonymous owner sentinel (`-1`, also used when owner is omitted)
+maps to a distinct native account for each active source order, so anonymous
+orders remain free to trade under either STP policy. Snapshots retain the
+original owner ID, including across replace and reduce operations.
+
+Prices use binary64 division and ties-to-even tick snapping, matching the
+reference's input boundary, and are formatted using the exact decimal tick
+size. Quantities are represented exactly in native integer lots at six decimal
+places. `quantity_decimal_places` rounds output quantities only; it never
+rounds the quantity submitted to the engine. Inputs requiring more than six
+non-zero decimal places are explicitly rejected even if the configured output
+precision is lower.
+
+The native arithmetic has a bounded domain:
+
+- price ticks and scaled quantities must be positive and fit signed `int64`;
+- before admitting a limit order, the adapter requires its full quantity plus
+  all resting quantity on its side to fit signed `int64` (replacement excludes
+  the old order);
+- under pro-rata, incoming quantity times each potentially crossed maker's
+  remaining quantity must fit signed `int64`; and
+- the native engine's own price-times-quantity notional limit remains in force
+  for limit, IOC, and FOK instructions; the adapter checks it before native
+  submission or replacement so an invalid replacement cannot cancel its old
+  order. Market instructions retain the native exemption.
+
+The aggregate and pro-rata checks are conservative: they reserve the full
+incoming quantity without predicting fills or STP removals. An input outside
+this envelope returns `INVALID_ORDER` (or `INVALID_REPLACEMENT`) before native
+mutation; no claim of conformance is made beyond that envelope. At the default
+scale, for example, a 4,000-unit order crossing another 4,000-unit order is
+rejected under pro-rata because their native lot product exceeds `int64`.
+The same FIFO crossing is supported.
+
+Numeric configurations outside the recorded profiles remain unqualified even
+when their values fit that arithmetic envelope. The adapter preserves native
+integer/decimal results rather than recreating the reference's floating-point
+arithmetic. At `quantity_decimal_places=18`, consuming `0.1` from `0.3` leaves
+native quantity `0.2`, while the binary64 reference reports
+`0.19999999999999998`. With tick size `1e-18`, input price `1` snaps to native
+integer tick `999999999999999872`, formatted as `0.999999999999999872`; the
+reference's floating-point price formatting produces `0.9999999999999999`.
+These configurations are accepted for investigation, but can diverge and have
+not passed qualification. Tests retain those native outputs explicitly.
 
 The local Go tests include a submitted-order crossing test: two same-price
 bids are reduced and then consumed by an incoming sell in native FIFO order.
 That guards the central claim that this is a matching-engine integration, not
 an order-book mirror or a reimplemented reference engine.
+Additional tests cover anonymous STP, replacement owner retention, fractional
+input quantities with zero-place output, binary64 tick boundaries, and native
+arithmetic limits including rejection without replacing an existing order.
 
 ## Qualification Results
 
@@ -91,6 +133,20 @@ tracebook-conformance qualify \
   --candidate-cmd /tmp/tracebook-intrepid-orderbook \
   --output-dir /tmp/intrepid-fifo-limit
 ```
+
+For the identity-bound evidence workflow, capture the candidate source snapshot
+first and inject its recorded revision and snapshot ID when building:
+
+```bash
+go build -trimpath \
+  -ldflags "-X main.engineRevision=$CANDIDATE_REVISION -X main.engineSnapshot=$CANDIDATE_SNAPSHOT_ID" \
+  -o /tmp/tracebook-intrepid-orderbook .
+```
+
+These optional build variables appear as `engine.revision` and
+`engine.snapshot_id` in the ready handshake. Both are omitted from ordinary
+builds. They must describe the captured source used for that build; the adapter
+does not discover or verify the source snapshot itself.
 
 The tag is reproducible evidence, not a production-readiness certification.
 This integration makes no claim about upstream adoption, operational maturity,

@@ -29,8 +29,12 @@ def _install_dashboard_dependency_stubs(monkeypatch):
             return lambda *args, **kwargs: (name, args, kwargs)
 
     class FakeDash:
+        last_args = None
+        last_kwargs = None
+
         def __init__(self, *args, **kwargs):
-            pass
+            FakeDash.last_args = args
+            FakeDash.last_kwargs = kwargs
 
         def callback(self, *args, **kwargs):
             return lambda func: func
@@ -52,6 +56,20 @@ def _install_dashboard_dependency_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "plotly.graph_objs", graph_objs_module)
     monkeypatch.setitem(sys.modules, "plotly.express", express_module)
     monkeypatch.setitem(sys.modules, "pandas", pandas_module)
+
+
+def test_dashboard_sets_tracebook_browser_title(monkeypatch):
+    _install_dashboard_dependency_stubs(monkeypatch)
+    sys.modules.pop("tracebook.visualization.dashboard", None)
+    dashboard_module = importlib.import_module("tracebook.visualization.dashboard")
+
+    try:
+        dashboard_module.PerformanceDashboard()
+        assert dashboard_module.dash.Dash.last_kwargs["title"] == (
+            "Tracebook · Performance Dashboard"
+        )
+    finally:
+        sys.modules.pop("tracebook.visualization.dashboard", None)
 
 
 def test_dashboard_demo_mode_constructs_engine_and_dashboard_without_running_server(

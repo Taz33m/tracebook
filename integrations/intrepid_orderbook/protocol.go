@@ -19,6 +19,23 @@ const (
 	engineVersion   = "v0.26.0@51d480cdb68b"
 )
 
+// Optional build-time identity binds an evidence run to its captured source.
+// Set with -ldflags '-X main.engineRevision=... -X main.engineSnapshot=...'.
+// Empty defaults preserve the unbound qualification handshake.
+var engineRevision string
+var engineSnapshot string
+
+func engineMetadata() map[string]string {
+	metadata := map[string]string{"name": engineName, "version": engineVersion, "language": "Go"}
+	if engineRevision != "" {
+		metadata["revision"] = engineRevision
+	}
+	if engineSnapshot != "" {
+		metadata["snapshot_id"] = engineSnapshot
+	}
+	return metadata
+}
+
 type configWire struct {
 	MatchingAlgorithm     string  `json:"matching_algorithm"`
 	TickSize              string  `json:"tick_size"`
@@ -267,9 +284,7 @@ func runServer(decoder *json.Decoder, writer *bufio.Writer) error {
 		"type":             "ready",
 		"protocol":         protocolName,
 		"protocol_version": protocolVersion,
-		"engine": map[string]string{
-			"name": engineName, "version": engineVersion, "language": "Go",
-		},
+		"engine":           engineMetadata(),
 	}); err != nil {
 		return adapterError(err)
 	}

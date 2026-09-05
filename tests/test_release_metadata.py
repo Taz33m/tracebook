@@ -185,7 +185,7 @@ def test_release_publishes_and_verifies_the_source_owner_before_the_facade():
     )
 
 
-def test_sdist_excludes_local_navigation_material():
+def test_sdist_excludes_private_experiments_and_local_navigation_material():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     for directive in (
@@ -196,12 +196,22 @@ def test_sdist_excludes_local_navigation_material():
         "prune openwiki",
         "prune graphify-out",
         "prune .local-tools",
+        "prune experiments/private",
+        "prune .agents",
+        "prune .codex",
+        "global-exclude AGENTS.md CLAUDE.md skills-lock.json",
         "recursive-include packaging *.md",
         "include packaging/tracebook-sim/pyproject.toml",
         "include packaging/tracebook-sim/LICENSE",
         "recursive-include tools *.py",
     ):
         assert directive in manifest
+
+    for path in ("Makefile", ".github/workflows/ci.yml", ".github/workflows/release.yml"):
+        workflow = (ROOT / path).read_text(encoding="utf-8")
+        assert (
+            "tools/verify_distribution_privacy.py dist/conformance/* dist/simulator/*" in workflow
+        )
 
 
 def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
