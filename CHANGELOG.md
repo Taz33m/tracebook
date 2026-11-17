@@ -9,6 +9,9 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 - Made initial staging-identity failures explicit: report the possible residue
   path and skipped cleanup, preserve unverified entries, and exit before starting
   a candidate. Documented conservative manual recovery without blanket deletion.
+- Added linkable, identity-bound FIFO qualification in the Go integration
+  workflow for upstream release tags `v0.26.0` and `v0.29.0`. Each job
+  verifies two captured runs and publishes the evidence manifest and reports.
 - Fixed four PR #84 follow-ups: clean owned staging directories when opening
   fails, classify adapter broken-pipe failures correctly, distinguish zero
   quantities from precision loss, and handle symlink loops in CLI input paths.

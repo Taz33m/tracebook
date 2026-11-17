@@ -2,10 +2,9 @@
 
 ## Status And Scope
 
-This packet is prepared for one independent maintainer attempt against
+This packet was prepared for an independent maintainer attempt against
 `intrepidkarthi/orderbook` v0.26.0, source commit
-`51d480cdb68b9989febb0b075d291cf891f425b3`. A Tracebook-owned rehearsal is not
-independent onboarding, adoption, or an upstream decision.
+`51d480cdb68b9989febb0b075d291cf891f425b3`.
 
 The request is deliberately narrow: can the maintainer reproduce and understand
 one verified FIFO-limit evidence pair, and would they retain the result or its
@@ -114,15 +113,16 @@ do not edit a failed bundle into a passing one. Record elapsed time to the first
 verified pair or the first blocker, even if no pair succeeds. A provided adapter
 measures time to evidence, not time to author an adapter.
 
-The result record must contain:
+The maintainer declined to run the packet under their policy on third-party
+code. See the [maintainer response](https://github.com/intrepidkarthi/orderbook/issues/25#issuecomment-5613964055).
 
-- operator and relationship: **not yet observed**;
-- first verified pair or blocker time: **not yet observed**;
-- failed attempts and human corrections: **not yet observed**;
-- plan, manifest, qualification and campaign IDs: **not yet observed**;
-- semantic questions or disagreements: **not yet observed**; and
-- retention decision (retained, declined, undecided) plus a public link if
-  retained: **not yet observed**.
+- The upstream maintainer reviewed the pinned adapter and conformance path.
+- Time to evidence, command attempts, corrections, and maintainer-produced
+  artifact IDs were unmeasured.
+- The maintainer confirmed the adapter's reading of the engine and its
+  intentional unfillable-FOK rejection.
+- The maintainer offered to link passing release-tag evidence from the
+  upstream docs. The link and any retention decision remain pending.
 
 An external maintainer running the packet establishes independent use, not
 retention. A promise to add CI is not retained CI. A Tracebook-owned run or job
@@ -147,5 +147,12 @@ the measurement fields above remain unobserved.
 > change or in-tree adapter commitment is requested. We would record setup
 > time, corrections, and your retention decision, including a failed attempt.
 
-A maintainer response and any independent result must be recorded as new
-evidence; the sent invitation establishes neither.
+## Tracebook CI Evidence
+
+The [orderbook integration workflow](https://github.com/Taz33m/tracebook/actions/workflows/intrepid-orderbook.yml?query=branch%3Amain)
+checks the pinned `v0.26.0` and `v0.29.0` release tags. Open a successful
+run and use the **Verified FIFO qualification** summary for the tag you
+want to cite. It records the upstream commit, Tracebook revision, profile,
+counts, and evidence IDs. While Actions retains the artifacts, the run also
+offers the evidence manifest and both qualification bundles for download.
+Track any upstream documentation link as its own retention outcome.
