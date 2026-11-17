@@ -4,7 +4,7 @@ This adapter checks a genuine submitted-order versus submitted-order central
 limit order book. Unlike Tracebook's NautilusTrader book-replay integration,
 both sides of every trade are orders sent through the candidate engine.
 
-The external input is pinned exactly:
+The default adapter build pins this upstream release:
 
 - Go module: `github.com/intrepidkarthi/orderbook v0.26.0`;
 - tag: `v0.26.0`;
@@ -104,6 +104,17 @@ status and its `ErrFOKCannotFill` reason. The adapter preserves that native
 result as `rejected / INVALID_ORDER`; it does not rewrite the result to obtain
 a green report. This is a contract difference, not by itself proof of an
 upstream defect.
+
+## Captured Release Evidence
+
+In the [Tracebook Actions workflow](https://github.com/Taz33m/tracebook/actions/workflows/intrepid-orderbook.yml?query=branch%3Amain),
+open a successful run and find **Verified FIFO qualification** for
+`v0.26.0` or `v0.29.0`. Each job checks the tag against its pinned commit,
+builds the adapter twice against separate captures of that source, and runs
+`evidence-verify` before reporting a pass. The summary identifies the profile,
+counts, and evidence IDs. The downloadable artifact contains the plan,
+manifest, and both qualification bundles for the run's artifact retention
+period.
 
 ## Retained Divergence
 

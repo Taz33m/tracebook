@@ -199,3 +199,127 @@ jobs:
           name: intrepid-orderbook-qualification
           path: ${{ runner.temp }}/intrepid-orderbook
           if-no-files-found: error
+
+  captured-release:
+    name: Captured FIFO evidence (${{ matrix.tag }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: v0.26.0
+            revision: "51d480cdb68b9989febb0b075d291cf891f425b3"
+          - tag: v0.29.0
+            revision: "6d2018ad59c1a4f925ab654a1229d387cacf9b2f"
+    env:
+      CANDIDATE_TAG: ${{ matrix.tag }}
+      CANDIDATE_REVISION: ${{ matrix.revision }}
+      CANDIDATE_NAME: intrepidkarthi/orderbook CLOB
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.5"
+          cache: false
+
+      - name: Install Tracebook
+        run: python -m pip install -e .
+
+      - name: Qualify two captures of the upstream release
+        shell: bash
+        run: |
+          source_root="$RUNNER_TEMP/orderbook-source"
+          workspace="$RUNNER_TEMP/captured-orderbook"
+          module=github.com/intrepidkarthi/orderbook
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$CANDIDATE_TAG" \
+            "https://$module.git" "$source_root"
+          observed_revision=$(git -C "$source_root" rev-parse HEAD)
+          if [[ "$observed_revision" != "$CANDIDATE_REVISION" ]]; then
+            echo "Expected $CANDIDATE_TAG at $CANDIDATE_REVISION, found $observed_revision" >&2
+            exit 1
+          fi
+
+          tracebook-conformance evidence-init "$source_root" \
+            --workspace "$workspace" \
+            --candidate-name "$CANDIDATE_NAME" --candidate-revision "$CANDIDATE_REVISION"
+          plan="$workspace/evidence-plan.json"
+          snapshot=$(python -c 'import json,sys; print(json.load(sys.stdin)["candidate"]["snapshot_id"])' < "$plan")
+          version="$CANDIDATE_TAG@${CANDIDATE_REVISION:0:12}"
+
+          for run_id in run-1 run-2; do
+            run_root="$workspace/runs/$run_id"
+            cp integrations/intrepid_orderbook/*.go integrations/intrepid_orderbook/go.{mod,sum} \
+              "$run_root/adapter/"
+            (
+              cd "$run_root/adapter"
+              export GOWORK=off GOTOOLCHAIN=local
+              export GOPATH="$run_root/cache/gopath" GOMODCACHE="$run_root/cache/modules"
+              export GOCACHE="$run_root/cache/build"
+              go mod edit "-require=$module@$CANDIDATE_TAG" "-replace=$module=../candidate"
+              go build -mod=readonly -trimpath \
+                -ldflags "-X main.engineVersion=$version -X main.engineRevision=$CANDIDATE_REVISION -X main.engineSnapshot=$snapshot" \
+                -o "$run_root/build/adapter" .
+              go version -m "$run_root/build/adapter"
+            )
+            tracebook-conformance qualify \
+              --profile fifo-limit-v1 --suite-version v2 \
+              --seed 42 --traces 25 --events-per-trace 200 --max-minimize-runs 100 --timeout 10 \
+              --candidate-name "$CANDIDATE_NAME" --candidate-revision "$CANDIDATE_REVISION" \
+              --candidate-snapshot "$snapshot" --output-dir "$run_root/qualification" \
+              --candidate "$run_root/build/adapter"
+          done
+
+          tracebook-conformance evidence-verify "$plan"
+          python - "$workspace/evidence-manifest.json" "$version" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          run = manifest["runs"][0]
+          if run["candidate_engine"]["version"] != sys.argv[2]:
+              raise SystemExit("Adapter version does not match the captured release")
+          fixed = run["fixed_cases"]
+          campaign = run["generated_campaign"]
+          coverage = run["semantic_coverage"]
+          events = campaign["completed_traces"] * manifest["qualification"]["events_per_trace"]
+          tag = os.environ["CANDIDATE_TAG"]
+          revision = manifest["candidate"]["revision"]
+          tracebook_sha = os.environ["GITHUB_SHA"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          server = os.environ["GITHUB_SERVER_URL"]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+              print(
+                  f"## Verified FIFO qualification · {tag}\n\n"
+                  f"- Candidate [`{revision}`](https://github.com/intrepidkarthi/orderbook/commit/{revision})\n"
+                  f"- Tracebook [`{tracebook_sha}`]({server}/{repository}/commit/{tracebook_sha})\n"
+                  f"- Two byte-identical qualification bundles for `fifo-limit-v1`\n"
+                  f"- Per run, {fixed['passed']}/{fixed['total']} fixed cases, "
+                  f"{campaign['completed_traces']}/{campaign['requested_traces']} generated traces, "
+                  f"{events:,} generated events, and {coverage['covered']}/{coverage['expected']} capabilities\n"
+                  f"- Qualification `{run['qualification_id']}`\n"
+                  f"- Evidence manifest `{manifest['manifest_id']}`\n\n"
+                  f"Download `intrepid-orderbook-captured-{tag}` from this run's artifacts.",
+                  file=summary,
+              )
+          PY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: intrepid-orderbook-captured-${{ matrix.tag }}
+          path: |
+            ${{ runner.temp }}/captured-orderbook/evidence-plan.json
+            ${{ runner.temp }}/captured-orderbook/evidence-manifest.json
+            ${{ runner.temp }}/captured-orderbook/runs/run-1/qualification
+            ${{ runner.temp }}/captured-orderbook/runs/run-2/qualification
+          if-no-files-found: error

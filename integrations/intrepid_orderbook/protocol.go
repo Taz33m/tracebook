@@ -16,8 +16,10 @@ const (
 	protocolName    = "tracebook.conformance"
 	protocolVersion = 1
 	engineName      = "intrepidkarthi/orderbook CLOB"
-	engineVersion   = "v0.26.0@51d480cdb68b"
 )
+
+// Captured builds can identify a different pinned upstream release.
+var engineVersion = "v0.26.0@51d480cdb68b"
 
 // Optional build-time identity binds an evidence run to its captured source.
 // Set with -ldflags '-X main.engineRevision=... -X main.engineSnapshot=...'.
