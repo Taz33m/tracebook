@@ -168,7 +168,7 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "--profile fifo-full-v1" in workflow
     assert "--events-per-trace 100" in workflow
     assert "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9" in workflow
-    assert "sha256:c04a07cbdb9931232162ef1a05740221311f3b2fa21b9b552093a2706a12c488" in workflow
+    assert "sha256:10c162a1a6db2a7715e98af54871cc7a94675f2e7c4fe3754e18c48157c0371c" in workflow
     assert "--test-fault=drop-first-trade" in workflow
     assert 'assert report["divergence"]["event_index"] == 3' in workflow
     assert "failure-bc8b19d3e0e3441a98db" in workflow
@@ -199,7 +199,7 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "awaiting an upstream" in readme
     assert "stable public inspection contract" in readme
     assert "tracebook-conformance qualify" in workflow
-    assert "sha256:1636620f5f0f6b65fd425a6021424e9c7678bec5215555556c70a929c5e0b144" in workflow
+    assert "sha256:64746a4a21bc3fef7c88e58d749da2adb51cb74fac211088174aba26dc6746ed" in workflow
     assert "actions/upload-artifact@v7" in workflow
 
 
@@ -225,9 +225,9 @@ def test_intrepid_orderbook_is_pinned_qualified_and_retains_the_fok_boundary():
     assert "incoming quantity times each potentially crossed maker's" in readme
     assert "6/9" in readme
     assert "failure-1ce2954857800b3a068d" in readme
-    assert "sha256:f8db775baabe7e665d45bbb920a67e43d405acf445de4951617df68ffa24eb69" in workflow
-    assert "sha256:08bf641bfa57da1892d744c08bca0be00f5ac1ade580ae8fcf7f195f0fcad6eb" in workflow
-    assert "sha256:81a095f9804852ff7035f4c3d428a51ae3d0e8e4b81ec335128c6af15b6f65bd" in workflow
+    assert "sha256:5bb06673e36f6ecf7a328285275d7d72b6f1e22e40f139d628411d8fb8bb222b" in workflow
+    assert "sha256:baee6faa893cd5576f5fe42985250f1ce210d47c402c2c80de563088ff41dc85" in workflow
+    assert "sha256:ed59a8437c413f3376546ac6bc61452eb08ac75d008667fd619b185e4785f5a2" in workflow
     assert "$.observation.outcome.reason" in workflow
     assert "intrepidkarthi/orderbook` v0.26.0" in root_readme
     assert "integrations/intrepid_orderbook/" in architecture

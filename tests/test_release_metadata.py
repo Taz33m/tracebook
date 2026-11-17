@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 try:
@@ -8,6 +9,7 @@ except ModuleNotFoundError:  # Python 3.10
 
 import tracebook
 from tracebook._version import __version__
+from tools.verify_distribution_split import EXPECTED_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOT_DEVELOPMENT_EXTRAS = ("dev",)
@@ -28,11 +30,28 @@ def test_runtime_version_has_single_source_of_truth():
     metadata = _pyproject()
 
     assert tracebook.__version__ == __version__
-    assert __version__ == "0.6.0"
+    assert __version__ == "0.7.0"
     assert metadata["project"]["dynamic"] == ["version"]
     assert metadata["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "tracebook._version.__version__"
     }
+
+
+def test_release_command_gates_match_the_prepared_package_version():
+    assert EXPECTED_VERSION == __version__
+    for relative_path in (
+        "Makefile",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "CONTRIBUTING.md",
+        "docs/release.md",
+    ):
+        contents = (ROOT / relative_path).read_text(encoding="utf-8")
+        versions = re.findall(r"--expected-version\s+(\d+\.\d+\.\d+)", contents)
+        assert versions, f"{relative_path} omits the coordinated version check"
+        assert set(versions) == {__version__}, relative_path
+    draft = ROOT / "docs" / "releases" / f"{__version__}.md"
+    assert "Draft — not published" in draft.read_text(encoding="utf-8")
 
 
 def test_distribution_name_cli_and_typing_metadata_are_release_ready():
@@ -105,9 +124,9 @@ def test_simulator_facade_has_exact_version_dependency_and_no_packages():
     assert _pyproject()["build-system"]["requires"] == build_requirements
     assert metadata["build-system"]["requires"] == build_requirements
     assert project["name"] == "tracebook-sim"
-    assert project["version"] == "0.6.0"
+    assert project["version"] == __version__
     assert project["dependencies"] == [
-        "tracebook-conformance==0.6.0",
+        f"tracebook-conformance=={__version__}",
         "numpy>=2.2.6",
         "psutil>=7.2.2",
     ]

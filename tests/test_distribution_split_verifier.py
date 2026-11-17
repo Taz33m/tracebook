@@ -77,7 +77,7 @@ def _valid_pair(
     sim_payload: dict[str, bytes] | None = None,
 ):
     root_payload = {
-        "tracebook/__init__.py": b'__version__ = "0.6.0"\n',
+        "tracebook/__init__.py": f'__version__ = "{EXPECTED_VERSION}"\n'.encode("utf-8"),
         "tracebook/conformance/__init__.py": b"",
         "tracebook/conformance/cli.py": b"def main():\n    return 0\n",
     }
