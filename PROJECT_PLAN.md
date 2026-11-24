@@ -152,7 +152,10 @@ experiments rather than presumed roadmap wins.
    output. Tracebook-owned rehearsals and scheduled integrations are not
    adoption. The [prepared Go evidence packet](docs/independent-onboarding.md)
    supplies a concrete starting point; independent public-package use remains
-   the release gate below.
+   the release gate below. The Go maintainer reviewed the adapter and declined
+   local execution under their policy on third-party code. They offered to
+   link release-tag qualification run by Tracebook CI. Record whether the
+   link is retained upstream alongside the independent execution blocker.
 2. Keep the raw Flash-to-Tracebook forensic handoff opportunistic. If an
    untriaged divergence appears, measure localization, minimization, translation
    into a native regression, and maintainer retention honestly; do not keep
