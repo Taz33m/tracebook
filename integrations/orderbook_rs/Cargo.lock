@@ -135,6 +135,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chacha20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -362,6 +373,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
+ "rand_core 0.10.1",
 ]
 
 [[package]]
@@ -509,7 +521,7 @@ dependencies = [
  "crossbeam-skiplist",
  "dashmap",
  "either",
- "pricelevel 0.9.1",
+ "pricelevel 0.9.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -560,15 +572,15 @@ dependencies = [
  "sha2 0.10.9",
  "tracing",
  "tracing-subscriber",
- "ulid",
+ "ulid 1.2.1",
  "uuid",
 ]
 
 [[package]]
 name = "pricelevel"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79bc1d8b3056d021ad41c9dfe4af70f9a27e23b17503eb75933d498862d406ee"
+checksum = "ecd9933f84f72314302cbfbe49f21a6ac51fbcaf551edb2f365e62682bd067f2"
 dependencies = [
  "crossbeam-skiplist",
  "dashmap",
@@ -577,7 +589,7 @@ dependencies = [
  "sha2 0.11.0",
  "tracing",
  "tracing-subscriber",
- "ulid",
+ "ulid 3.0.0",
  "uuid",
 ]
 
@@ -668,6 +680,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
+dependencies = [
+ "chacha20",
+ "getrandom 0.4.3",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "rand_chacha"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,6 +727,12 @@ checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "redox_syscall"
@@ -1012,7 +1041,7 @@ dependencies = [
  "orderbook-rs 0.12.0",
  "orderbook-rs 0.8.0",
  "pricelevel 0.7.0",
- "pricelevel 0.9.1",
+ "pricelevel 0.9.2",
  "rust_decimal",
  "serde_json",
  "tracebook-conformance-protocol",
@@ -1094,6 +1123,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ulid"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "947dde63b6d514cc5e044edad4e0ca7261afd1099d16c83d942cb2b2f348689c"
+dependencies = [
+ "rand 0.10.3",
+ "serde",
+ "web-time",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1101,9 +1141,9 @@ checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
 name = "uuid"
-version = "1.24.0"
+version = "1.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
+checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
