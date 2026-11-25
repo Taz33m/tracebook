@@ -14,7 +14,7 @@ from pathlib import Path
 from ..events import load_market_events
 from .compare import run_conformance
 from .external import ExternalProcessAdapterFactory
-from .minimize import minimize_failing_trace
+from .minimize import DEFAULT_MINIMIZE_RUNS, minimize_failing_trace
 from .model import ConformanceConfig, ConformanceError, canonical_event_jsonl_line
 
 _PREFIX_HASH = "4e0bb497924a68dcca9575a5860954089bf5d137ab1f577618fba482a19877cd"
@@ -101,8 +101,11 @@ def run_fifo_proof(output: Path) -> None:
             or len(events) != 15739
         ):
             raise ConformanceError("historical engine did not diverge at Flash event 15739")
-        print(f"Reducing {len(events):,} events (200 candidate runs available) ...", flush=True)
-        reduced = minimize_failing_trace(events, affected, config, max_runs=200)
+        print(
+            f"Reducing {len(events):,} events with a {DEFAULT_MINIMIZE_RUNS}-run budget ...",
+            flush=True,
+        )
+        reduced = minimize_failing_trace(events, affected, config)
         trace = b"".join(canonical_event_jsonl_line(event) for event in reduced.events)
         if (
             not reduced.one_minimal

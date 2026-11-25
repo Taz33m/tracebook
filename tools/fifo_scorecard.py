@@ -32,8 +32,9 @@ def scorecard(root: Path) -> dict:
             continue
         if case == "flash-handoff":
             first = load(f"{case}/divergence.json")["first_divergent_sequence"] + 1
-            budget = 200
             reduced = load(f"{case}/minimization.json")
+            # The original Flash job used 200 before reports recorded the budget.
+            budget = reduced.get("max_runs", 200)
         else:
             campaign = load(f"{case}/campaign.json")
             first = campaign["failure"]["original_divergence_event"]

@@ -34,7 +34,7 @@ tracebook-conformance fifo-proof
 
 The wheel includes the original hash-verified, normalized Flash prefix and
 the two Rust adapter source trees. The command builds both binaries, measures
-the first divergence, minimizes the full prefix with a budget of 200 runs,
+the first divergence, minimizes the full prefix,
 and replays the actual reduced events against both engines. On success it
 prints all four events and writes `fifo-proof.jsonl`. Use `--output PATH`
 to choose a fresh destination. Existing files are preserved.
@@ -104,13 +104,13 @@ tracebook-conformance minimize \
   --quantity-decimal-places 0 \
   --events-output /tmp/orderbook-rs-issue-88-reduced.jsonl \
   --output /tmp/orderbook-rs-issue-88-minimization.json \
-  --max-runs 200 \
   --candidate-cmd ./integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter
 ```
 
 Tracebook finds the same semantic boundary at event `15739`. Delta debugging
-uses 193 fresh candidate runs and reduces the imported prefix to four events.
-The result is one-minimal and does not exhaust the run budget.
+in the 0.7.0 release took 193 candidate runs under its 200-run proof budget.
+The updated reducer in this checkout takes 19 runs under the ordinary 100-run
+default. Both produce the same one-minimal four-event JSONL.
 
 ## Independent Generated Campaign
 

@@ -230,6 +230,8 @@ jobs:
           failure_dir = root / "queue-priority-corpus" / "failure-bc8b19d3e0e3441a98db"
           campaign = json.loads((failure_dir / "campaign.json").read_text())
           failure = json.loads((failure_dir / "failure.json").read_text())
+          reduction = json.loads((failure_dir / "failure/minimization.json").read_text())
+          assert reduction["runs"] <= 16
           reproduction = json.loads((root / "queue-priority-reproduction.json").read_text())
           regression = json.loads((root / "queue-priority-regression.json").read_text())
           assert campaign["campaign_id"] == "sha256:3630ea1789e27b6e416e1e241ca4ef8d5a28f0f2bf660fae3c0a1c8ff39ba7c6"
@@ -237,6 +239,7 @@ jobs:
           assert failure["failure_class"] == "queue-priority drift"
           assert failure["original_divergence_event"] == 173
           assert failure["original_event_count"] == 173
+          assert failure["reduced_trace_sha256"] == "sha256:464f803788f115c343908b9b953f51ce6143c047040cb828190b0bbdc1273072"
           assert failure["reduced_event_count"] == 5
           assert failure["one_minimal"] is True
           assert reproduction["reproduced"] is True
@@ -289,6 +292,8 @@ jobs:
           failure_dir = root / "historical-issue-88-corpus" / "failure-7dd023c684cdb2d0fc0e"
           campaign = json.loads((failure_dir / "campaign.json").read_text())
           failure = json.loads((failure_dir / "failure.json").read_text())
+          reduction = json.loads((failure_dir / "failure/minimization.json").read_text())
+          assert reduction["runs"] <= 16
           committed_failure = json.loads(
               Path("integrations/orderbook_rs/regressions/issue-88-failure.json").read_text()
           )
@@ -411,7 +416,6 @@ jobs:
             --events-output "$HANDOFF/reduced.jsonl" \
             --output "$HANDOFF/minimization.json" \
             --junit-output "$HANDOFF/minimization.xml" \
-            --max-runs 200 \
             --candidate-cmd "$HISTORICAL_ADAPTER"
           cmp \
             "$HANDOFF/reduced.jsonl" \
@@ -436,19 +440,33 @@ jobs:
           import os
           from pathlib import Path
 
+          from tracebook.conformance import ConformanceConfig, ExternalProcessAdapterFactory, run_conformance
+          from tracebook.events import load_market_events
+
           root = Path(os.environ["REPORT_ROOT"]) / "flash-handoff"
           minimization = json.loads((root / "minimization.json").read_text())
           reproduction = json.loads((root / "reproduction.json").read_text())
           fixed = json.loads((root / "fixed.json").read_text())
           assert minimization["original_event_count"] == 15739
           assert minimization["minimized_event_count"] == 4
-          assert minimization["runs"] == 193
+          assert minimization["max_runs"] == 100
+          assert minimization["runs"] <= 100
           assert minimization["one_minimal"] is True
           assert minimization["budget_exhausted"] is False
           assert reproduction["failure_class"] == "queue-priority drift"
           assert reproduction["reproduced"] is True
-          assert reproduction["conformance_report"]["divergence"]["event_index"] == 4
+          divergence = reproduction["conformance_report"]["divergence"]
+          assert divergence["event_index"] == 4
+          assert divergence["path"] == "$.observation.trades[0].buy_order_id"
+          assert (divergence["reference"], divergence["candidate"]) == (146075, 185199)
           assert fixed["conformant"] is True
+
+          reduced = load_market_events(root / "reduced.jsonl")
+          affected = ExternalProcessAdapterFactory([os.environ["HISTORICAL_ADAPTER"]])
+          config = ConformanceConfig(tick_size=1, quantity_decimal_places=0)
+          for index in range(len(reduced)):
+              subset = reduced[:index] + reduced[index + 1:]
+              assert run_conformance(subset, affected, config).conformant, index
           PY
 
       - name: Prove Rust-side trade drift is detected

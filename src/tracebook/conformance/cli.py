@@ -25,7 +25,7 @@ from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .exit_codes import exit_code_for_artifact
 from .fifo_proof import run_fifo_proof
 from .junit import write_junit
-from .minimize import minimize_failing_trace
+from .minimize import DEFAULT_MINIMIZE_RUNS, minimize_failing_trace
 from .model import (
     ConformanceConfig,
     ConformanceError,
@@ -132,7 +132,7 @@ def _build_parser() -> argparse.ArgumentParser:
     minimize.add_argument("--events-output", required=True)
     minimize.add_argument("--output")
     minimize.add_argument("--junit-output")
-    minimize.add_argument("--max-runs", type=int, default=100)
+    minimize.add_argument("--max-runs", type=int, default=DEFAULT_MINIMIZE_RUNS)
     _add_config_arguments(minimize)
     _add_candidate_arguments(minimize)
 

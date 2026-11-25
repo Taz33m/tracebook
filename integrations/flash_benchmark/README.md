@@ -59,13 +59,13 @@ tracebook-conformance minimize \
   --quantity-decimal-places 0 \
   --events-output /tmp/orderbook-rs-issue-88-reduced.jsonl \
   --output /tmp/orderbook-rs-issue-88-minimization.json \
-  --max-runs 200 \
   --candidate-cmd integrations/orderbook_rs/target/release/orderbook-rs-issue-88-adapter
 ```
 
 The conversion hash is
 `sha256:4e0bb497924a68dcca9575a5860954089bf5d137ab1f577618fba482a19877cd`.
-Delta debugging takes 193 candidate runs, reaches a one-minimal four-event
+The 0.7.0 baseline used 193 candidate runs. Lifecycle grouping in this checkout
+uses 19 candidate runs, reaches the same one-minimal four-event
 trace, and does not exhaust its budget. The exact result is committed as
 [`flash-issue-88-reduced.jsonl`](../orderbook_rs/regressions/flash-issue-88-reduced.jsonl).
 
