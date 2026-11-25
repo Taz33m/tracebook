@@ -206,7 +206,10 @@ def test_terminating_cli_stops_active_build(candidate, tmp_path):
     bundle.mkdir()
     workspace = tmp_path / "results"
     build = bundle / "build"
-    build.write_text('#!/bin/sh\necho "$$" > "$TRACEBOOK_BUILD_DIR/pid"\nexec sleep 30\n')
+    build.write_text(
+        '#!/bin/sh\nset -eu\ncd "$TRACEBOOK_BUILD_DIR"\n'
+        'echo "$$" > pid.tmp && mv pid.tmp pid\nexec sleep 30\n'
+    )
     build.chmod(0o755)
     pid_file = workspace / "runs/run-1/build/pid"
     command = [
