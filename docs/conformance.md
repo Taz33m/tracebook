@@ -145,7 +145,7 @@ silently.
 
 ## Captured Two-Run Evidence
 
-The 0.7.1 conformance wheel includes `evidence-init` and `evidence-verify`.
+The 0.7.2 conformance wheel includes `evidence-init` and `evidence-verify`.
 Record the exact wheel hash and candidate revision with each run. For a
 development build, also record the Tracebook source commit.
 
