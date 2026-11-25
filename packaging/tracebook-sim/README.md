@@ -19,7 +19,7 @@ This facade owns only the established non-conformance console entry points:
 Install it in a fresh environment when you use the simulator or broader local
 tooling:
 
-If this environment contains `tracebook-sim` 0.5.x, do not run either 0.7.0
+If this environment contains `tracebook-sim` 0.5.x, do not run either 0.7.1
 install yet. Remove the legacy package owner first:
 
 ```bash
@@ -27,7 +27,7 @@ python -m pip uninstall -y tracebook-sim
 ```
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 ## Required Upgrade Step From 0.5.x
@@ -39,14 +39,14 @@ files newly installed by the conformance wheel.
 After removing the legacy owner as shown above, install the new facade:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 If a direct upgrade already left `tracebook` unimportable, repair the new
 source owner:
 
 ```bash
-python -m pip install --force-reinstall --no-deps "tracebook-conformance==0.7.0"
+python -m pip install --force-reinstall --no-deps "tracebook-conformance==0.7.1"
 python -m pip check
 ```
 
@@ -56,7 +56,7 @@ pre-0.6 simulator experience. Users who only need matching-engine conformance
 can instead install the lightweight source-owning distribution:
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.0"
+python -m pip install "tracebook-conformance==0.7.1"
 ```
 
 The existing runtime extras remain available:

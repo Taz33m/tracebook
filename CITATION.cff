@@ -10,11 +10,11 @@ abstract: >-
 authors:
   - name: "Taz33m"
     email: "tazeemmahashin@gmail.com"
-version: "0.7.0"
+version: "0.7.1"
 date-released: 2026-11-24
 license: MIT
 repository-code: "https://github.com/Taz33m/tracebook"
-url: "https://pypi.org/project/tracebook-conformance/0.7.0/"
+url: "https://pypi.org/project/tracebook-conformance/0.7.1/"
 keywords:
   - matching engine
   - conformance testing

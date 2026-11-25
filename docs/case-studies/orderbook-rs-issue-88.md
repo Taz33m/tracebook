@@ -23,14 +23,14 @@ Tracebook preserves both sides of that history:
 
 ## Run the packaged proof
 
-To reproduce the 19-run result, start at the repository root with Python
-3.10–3.13. Create a fresh virtual environment and install the local package.
+To reproduce the 19-run result, use Python 3.10–3.13 to install the
+0.7.1 wheel in a fresh virtual environment.
 
 ```bash
 proof_dir="$(mktemp -d)"
 python3 -m venv "$proof_dir/venv"
 . "$proof_dir/venv/bin/activate"
-python -m pip install .
+python -m pip install "tracebook-conformance==0.7.1"
 ```
 
 The proof requires a native C toolchain and Rust 1.88.0
