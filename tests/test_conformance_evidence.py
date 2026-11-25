@@ -1,3 +1,5 @@
+from copy import deepcopy
+from functools import lru_cache
 import hashlib
 import json
 import sys
@@ -5,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from tracebook.conformance.campaign import get_campaign_profile
+from tracebook.conformance.qualification import run_qualification
+from tracebook.conformance.reference import ReferenceEngineAdapter
 from tracebook.conformance.cli import main
 from tracebook.conformance.evidence import (
     MANIFEST_FILENAME,
@@ -57,157 +60,39 @@ def _plan(tmp_path: Path) -> tuple[Path, dict]:
     return plan_path, json.loads(plan_path.read_text(encoding="utf-8"))
 
 
+@lru_cache(maxsize=1)
+def _reference_bundle():
+    return run_qualification(ReferenceEngineAdapter, seed=42).to_dict()
+
+
 def _qualification(plan: dict) -> dict:
-    identity = plan["candidate"]
-    parameters = plan["qualification"]
-    metadata = {
-        **identity,
-        "version": "1.2.3",
-        "language": "Rust",
-    }
-    capabilities = parameters["capabilities"]
-    profile = get_campaign_profile(parameters["profile"]).to_dict()
-    coverage = {
-        "schema_version": 1,
-        "basis": "reference observations for candidate-compared events",
-        "expected_capabilities": capabilities,
-        "covered_capabilities": capabilities,
-        "uncovered_capabilities": [],
-        "covered_count": len(capabilities),
-        "expected_count": len(capabilities),
-        "coverage_ratio": 1.0,
-        "evidence": {name: 1 for name in capabilities},
-        "operations": {},
-        "order_types": {},
-        "applied_order_types": {},
-        "outcomes": {},
-        "rejection_reasons": {},
-        "symbols": ["ALPHA", "BETA"],
-        "compared_events": 5000,
-        "trade_events": 1,
-        "trades": 1,
-        "partial_fill_events": 1,
-        "queue_priority_probes": 1,
-    }
-    traces = [
+    payload = deepcopy(_reference_bundle())
+    metadata = {**plan["candidate"], "version": "1.2.3", "language": "Rust"}
+    suite = payload["suite"]["report"]
+    for record in [
+        payload,
+        suite,
+        payload["campaign"],
+        *(case["report"] for case in suite["cases"]),
+    ]:
+        record["candidate_engine"] = metadata
+    _refresh_id(payload)
+    return payload
+
+
+def _refresh_id(payload):
+    suite = payload["suite"]
+    payload["qualification_id"] = _artifact_id(
         {
-            "index": index + 1,
-            "seed": index,
-            "trace_sha256": f"sha256:{index:064x}",
-            "event_count": parameters["events_per_trace"],
-            "compared_events": parameters["events_per_trace"],
-            "conformant": True,
-            "divergence": None,
-        }
-        for index in range(parameters["traces"])
-    ]
-    cases = [
-        {
-            "name": name,
-            "events_sha256": "sha256:" + f"{index + 10:064x}",
-            "report": {
-                "artifact_type": "tracebook.conformance.report",
-                "schema_version": 1,
-                "candidate_engine": metadata,
-                "conformant": True,
-                "divergence": None,
-            },
-        }
-        for index, name in enumerate(parameters["fixed_cases"])
-    ]
-    suite_report = {
-        "artifact_type": "tracebook.conformance.suite_report",
-        "schema_version": 1,
-        "suite_id": parameters["suite_id"],
-        "suite_hash": "sha256:" + "1" * 64,
-        "candidate_engine": metadata,
-        "case_count": len(cases),
-        "conformant_cases": len(cases),
-        "conformant": True,
-        "cases": cases,
-    }
-    campaign = {
-        "artifact_type": "tracebook.conformance.campaign",
-        "schema_version": 1,
-        "candidate_engine": metadata,
-        "profile": profile,
-        "generator_version": 2,
-        "seed": parameters["seed"],
-        "requested_traces": parameters["traces"],
-        "completed_traces": parameters["traces"],
-        "events_per_trace": parameters["events_per_trace"],
-        "generated_events": parameters["traces"] * parameters["events_per_trace"],
-        "max_minimize_runs": parameters["max_minimize_runs"],
-        "candidate_runs": parameters["traces"],
-        "conformant": True,
-        "failure": None,
-        "stopped_at_first_divergence": True,
-        "semantic_coverage": coverage,
-        "traces": traces,
-    }
-    campaign["campaign_id"] = _artifact_id(
-        {
-            "generator_version": 2,
-            "profile": profile,
-            "seed": parameters["seed"],
-            "requested_traces": parameters["traces"],
-            "events_per_trace": parameters["events_per_trace"],
+            "qualification_version": payload["qualification_version"],
+            "profile": payload["profile"],
+            "suite_id": suite["suite_id"],
+            "suite_hash": suite["suite_hash"],
+            "selected_cases": suite["selected_cases"],
+            "suite_report": suite["report"],
+            "campaign": payload["campaign"],
         }
     )
-    checks = {
-        "fixed_cases": {
-            "passed": len(cases),
-            "total": len(cases),
-            "complete": True,
-        },
-        "generated_campaign": {
-            "completed_traces": parameters["traces"],
-            "requested_traces": parameters["traces"],
-            "conformant": True,
-        },
-        "semantic_coverage": {
-            "covered": len(capabilities),
-            "expected": len(capabilities),
-            "uncovered": [],
-            "complete": True,
-        },
-    }
-    qualification = {
-        "artifact_type": "tracebook.conformance.qualification",
-        "schema_version": 1,
-        "qualification_version": 1,
-        "qualified": True,
-        "candidate_engine": metadata,
-        "profile": profile,
-        "suite": {
-            "suite_id": parameters["suite_id"],
-            "suite_hash": suite_report["suite_hash"],
-            "selection_version": 1,
-            "selected_cases": parameters["fixed_cases"],
-            "report": suite_report,
-        },
-        "campaign": campaign,
-        "checks": checks,
-        "candidate_runs": len(cases) + parameters["traces"],
-        "paths": {
-            "suite": "suite.json",
-            "campaign": "campaign.json",
-            "junit": "qualification.xml",
-            "reduced": None,
-        },
-    }
-    qualification["qualification_id"] = _artifact_id(
-        {
-            "qualification_version": 1,
-            "profile": profile,
-            "suite_id": parameters["suite_id"],
-            "suite_hash": suite_report["suite_hash"],
-            "selected_cases": parameters["fixed_cases"],
-            "suite_report": suite_report,
-            "campaign": campaign,
-        }
-    )
-    return qualification
 
 
 def _write_bundle(root: Path, payload: dict) -> None:
@@ -500,3 +385,61 @@ def test_cli_requires_all_identity_flags_and_drives_evidence_commands(tmp_path, 
         == 2
     )
     assert "must be provided together" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        ("suite.report.cases.0.events_sha256", "sha256:" + "0" * 64),
+        ("suite.report.cases.0.report.trace.name", "different-case"),
+        ("suite.report.cases.0.report.trace.sha256", "sha256:" + "0" * 64),
+        ("suite.report.cases.0.report.trace.event_count", 0),
+        ("suite.report.cases.0.report.compared_events", 0),
+        ("suite.report.cases.0.report.config.matching_algorithm", "pro_rata"),
+        ("suite.report.cases.0.report.final_state_hash", None),
+        ("suite.report.cases.0.report.protocol_version", True),
+        ("suite.report.cases.0.report.reference_engine.name", "different-reference"),
+        ("suite.report.cases.1.report.reference_engine.version", "different-version"),
+        ("campaign.traces.2.seed", 0),
+        ("campaign.traces.2.trace_sha256", "sha256:" + "0" * 64),
+        ("campaign.semantic_coverage.evidence.partial-fills", 0),
+        ("campaign.semantic_coverage.operations", {}),
+        ("campaign.semantic_coverage.outcomes", {}),
+        ("campaign.semantic_coverage.queue_priority_probes", 0),
+        ("campaign.semantic_coverage.trades", 0),
+        ("campaign.semantic_coverage.symbols", []),
+    ],
+)
+def test_verify_replays_workload_claims(tmp_path, path, value):
+    plan_path, plan = _plan(tmp_path)
+    payload = _qualification(plan)
+    keys = path.split(".")
+    node = payload
+    for key in keys[:-1]:
+        node = node[int(key)] if isinstance(node, list) else node[key]
+    assert type(node[keys[-1]]) is not type(value) or node[keys[-1]] != value
+    node[keys[-1]] = value
+    _refresh_id(payload)
+    _write_pair(plan_path, plan, payload)
+    with pytest.raises(ConformanceError, match="reference workload"):
+        verify_evidence_plan(plan_path)
+
+
+def test_verify_rejects_a_different_fixed_suite(tmp_path):
+    plan_path, plan = _plan(tmp_path)
+    payload = _qualification(plan)
+    suite = payload["suite"]
+    suite["suite_hash"] = suite["report"]["suite_hash"] = "sha256:" + "a" * 64
+    _refresh_id(payload)
+    _write_pair(plan_path, plan, payload)
+    with pytest.raises(ConformanceError, match="suite_hash"):
+        verify_evidence_plan(plan_path)
+
+
+def test_verifies_non_ascii_candidate_metadata(tmp_path):
+    plan_path, plan = _plan(tmp_path)
+    payload = _qualification(plan)
+    payload["candidate_engine"]["language"] = "日本語"
+    _refresh_id(payload)
+    _write_pair(plan_path, plan, payload)
+    assert verify_evidence_plan(plan_path)["status"] == "qualified"

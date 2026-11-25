@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import stat
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
@@ -16,8 +17,19 @@ from .campaign import (
     get_campaign_profile,
 )
 from .junit import render_junit
-from .model import ARTIFACT_SCHEMA_VERSION, ConformanceError, PinnedCandidateIdentity
-from .qualification import QUALIFICATION_VERSION, qualification_case_names
+from .model import (
+    ARTIFACT_SCHEMA_VERSION,
+    ConformanceError,
+    PinnedCandidateIdentity,
+    first_difference,
+)
+from .qualification import (
+    QUALIFICATION_VERSION,
+    _json_bytes as qualification_json_bytes,
+    qualification_case_names,
+    run_qualification,
+)
+from .reference import ReferenceEngineAdapter
 from .suite import BUNDLED_SUITE_VERSIONS
 
 EVIDENCE_PLAN_VERSION = 1
@@ -338,6 +350,65 @@ def _validate_candidate_metadata(
     return payload
 
 
+@lru_cache(maxsize=1)
+def _reference_workload() -> dict:
+    """Reconstruct the fixed evidence-plan contract without starting a candidate."""
+    return run_qualification(
+        ReferenceEngineAdapter,
+        profile=_REQUIRED_PROFILE,
+        suite_version=_REQUIRED_SUITE_VERSION,
+        seed=_REQUIRED_SEED,
+        traces=_REQUIRED_TRACES,
+        events_per_trace=_REQUIRED_EVENTS_PER_TRACE,
+        max_minimize_runs=_REQUIRED_MAX_MINIMIZE_RUNS,
+    ).to_dict()
+
+
+def _verify_workload(payload: dict, prefix: str) -> None:
+    oracle = _reference_workload()
+
+    def check(expected: Any, actual: Any, path: str) -> None:
+        difference = first_difference(expected, actual, path)
+        if difference is not None:
+            raise ConformanceError(
+                f"{prefix} differs from the reference workload at {difference['path']}"
+            )
+
+    for key in ("checks", "candidate_runs", "qualification_version", "schema_version"):
+        check(oracle[key], payload.get(key), key)
+    for key in ("traces", "semantic_coverage"):
+        check(oracle["campaign"][key], payload["campaign"].get(key), f"campaign.{key}")
+    suite = payload["suite"]
+    check(oracle["suite"]["suite_hash"], suite["suite_hash"], "suite.suite_hash")
+    reference_version = None
+    for actual, expected in zip(suite["report"]["cases"], oracle["suite"]["report"]["cases"]):
+        path = f"suite.cases.{expected['name']}"
+        for key in ("tags", "events_sha256"):
+            check(expected[key], actual.get(key), f"{path}.{key}")
+        report = actual["report"]
+        for key in (
+            "trace",
+            "config",
+            "compared_events",
+            "final_state_hash",
+            "protocol_version",
+            "schema_version",
+        ):
+            check(expected["report"][key], report.get(key), f"{path}.{key}")
+        reference = report.get("reference_engine")
+        if not isinstance(reference, dict):
+            raise ConformanceError(f"{prefix} missing {path}.reference_engine")
+        version = _required_text(reference.get("version"), f"{path}.reference_engine.version")
+        if reference_version is None:
+            reference_version = version
+        # Older producer versions remain verifiable when their semantics agree.
+        check(
+            {**expected["report"]["reference_engine"], "version": reference_version},
+            reference,
+            f"{path}.reference_engine",
+        )
+
+
 def _validate_qualification(
     payload: dict,
     expected: PinnedCandidateIdentity,
@@ -523,6 +594,7 @@ def _validate_qualification(
     ):
         if nested != metadata:
             raise ConformanceError(f"{prefix} {nested_path} candidate metadata changed")
+    _verify_workload(payload, prefix)
     return {
         "qualification_id": qualification_id,
         "campaign_id": campaign_id,
@@ -592,10 +664,11 @@ def verify_evidence_plan(path: str | Path) -> dict:
         if not isinstance(suite, dict) or not isinstance(suite.get("report"), dict):
             raise ConformanceError(f"{run_id} qualification suite report must be an object")
         suite_report_payload = suite["report"]
+        summary = _validate_qualification(qualification, expected, parameters, run_id)
         canonical_artifacts = {
-            "qualification.json": _json_bytes(qualification),
-            "campaign.json": _json_bytes(campaign_payload),
-            "suite.json": _json_bytes(suite_report_payload),
+            "qualification.json": qualification_json_bytes(qualification),
+            "campaign.json": qualification_json_bytes(campaign_payload),
+            "suite.json": qualification_json_bytes(suite_report_payload),
             "qualification.xml": render_junit(qualification).encode("utf-8"),
         }
         for name, canonical in canonical_artifacts.items():
@@ -603,7 +676,6 @@ def verify_evidence_plan(path: str | Path) -> dict:
                 raise ConformanceError(
                     f"{run_id} {name} is not the canonical artifact for qualification.json"
                 )
-        summary = _validate_qualification(qualification, expected, parameters, run_id)
         run_records.append(
             {
                 "run_id": run_id,
