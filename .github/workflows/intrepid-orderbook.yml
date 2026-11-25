@@ -238,48 +238,12 @@ jobs:
       - name: Qualify two captures of the upstream release
         shell: bash
         run: |
-          source_root="$RUNNER_TEMP/orderbook-source"
           workspace="$RUNNER_TEMP/captured-orderbook"
-          module=github.com/intrepidkarthi/orderbook
-          git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$CANDIDATE_TAG" \
-            "https://$module.git" "$source_root"
-          observed_revision=$(git -C "$source_root" rev-parse HEAD)
-          if [[ "$observed_revision" != "$CANDIDATE_REVISION" ]]; then
-            echo "Expected $CANDIDATE_TAG at $CANDIDATE_REVISION, found $observed_revision" >&2
-            exit 1
-          fi
-
-          tracebook-conformance evidence-init "$source_root" \
-            --workspace "$workspace" \
-            --candidate-name "$CANDIDATE_NAME" --candidate-revision "$CANDIDATE_REVISION"
-          plan="$workspace/evidence-plan.json"
-          snapshot=$(python -c 'import json,sys; print(json.load(sys.stdin)["candidate"]["snapshot_id"])' < "$plan")
+          tracebook-conformance qualify-pair https://github.com/intrepidkarthi/orderbook.git \
+            --adapter integrations/intrepid_orderbook \
+            --candidate-name "$CANDIDATE_NAME" --candidate-revision "$CANDIDATE_REVISION" \
+            --tag "$CANDIDATE_TAG" --workspace "$workspace"
           version="$CANDIDATE_TAG@${CANDIDATE_REVISION:0:12}"
-
-          for run_id in run-1 run-2; do
-            run_root="$workspace/runs/$run_id"
-            cp integrations/intrepid_orderbook/*.go integrations/intrepid_orderbook/go.{mod,sum} \
-              "$run_root/adapter/"
-            (
-              cd "$run_root/adapter"
-              export GOWORK=off GOTOOLCHAIN=local
-              export GOPATH="$run_root/cache/gopath" GOMODCACHE="$run_root/cache/modules"
-              export GOCACHE="$run_root/cache/build"
-              go mod edit "-require=$module@$CANDIDATE_TAG" "-replace=$module=../candidate"
-              go build -mod=readonly -trimpath \
-                -ldflags "-X main.engineVersion=$version -X main.engineRevision=$CANDIDATE_REVISION -X main.engineSnapshot=$snapshot" \
-                -o "$run_root/build/adapter" .
-              go version -m "$run_root/build/adapter"
-            )
-            tracebook-conformance qualify \
-              --profile fifo-limit-v1 --suite-version v2 \
-              --seed 42 --traces 25 --events-per-trace 200 --max-minimize-runs 100 --timeout 10 \
-              --candidate-name "$CANDIDATE_NAME" --candidate-revision "$CANDIDATE_REVISION" \
-              --candidate-snapshot "$snapshot" --output-dir "$run_root/qualification" \
-              --candidate "$run_root/build/adapter"
-          done
-
-          tracebook-conformance evidence-verify "$plan"
           python - "$workspace/evidence-manifest.json" "$version" <<'PY'
           import json
           import os
@@ -314,6 +278,20 @@ jobs:
                   file=summary,
               )
           PY
+
+      - name: Reject the genuine v0.26.0 packet for the v0.29.0 pin
+        if: matrix.tag == 'v0.26.0'
+        shell: bash
+        run: |
+          workspace="$RUNNER_TEMP/captured-orderbook"
+          expected=6d2018ad59c1a4f925ab654a1229d387cacf9b2f
+          status=0
+          tracebook-conformance evidence-verify "$workspace/evidence-plan.json" \
+            --expected-revision "$expected" --output stale-manifest.json \
+            2>"$RUNNER_TEMP/stale-packet.log" || status=$?
+          test "$status" -eq 2
+          grep -F "expected '$expected', observed '$CANDIDATE_REVISION'" "$RUNNER_TEMP/stale-packet.log"
+          test ! -e "$workspace/stale-manifest.json"
 
       - uses: actions/upload-artifact@v7
         with:

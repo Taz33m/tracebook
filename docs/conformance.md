@@ -148,9 +148,55 @@ silently.
 
 ## Captured Two-Run Evidence
 
-The 0.7.3 conformance wheel includes `evidence-init` and `evidence-verify`.
-Record the exact wheel hash and candidate revision with each run. For a
-development build, also record the Tracebook source commit.
+From a development checkout, install Tracebook with `python -m pip install .`.
+With Git, Go 1.23.5 or newer, and the example adapter in this checkout, one
+command builds a captured FIFO pair and writes its verified manifest.
+
+```bash
+tracebook-conformance qualify-pair https://github.com/intrepidkarthi/orderbook.git \
+  --adapter integrations/intrepid_orderbook \
+  --candidate-name 'intrepidkarthi/orderbook CLOB' \
+  --candidate-revision 6d2018ad59c1a4f925ab654a1229d387cacf9b2f \
+  --tag v0.29.0 --workspace ./orderbook-evidence
+```
+
+The repository can also be a local Git repository. The full commit hash selects
+the source, including pinned submodules. If supplied, the tag must resolve to
+the same commit. Each run has its own candidate, adapter, build and cache
+directories. A successful command prints the path to `evidence-manifest.json`.
+Record the Tracebook checkout commit or installed wheel digest alongside the manifest.
+Each build has a 300-second timeout, configurable with `--build-timeout`.
+Use `--timeout` to set the per-response adapter deadline.
+Exit 1 retains the failed qualification report for inspection. Exit 2 indicates
+an input, build, adapter protocol or verification error. Use a fresh workspace
+for every invocation, including a retry.
+
+For your engine, pass a reviewed executable adapter or a directory containing
+an executable `launch` and its dependencies. For a compiled adapter, provide
+an executable `build` in that directory. Tracebook runs it once per capture
+and starts the resulting `$TRACEBOOK_BUILD_DIR/adapter` for each candidate run.
+Both build and runtime start in the captured adapter directory. The build must
+use `TRACEBOOK_CANDIDATE_DIR` for engine source and `TRACEBOOK_CACHE_DIR` for
+toolchain caches. `TRACEBOOK_CANDIDATE_NAME`, `TRACEBOOK_CANDIDATE_REVISION`
+and `TRACEBOOK_CANDIDATE_SNAPSHOT` supply the identity to bind at build time.
+The adapter must report the identity of the engine it actually loads.
+`TRACEBOOK_CANDIDATE_TAG` is empty unless a tag was specified. Adapter programs
+execute with the caller's permissions.
+
+To check an existing capture for a particular candidate revision, supply the
+expected revision independently. A genuine packet for an older commit exits 2
+with both the expected and observed revisions. Use a new output filename to
+retain the original manifest.
+
+```bash
+tracebook-conformance evidence-verify orderbook-evidence/evidence-plan.json \
+  --expected-revision 6d2018ad59c1a4f925ab654a1229d387cacf9b2f --output review.json
+```
+
+### Manual capture
+
+The 0.7.3 wheel supports the manual `evidence-init` and `evidence-verify`
+workflow below. Record the wheel hash or Tracebook source commit with the run.
 
 Use the evidence workflow when a qualification result will support a release,
 benchmark, or external claim. It pins the candidate before adapter readiness and

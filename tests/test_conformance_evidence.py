@@ -443,3 +443,14 @@ def test_verifies_non_ascii_candidate_metadata(tmp_path):
     _refresh_id(payload)
     _write_pair(plan_path, plan, payload)
     assert verify_evidence_plan(plan_path)["status"] == "qualified"
+
+
+def test_replaced_valid_plan_cannot_complete_original_qualification(tmp_path):
+    path, plan = _plan(tmp_path)
+    old_id = plan.pop("plan_id")
+    plan["candidate"]["name"] = "other/matcher"
+    plan["plan_id"] = _artifact_id(plan)
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    with pytest.raises(ConformanceError, match="plan changed during qualification"):
+        write_evidence_manifest(path, expected_plan_id=old_id)
+    assert not (path.parent / MANIFEST_FILENAME).exists()

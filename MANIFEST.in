@@ -18,6 +18,7 @@ include packaging/tracebook-sim/LICENSE
 recursive-include tools *.py
 recursive-include integrations *.py *.md *.json *.jsonl
 recursive-include integrations/intrepid_orderbook *.go
+include integrations/intrepid_orderbook/build
 include integrations/intrepid_orderbook/go.mod
 include integrations/intrepid_orderbook/go.sum
 recursive-include integrations/orderbook_rs/src *.rs

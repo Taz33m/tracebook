@@ -109,10 +109,12 @@ upstream defect.
 
 In the [Tracebook Actions workflow](https://github.com/Taz33m/tracebook/actions/workflows/intrepid-orderbook.yml?query=branch%3Amain),
 open a successful run and find **Verified FIFO qualification** for
-`v0.26.0` or `v0.29.0`. Each job checks the tag against its pinned commit,
-builds the adapter twice against separate captures of that source, and runs
-`evidence-verify` before reporting a pass. The summary identifies the profile,
-counts, and evidence IDs. The downloadable artifact contains the plan,
+`v0.26.0` or `v0.29.0`. Each job uses the
+[one-command capture](../../docs/conformance.md#captured-two-run-evidence) to
+check the tag against its pin, build the adapter twice against separate source
+copies, and verify both bundles. CI also checks that presenting the older
+packet for the newer revision produces a revision-mismatch error.
+The summary identifies the profile, counts, and evidence IDs. The downloadable artifact contains the plan,
 manifest, and both qualification bundles for the run's artifact retention
 period.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 from functools import lru_cache
@@ -34,6 +35,7 @@ from .suite import BUNDLED_SUITE_VERSIONS
 
 EVIDENCE_PLAN_VERSION = 1
 EVIDENCE_MANIFEST_VERSION = 1
+GIT_COMMIT_HASH = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
 PLAN_FILENAME = "evidence-plan.json"
 MANIFEST_FILENAME = "evidence-manifest.json"
 _RUN_IDS = ("run-1", "run-2")
@@ -624,11 +626,24 @@ def _bundle_record(bundle: Path) -> Tuple[dict, Dict[str, bytes]]:
     return {"files": hashes}, contents
 
 
-def verify_evidence_plan(path: str | Path) -> dict:
+def verify_evidence_plan(path: str | Path, *, expected_revision: Optional[str] = None) -> dict:
     """Verify two captured qualification bundles and return a grading manifest."""
     plan_path, plan = load_evidence_plan(path)
+    return _verify_loaded_plan(plan_path, plan, expected_revision)
+
+
+def _verify_loaded_plan(plan_path: Path, plan: dict, expected_revision: Optional[str]) -> dict:
     root = plan_path.parent.resolve()
     expected = PinnedCandidateIdentity.from_dict(plan["candidate"])
+    observed_revision = expected.revision
+    if expected_revision is not None and GIT_COMMIT_HASH.fullmatch(expected_revision):
+        observed_revision = observed_revision.lower()
+        expected_revision = expected_revision.lower()
+    if expected_revision is not None and observed_revision != expected_revision:
+        raise ConformanceError(
+            f"evidence revision does not match requested revision: expected {expected_revision!r}, "
+            f"observed {expected.revision!r}"
+        )
     parameters = plan["qualification"]
     run_records = []
     bundle_contents = []
@@ -719,9 +734,14 @@ def verify_evidence_plan(path: str | Path) -> dict:
 def write_evidence_manifest(
     plan_path: str | Path,
     output: Optional[str | Path] = None,
+    *,
+    expected_revision: Optional[str] = None,
+    expected_plan_id: Optional[str] = None,
 ) -> Path:
     """Verify one plan and exclusively write its grading-ready manifest."""
-    resolved_plan, _ = load_evidence_plan(plan_path)
+    resolved_plan, plan = load_evidence_plan(plan_path)
+    if expected_plan_id is not None and plan["plan_id"] != expected_plan_id:
+        raise ConformanceError("evidence plan changed during qualification")
     root = resolved_plan.parent.resolve()
     destination = (
         root / MANIFEST_FILENAME
@@ -736,7 +756,7 @@ def write_evidence_manifest(
         raise ConformanceError("evidence manifest must be written at workspace root")
     if destination == resolved_plan:
         raise ConformanceError("evidence manifest must not overwrite the evidence plan")
-    manifest = verify_evidence_plan(resolved_plan)
+    manifest = _verify_loaded_plan(resolved_plan, plan, expected_revision)
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         with destination.open("xb") as handle:

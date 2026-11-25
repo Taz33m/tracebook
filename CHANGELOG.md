@@ -6,6 +6,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Added `tracebook-conformance qualify-pair` to build and verify two FIFO
+  qualifications from an adapter and a pinned Git commit.
+  `evidence-verify --expected-revision` checks an existing packet against an independent pin.
+
 ## 0.7.3 — 2026-11-24
 
 - Verify captured FIFO qualification claims against the shipped reference and
