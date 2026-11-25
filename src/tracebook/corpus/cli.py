@@ -9,9 +9,12 @@ from pathlib import Path
 from typing import Any, List, Mapping, Optional
 
 from .. import __version__
+from .._paths import paths_overlap
 from ..events.coinbase_l3 import CoinbaseL3Error
 from .coinbase import (
     MARKET_DATA_TERMS_URL,
+    _EXPECTED_FILES,
+    _MANIFEST_FILE,
     CoinbaseCorpusError,
     benchmark_coinbase_corpus,
     capture_coinbase_corpus,
@@ -166,6 +169,18 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"Synthetic corpus copied to: {Path(args.corpus)}")
             print(f"Corpus id: {manifest['corpus_id']}")
             return 0
+        if args.command in ("verify", "benchmark", "compare") and args.output:
+            sources = (
+                [Path(args.baseline), Path(args.candidate)]
+                if args.command == "compare"
+                else [
+                    Path(args.corpus) / name for name in (*_EXPECTED_FILES.values(), _MANIFEST_FILE)
+                ]
+            )
+            if any(paths_overlap((source, args.output)) for source in sources):
+                raise CoinbaseCorpusError(
+                    "report output must be distinct from corpus and benchmark inputs"
+                )
         if args.command == "verify":
             _emit_report(verify_coinbase_corpus(args.corpus), args.output)
             return 0

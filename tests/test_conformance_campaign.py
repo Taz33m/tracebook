@@ -682,3 +682,27 @@ def test_campaign_is_wired_into_docs_and_ci():
     assert "tracebook-conformance campaign" in ci_workflow
     assert "--profile fifo-limit-v1" in external_workflow
     assert "--events-per-trace 50" in external_workflow
+
+
+@pytest.mark.parametrize("flag", ["--output", "--junit-output"])
+def test_reproduction_outputs_cannot_replace_discovered_metadata(tmp_path, flag):
+    result = run_campaign(_DroppingFirstAdapter, traces=1, events_per_trace=5)
+    report_path = write_campaign_artifacts(result, tmp_path / "case")
+    trace = report_path.parent / "reduced.jsonl"
+    metadata = report_path.parent / "failure.json"
+    original = metadata.read_bytes()
+    assert (
+        main(
+            [
+                "reproduce",
+                str(trace),
+                flag,
+                str(metadata),
+                "--candidate",
+                sys.executable,
+                str(EXAMPLE_ADAPTER),
+            ]
+        )
+        == 2
+    )
+    assert metadata.read_bytes() == original

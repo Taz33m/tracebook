@@ -1250,6 +1250,39 @@ def _load_benchmark_report(value: str | Path | Mapping[str, Any], label: str) ->
         or any(character not in "0123456789abcdef" for character in manifest_digest)
     ):
         raise CoinbaseCorpusError(f"{label} benchmark manifest_sha256 is invalid")
+    if report.get("measurement_model") != "local_wall_clock":
+        raise CoinbaseCorpusError(f"{label} benchmark has an unsupported measurement model")
+    config = report.get("config")
+    if not isinstance(config, dict):
+        raise CoinbaseCorpusError(f"{label} benchmark config must be an object")
+    iterations = _positive_integer(config.get("iterations"), f"{label} iterations")
+    event_count = _positive_integer(corpus.get("event_count"), f"{label} corpus event_count")
+    if set(phases) != {"stream_import_replay", "replay_only"}:
+        raise CoinbaseCorpusError(f"{label} benchmark must include both measurement phases")
+    for name, phase in phases.items():
+        if (
+            not isinstance(phase, dict)
+            or _positive_integer(phase.get("event_count"), "phase event_count") != event_count
+        ):
+            raise CoinbaseCorpusError(f"{label} phase {name} disagrees with the corpus event_count")
+        samples = phase.get("samples_ns")
+        if not isinstance(samples, list) or len(samples) != iterations:
+            raise CoinbaseCorpusError(
+                f"{label} phase {name} sample count disagrees with iterations"
+            )
+        for sample in samples:
+            _positive_integer(sample, "sample duration")
+            _positive_finite_metric(sample, "sample duration")
+        try:
+            expected = _phase_summary(samples, event_count)
+        except OverflowError as exc:
+            raise CoinbaseCorpusError(f"{label} phase {name} exceeds numeric range") from exc
+        for metric in ("min_ns", "median_ns", "p95_ns", "max_ns", "events_per_second_median"):
+            observed = _positive_finite_metric(phase.get(metric), f"{label} phase {name} {metric}")
+            if observed != expected[metric]:
+                raise CoinbaseCorpusError(
+                    f"{label} phase {name} {metric} disagrees with timing samples"
+                )
     return report
 
 
@@ -1286,36 +1319,17 @@ def compare_corpus_benchmarks(
 
     baseline_phases = baseline_report["phases"]
     candidate_phases = candidate_report["phases"]
-    if set(baseline_phases) != set(candidate_phases):
-        raise CoinbaseCorpusError("benchmark reports must contain the same phases")
     comparisons = {}
     for phase in sorted(baseline_phases):
         before = baseline_phases[phase]
         after = candidate_phases[phase]
-        if not isinstance(before, dict) or not isinstance(after, dict):
-            raise CoinbaseCorpusError(f"benchmark phase {phase!r} must be an object")
-        baseline_event_count = _positive_integer(
-            before.get("event_count"), f"baseline benchmark phase {phase!r} event_count"
-        )
-        candidate_event_count = _positive_integer(
-            after.get("event_count"), f"candidate benchmark phase {phase!r} event_count"
-        )
-        if baseline_event_count != candidate_event_count:
+        baseline_event_count = before["event_count"]
+        if baseline_event_count != after["event_count"]:
             raise CoinbaseCorpusError(f"benchmark phase {phase!r} event counts differ")
-        baseline_median = _positive_finite_metric(
-            before.get("median_ns"), f"baseline benchmark phase {phase!r} median_ns"
-        )
-        candidate_median = _positive_finite_metric(
-            after.get("median_ns"), f"candidate benchmark phase {phase!r} median_ns"
-        )
-        baseline_rate = _positive_finite_metric(
-            before.get("events_per_second_median"),
-            f"baseline benchmark phase {phase!r} events_per_second_median",
-        )
-        candidate_rate = _positive_finite_metric(
-            after.get("events_per_second_median"),
-            f"candidate benchmark phase {phase!r} events_per_second_median",
-        )
+        baseline_median = before["median_ns"]
+        candidate_median = after["median_ns"]
+        baseline_rate = before["events_per_second_median"]
+        candidate_rate = after["events_per_second_median"]
         comparisons[phase] = {
             "event_count": baseline_event_count,
             "baseline_median_ns": baseline_median,

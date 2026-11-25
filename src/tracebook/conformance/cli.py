@@ -482,7 +482,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             metadata_path = args.metadata or (str(sibling) if sibling.is_file() else None)
             _require_distinct_paths(
                 args.events,
-                metadata_path,
+                args.metadata or str(sibling),
                 args.output,
                 args.junit_output,
             )

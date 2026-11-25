@@ -248,8 +248,10 @@ def test_benchmark_report_and_environment_aware_comparison(tmp_path):
     candidate["environment"]["python"] = "different"
     candidate["environment"]["dependency_versions"]["tracebook-conformance"] = "candidate"
     for phase in candidate["phases"].values():
-        phase["median_ns"] *= 0.5
-        phase["events_per_second_median"] *= 2.0
+        phase["samples_ns"] = [duration * 2 for duration in phase["samples_ns"]]
+        for field in ("min_ns", "median_ns", "p95_ns", "max_ns"):
+            phase[field] *= 2
+        phase["events_per_second_median"] /= 2
 
     comparison = compare_corpus_benchmarks(baseline, candidate)
 
@@ -259,8 +261,8 @@ def test_benchmark_report_and_environment_aware_comparison(tmp_path):
     assert comparison["manifest_match"] is True
     assert comparison["environment_differences"] == ["python"]
     assert comparison["software_differences"] == ["tracebook-conformance"]
-    assert comparison["phases"]["replay_only"]["speedup_baseline_over_candidate"] == 2.0
-    assert comparison["phases"]["replay_only"]["throughput_change_percent"] == 100.0
+    assert comparison["phases"]["replay_only"]["speedup_baseline_over_candidate"] == 0.5
+    assert comparison["phases"]["replay_only"]["throughput_change_percent"] == -50.0
 
     mismatch = copy.deepcopy(candidate)
     mismatch["corpus"]["corpus_id"] = "sha256:" + "0" * 64
@@ -431,3 +433,50 @@ def test_capture_cli_requires_market_data_acknowledgement(tmp_path, capsys):
 
     assert code == 2
     assert "acknowledge_market_data_terms" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("rate", "timing samples"),
+        ("median", "timing samples"),
+        ("repetitions", "sample count"),
+        ("workload", "corpus event_count"),
+        ("phase", "both measurement phases"),
+    ],
+)
+def test_benchmark_comparison_checks_underlying_measurements(tmp_path, mutation, message):
+    corpus, _ = _prepare(tmp_path)
+    report = benchmark_coinbase_corpus(corpus, iterations=2, warmups=0)
+    phase = report["phases"]["replay_only"]
+    if mutation == "rate":
+        phase["events_per_second_median"] *= 1000
+    elif mutation == "median":
+        phase["median_ns"] /= 100
+    elif mutation == "repetitions":
+        phase["samples_ns"].pop()
+    elif mutation == "workload":
+        report["corpus"]["event_count"] += 1
+    else:
+        del report["phases"]["stream_import_replay"]
+    with pytest.raises(CoinbaseCorpusError, match=message):
+        compare_corpus_benchmarks(report, report)
+
+
+@pytest.mark.parametrize(
+    "command,source", [("verify", "manifest.json"), ("benchmark", "golden.json")]
+)
+def test_corpus_report_cannot_replace_its_own_evidence(tmp_path, command, source):
+    corpus, _ = _prepare(tmp_path)
+    original = (corpus / source).read_bytes()
+    assert main([command, str(corpus), "--output", str(corpus / source)]) == 2
+    assert (corpus / source).read_bytes() == original
+
+
+def test_benchmark_comparison_preserves_source_reports(tmp_path):
+    corpus, _ = _prepare(tmp_path)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps(benchmark_coinbase_corpus(corpus, iterations=1, warmups=0)))
+    original = baseline.read_bytes()
+    assert main(["compare", str(baseline), str(baseline), "--output", str(baseline)]) == 2
+    assert baseline.read_bytes() == original
