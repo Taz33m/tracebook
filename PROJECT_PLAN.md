@@ -110,7 +110,7 @@ path from workload to first difference, reduced trace, and passing control.
 
 ## Next Milestones
 
-1. Ship the fix that preserves the original wrong fill in the coordinated 0.7.2 distributions.
+1. Ship independently verified qualification evidence and replay integrity fixes in the coordinated 0.7.3 distributions.
 2. Keep the four-event proof runnable from an empty directory with one command.
    Measure the installed path on each candidate release.
 3. Track first divergent event, reduced size, minimizer runs and budget,

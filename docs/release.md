@@ -2,7 +2,7 @@
 
 `tracebook` is still alpha software. Use this checklist before cutting any public release or tagged benchmark claim.
 
-See the [0.7.2 notes](releases/0.7.2.md) for this release and the
+See the [0.7.3 notes](releases/0.7.3.md) for this release and the
 [project release gate](../PROJECT_PLAN.md#next-release-gate) for its evidence criteria.
 
 ## Version And Changelog
@@ -48,7 +48,7 @@ python -m pip download \
   --dest dist/legacy \
   "tracebook-sim==0.5.0"
 python tools/verify_distribution_split.py \
-  --expected-version 0.7.2 \
+  --expected-version 0.7.3 \
   --conformance-wheel dist/conformance/*.whl \
   --sim-wheel dist/simulator/*.whl \
   --legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl \
@@ -59,7 +59,7 @@ python tools/verify_sdist_wheel_agreement.py \
   --conformance-sdist dist/conformance/*.tar.gz \
   --sim-wheel dist/simulator/*.whl \
   --sim-sdist dist/simulator/*.tar.gz \
-  --expected-version 0.7.2
+  --expected-version 0.7.3
 python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 python -m pip check
 (
@@ -124,12 +124,12 @@ and only then publishes `tracebook-sim`.
 After publishing, verify the lightweight path from a clean environment:
 
 ```bash
-python -m pip install --no-cache-dir "tracebook-conformance==0.7.2"
+python -m pip install --no-cache-dir "tracebook-conformance==0.7.3"
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-conformance --help
 tracebook-conformance fifo-proof
 python -m pip check
-python -m pip download --no-deps --no-binary=:all: "tracebook-conformance==0.7.2"
+python -m pip download --no-deps --no-binary=:all: "tracebook-conformance==0.7.3"
 ```
 
 Extract the downloaded sdist in a blank repository, build
@@ -142,8 +142,8 @@ binary on the reduced regression case.
 Verify the full facade independently in a second clean environment:
 
 ```bash
-python -m pip install --no-cache-dir "tracebook-sim==0.7.2"
-python -c "import importlib.metadata as m; assert m.version('tracebook-conformance') == m.version('tracebook-sim') == '0.7.2'"
+python -m pip install --no-cache-dir "tracebook-sim==0.7.3"
+python -c "import importlib.metadata as m; assert m.version('tracebook-conformance') == m.version('tracebook-sim') == '0.7.3'"
 tracebook-sim --version
 tracebook-benchmark --version
 tracebook-dashboard --version
@@ -161,7 +161,7 @@ that move to `tracebook-conformance`:
 ```bash
 python -m pip install "tracebook-sim==0.5.0"
 python -m pip uninstall -y tracebook-sim
-python -m pip install "tracebook-sim==0.7.2"
+python -m pip install "tracebook-sim==0.7.3"
 python -m pip check
 ```
 
@@ -176,6 +176,7 @@ Release notes should include:
 - compatibility notes
 - known limitations
 
+The [0.7.3 notes](releases/0.7.3.md) cover qualification evidence, replay integrity, and benchmark verification.
 The [0.7.2 notes](releases/0.7.2.md) cover preserving the original wrong fill.
 The [0.7.1 notes](releases/0.7.1.md) cover the default-budget minimizer.
 The [0.7.0 notes](releases/0.7.0.md) cover the packaged proof and captured evidence.

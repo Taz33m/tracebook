@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.7.3 — 2026-11-24
+
 - Verify captured FIFO qualification claims against the shipped reference and
   seeded workloads. Evidence bundles support non-ASCII candidate metadata.
 - Preserve the original execution values and rejection reasons through
