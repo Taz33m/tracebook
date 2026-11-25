@@ -502,9 +502,11 @@ jobs:
 
           expected = (21, "sell_order_id", 15, 16)
           assert wrong_fill(run_conformance(events, affected, config)) == expected
-          assert 0 < len(reduced) < len(events)
+          assert len(events) == 21
+          assert 0 < len(reduced) <= 8
           assert result["one_minimal"] and not result["budget_exhausted"]
-          assert result["runs"] <= result["max_runs"] == 100
+          assert 0 < result["runs"] <= 48
+          assert result["max_runs"] == 100
           assert wrong_fill(run_conformance(reduced, affected, config)) == expected
           assert run_conformance(events, fixed, config).conformant
           assert run_conformance(reduced, fixed, config).conformant

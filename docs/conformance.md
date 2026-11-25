@@ -71,9 +71,10 @@ trade order IDs, it first tries the lifecycles of the two disputed orders, their
 direct counterparties in the reference trades, and the triggering order. This
 trial keeps symbol clears and must reproduce the same triggering event, ID
 field and pair of IDs. If it does, delta debugging starts from that subsequence.
-Otherwise it starts from the original failing prefix. Every subsequent deletion
-must preserve that order-ID mismatch on the original triggering event. The
-fill's position in the event's trade list can shift when earlier fills disappear.
+Otherwise it starts from the original failing prefix. Every subsequent
+deletion must reproduce that order-ID mismatch on the same occurrence of the
+triggering event, even when two input events have identical values. The fill's
+position in the event's trade list can shift when earlier fills disappear.
 The initial comparison and every candidate trial count toward the same budget
 (100 by default). The report sets `one_minimal` only after every individual
 deletion in the final round stops reproducing the target failure. If `--max-runs`
