@@ -1,0 +1,16 @@
+#!/bin/sh
+# qualify-pair runs this in a private copy of the adapter for each build.
+set -eu
+export GOWORK=off GOTOOLCHAIN=local
+export GOPATH="$TRACEBOOK_CACHE_DIR/gopath" GOMODCACHE="$TRACEBOOK_CACHE_DIR/modules"
+export GOCACHE="$TRACEBOOK_CACHE_DIR/build"
+module=github.com/intrepidkarthi/orderbook
+version="$TRACEBOOK_CANDIDATE_REVISION"
+if [ -n "$TRACEBOOK_CANDIDATE_TAG" ]; then
+    version="$TRACEBOOK_CANDIDATE_TAG@$(printf '%.12s' "$TRACEBOOK_CANDIDATE_REVISION")"
+    go mod edit "-require=$module@$TRACEBOOK_CANDIDATE_TAG"
+fi
+go mod edit "-replace=$module=$TRACEBOOK_CANDIDATE_DIR"
+go build -mod=readonly -trimpath \
+    -ldflags "-X main.engineVersion=$version -X main.engineRevision=$TRACEBOOK_CANDIDATE_REVISION -X main.engineSnapshot=$TRACEBOOK_CANDIDATE_SNAPSHOT" \
+    -o "$TRACEBOOK_BUILD_DIR/adapter" .

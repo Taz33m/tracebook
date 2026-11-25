@@ -200,6 +200,10 @@ these are separate version boundaries. `fifo-limit-v1` qualification does not
 run STP or pro-rata cases, so unsupported features stay explicit without
 becoming false failures.
 
+From a development checkout, `tracebook-conformance qualify-pair` takes the
+adapter and a pinned Git commit, builds two independent captures, and verifies
+the resulting FIFO evidence. [Run the Go example or bring your adapter](docs/conformance.md#captured-two-run-evidence).
+
 The 0.7.3 wheel includes the captured evidence commands. Record the wheel
 hash and candidate revision with the two qualification reports.
 

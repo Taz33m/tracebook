@@ -33,6 +33,7 @@ from .model import (
     PinnedCandidateIdentity,
     canonical_event_jsonl_line,
 )
+from .pair import qualify_pair
 from .qualification import _QualificationOutputReservation, run_qualification
 from .reproduce import (
     load_failure_metadata,
@@ -182,6 +183,33 @@ def _build_parser() -> argparse.ArgumentParser:
     qualify.add_argument("--junit-output")
     _add_candidate_arguments(qualify)
 
+    pair = commands.add_parser(
+        "qualify-pair", help="Build and verify two fresh FIFO runs at a pinned Git commit."
+    )
+    pair.add_argument("repository", help="Candidate Git URL or local repository path.")
+    pair.add_argument(
+        "--adapter",
+        required=True,
+        type=Path,
+        help="An executable adapter or a directory with an executable build or launch entry point.",
+    )
+    pair.add_argument(
+        "--candidate-name", required=True, help="Expected name in the adapter handshake."
+    )
+    pair.add_argument("--candidate-revision", required=True, help="Full Git commit hash.")
+    pair.add_argument(
+        "--tag", help="Fetch this tag and verify that it identifies the pinned commit."
+    )
+    pair.add_argument(
+        "--workspace",
+        required=True,
+        type=Path,
+        help="New directory for both captures and their manifest.",
+    )
+    pair.add_argument(
+        "--timeout", type=float, default=10.0, help="Adapter response timeout in seconds."
+    )
+
     reproduce = commands.add_parser(
         "reproduce",
         help="Replay a saved reduced failure and verify its exact divergence.",
@@ -209,6 +237,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     evidence_verify.add_argument("plan")
     evidence_verify.add_argument("--output")
+    evidence_verify.add_argument(
+        "--expected-revision", help="Reject a packet for a different candidate revision."
+    )
     return parser
 
 
@@ -335,8 +366,25 @@ def main(argv: Optional[List[str]] = None) -> int:
                     f"qualification={run['qualification_dir']}"
                 )
             return 0
+        if args.command == "qualify-pair":
+            artifact, status = qualify_pair(
+                args.repository,
+                args.adapter,
+                args.workspace,
+                candidate_name=args.candidate_name,
+                revision=args.candidate_revision,
+                tag=args.tag,
+                timeout=args.timeout,
+            )
+            if status:
+                print(f"Qualification failed. Report: {artifact}", file=sys.stderr)
+            else:
+                print(f"Verified evidence manifest: {artifact}")
+            return status
         if args.command == "evidence-verify":
-            manifest_path = write_evidence_manifest(args.plan, args.output)
+            manifest_path = write_evidence_manifest(
+                args.plan, args.output, expected_revision=args.expected_revision
+            )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             print(f"Evidence manifest written: {manifest_path}")
             print(f"Manifest: {manifest['manifest_id']}")

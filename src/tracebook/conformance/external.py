@@ -40,6 +40,7 @@ class ExternalProcessAdapter:
         timeout_seconds: float = 5.0,
         cwd: Optional[str | Path] = None,
         expected_identity: Optional[PinnedCandidateIdentity] = None,
+        env: Optional[Mapping[str, str]] = None,
     ) -> None:
         if isinstance(command, (str, bytes)) or not command:
             raise ConformanceError("candidate command must be a non-empty argument list")
@@ -68,6 +69,7 @@ class ExternalProcessAdapter:
             self._process = subprocess.Popen(  # nosec B603
                 self.command,
                 cwd=str(cwd) if cwd is not None else None,
+                env=env,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -306,10 +308,12 @@ class ExternalProcessAdapterFactory:
         timeout_seconds: float = 5.0,
         cwd: Optional[str | Path] = None,
         expected_identity: Optional[PinnedCandidateIdentity] = None,
+        env: Optional[Mapping[str, str]] = None,
     ) -> None:
         self.command = tuple(command)
         self.timeout_seconds = timeout_seconds
         self.cwd = cwd
+        self.env = dict(env) if env is not None else None
         self.expected_identity = expected_identity
 
     def __call__(self, config: ConformanceConfig) -> ExternalProcessAdapter:
@@ -318,5 +322,6 @@ class ExternalProcessAdapterFactory:
             config,
             timeout_seconds=self.timeout_seconds,
             cwd=self.cwd,
+            env=self.env,
             expected_identity=self.expected_identity,
         )
