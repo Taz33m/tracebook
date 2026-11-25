@@ -210,6 +210,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--timeout", type=float, default=10.0, help="Adapter response timeout in seconds."
     )
 
+    pair.add_argument(
+        "--build-timeout",
+        type=float,
+        default=300.0,
+        help="Timeout for each adapter build in seconds (default 300).",
+    )
+
     reproduce = commands.add_parser(
         "reproduce",
         help="Replay a saved reduced failure and verify its exact divergence.",
@@ -375,6 +382,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 revision=args.candidate_revision,
                 tag=args.tag,
                 timeout=args.timeout,
+                build_timeout=args.build_timeout,
             )
             if status:
                 print(f"Qualification failed. Report: {artifact}", file=sys.stderr)

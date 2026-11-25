@@ -164,6 +164,9 @@ The repository can also be a local Git repository. The full commit hash selects
 the source, including pinned submodules. If supplied, the tag must resolve to
 the same commit. Each run has its own candidate, adapter, build and cache
 directories. A successful command prints the path to `evidence-manifest.json`.
+Record the Tracebook checkout commit or installed wheel digest alongside the manifest.
+Each build has a 300-second timeout, configurable with `--build-timeout`.
+Use `--timeout` to set the per-response adapter deadline.
 Exit 1 retains the failed qualification report for inspection. Exit 2 indicates
 an input, build, adapter protocol or verification error. Use a fresh workspace
 for every invocation, including a retry.
@@ -175,7 +178,8 @@ and starts the resulting `$TRACEBOOK_BUILD_DIR/adapter` for each candidate run.
 Both build and runtime start in the captured adapter directory. The build must
 use `TRACEBOOK_CANDIDATE_DIR` for engine source and `TRACEBOOK_CACHE_DIR` for
 toolchain caches. `TRACEBOOK_CANDIDATE_NAME`, `TRACEBOOK_CANDIDATE_REVISION`
-and `TRACEBOOK_CANDIDATE_SNAPSHOT` supply the required handshake identity.
+and `TRACEBOOK_CANDIDATE_SNAPSHOT` supply the identity to bind at build time.
+The adapter must report the identity of the engine it actually loads.
 `TRACEBOOK_CANDIDATE_TAG` is empty unless a tag was specified. Adapter programs
 execute with the caller's permissions.
 

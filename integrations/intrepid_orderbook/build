@@ -11,6 +11,6 @@ if [ -n "$TRACEBOOK_CANDIDATE_TAG" ]; then
     go mod edit "-require=$module@$TRACEBOOK_CANDIDATE_TAG"
 fi
 go mod edit "-replace=$module=$TRACEBOOK_CANDIDATE_DIR"
-go build -mod=readonly -trimpath \
+exec go build -mod=readonly -trimpath \
     -ldflags "-X main.engineVersion=$version -X main.engineRevision=$TRACEBOOK_CANDIDATE_REVISION -X main.engineSnapshot=$TRACEBOOK_CANDIDATE_SNAPSHOT" \
     -o "$TRACEBOOK_BUILD_DIR/adapter" .

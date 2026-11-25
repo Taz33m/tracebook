@@ -102,6 +102,22 @@ def test_pair_builds_twice_from_committed_source_and_rejects_stale_packet(
     assert not (bundle / "built").exists()
     assert (candidate[0] / "version").read_text() == "dirty"
 
+    assert (
+        main(
+            [
+                "evidence-verify",
+                str(workspace / "evidence-plan.json"),
+                "--expected-revision",
+                candidate[1].upper(),
+                "--output",
+                "uppercase.json",
+            ]
+        )
+        == 0
+    )
+    assert (workspace / "uppercase.json").read_bytes() == (
+        workspace / "evidence-manifest.json"
+    ).read_bytes()
     assert main(args) == 2
     assert "already exists" in capsys.readouterr().err
     assert (
@@ -158,4 +174,24 @@ def test_pair_stops_at_failed_build(candidate, tmp_path, capsys):
     workspace = tmp_path / "results"
     assert main(pair_args(candidate, adapter, workspace)) == 2
     assert "run-1 adapter build failed (exit 3)" in capsys.readouterr().err
+    assert not (workspace / "evidence-manifest.json").exists()
+
+
+@pytest.mark.parametrize("flag, value", [("--timeout", "nan"), ("--build-timeout", "0")])
+def test_pair_checks_timeouts_before_creating_workspace(candidate, tmp_path, flag, value, capsys):
+    workspace = tmp_path / "results"
+    assert main(pair_args(candidate, tmp_path / "unused", workspace) + [flag, value]) == 2
+    assert f"{flag} must be a positive finite number" in capsys.readouterr().err
+    assert not workspace.exists()
+
+
+def test_pair_stops_a_hung_build(candidate, tmp_path, capsys):
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    build = bundle / "build"
+    build.write_text("#!/bin/sh\nsleep 20\n")
+    build.chmod(0o755)
+    workspace = tmp_path / "results"
+    assert main(pair_args(candidate, bundle, workspace) + ["--build-timeout", "0.1"]) == 2
+    assert "adapter build timed out" in capsys.readouterr().err
     assert not (workspace / "evidence-manifest.json").exists()

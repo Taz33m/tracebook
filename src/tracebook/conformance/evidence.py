@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 from functools import lru_cache
@@ -34,6 +35,7 @@ from .suite import BUNDLED_SUITE_VERSIONS
 
 EVIDENCE_PLAN_VERSION = 1
 EVIDENCE_MANIFEST_VERSION = 1
+GIT_COMMIT_HASH = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
 PLAN_FILENAME = "evidence-plan.json"
 MANIFEST_FILENAME = "evidence-manifest.json"
 _RUN_IDS = ("run-1", "run-2")
@@ -633,7 +635,11 @@ def verify_evidence_plan(path: str | Path, *, expected_revision: Optional[str] =
 def _verify_loaded_plan(plan_path: Path, plan: dict, expected_revision: Optional[str]) -> dict:
     root = plan_path.parent.resolve()
     expected = PinnedCandidateIdentity.from_dict(plan["candidate"])
-    if expected_revision is not None and expected.revision != expected_revision:
+    observed_revision = expected.revision
+    if expected_revision is not None and GIT_COMMIT_HASH.fullmatch(expected_revision):
+        observed_revision = observed_revision.lower()
+        expected_revision = expected_revision.lower()
+    if expected_revision is not None and observed_revision != expected_revision:
         raise ConformanceError(
             f"evidence revision does not match requested revision: expected {expected_revision!r}, "
             f"observed {expected.revision!r}"

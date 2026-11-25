@@ -261,6 +261,7 @@ def test_source_manifest_includes_native_integration_files():
     assert package_data["tracebook.conformance.fixtures.v2"] == ["*.json", "*.jsonl"]
     assert "recursive-include integrations *.py *.md *.json *.jsonl" in manifest
     assert "recursive-include integrations/intrepid_orderbook *.go" in manifest
+    assert "include integrations/intrepid_orderbook/build" in manifest
     assert "include integrations/intrepid_orderbook/go.mod" in manifest
     assert "include integrations/intrepid_orderbook/go.sum" in manifest
     assert "recursive-include src/tracebook/book_replay/fixtures *.jsonl" in manifest

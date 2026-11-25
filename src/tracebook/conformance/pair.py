@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
+import signal
 import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
 
 from .evidence import (
+    GIT_COMMIT_HASH,
     _copy_candidate,
     candidate_snapshot_id,
     load_evidence_plan,
@@ -17,14 +18,14 @@ from .evidence import (
     write_evidence_manifest,
 )
 from .exit_codes import exit_code_for_artifact
-from .external import ExternalProcessAdapterFactory
+from .external import ExternalProcessAdapterFactory, _validate_timeout
 from .model import ConformanceError, PinnedCandidateIdentity
 from .qualification import _QualificationOutputReservation, run_qualification
 
 
 def _checkout(repository: str, revision: str, tag: str | None, target: Path) -> None:
     """Fetch the pin into a fresh repository, independent of local working-tree edits."""
-    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", revision):
+    if not GIT_COMMIT_HASH.fullmatch(revision):
         raise ConformanceError("--candidate-revision requires a full Git commit hash")
     local = Path(repository).expanduser()
     source = str(local.resolve()) if local.is_dir() else repository
@@ -71,6 +72,32 @@ def _require_executable(path: Path) -> None:
         raise ConformanceError(f"adapter requires an executable file at {path}")
 
 
+def _build_adapter(
+    directory: Path, environment: dict[str, str], timeout: float, run_id: str
+) -> None:
+    with subprocess.Popen(  # nosec B603
+        [str(directory / "build")],
+        cwd=directory,
+        env=environment,
+        start_new_session=os.name == "posix",
+    ) as process:
+        try:
+            status = process.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+            if os.name == "posix":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            else:
+                process.kill()
+            if isinstance(exc, KeyboardInterrupt):
+                raise
+            raise ConformanceError(f"{run_id} adapter build timed out after {timeout:g}s") from exc
+    if status:
+        raise ConformanceError(f"{run_id} adapter build failed (exit {status})")
+
+
 def qualify_pair(
     repository: str,
     adapter: Path,
@@ -80,8 +107,11 @@ def qualify_pair(
     revision: str,
     tag: str | None = None,
     timeout: float = 10.0,
+    build_timeout: float = 300.0,
 ) -> tuple[Path, int]:
     """Return the verified manifest, or the failing run's qualification and exit code."""
+    _validate_timeout(timeout, "--timeout")
+    _validate_timeout(build_timeout, "--build-timeout")
     revision = revision.lower()
     workspace = workspace.expanduser().absolute()
     if workspace.exists() or workspace.is_symlink():
@@ -137,17 +167,7 @@ def qualify_pair(
         with _QualificationOutputReservation(root / run["qualification_dir"]) as reservation:
             executable = adapter_dir / "launch"
             if builder:
-                try:
-                    subprocess.run(  # nosec B603
-                        [str(adapter_dir / "build")],
-                        cwd=adapter_dir,
-                        env=environment,
-                        check=True,
-                    )
-                except subprocess.CalledProcessError as exc:
-                    raise ConformanceError(
-                        f"{run['run_id']} adapter build failed (exit {exc.returncode})"
-                    ) from exc
+                _build_adapter(adapter_dir, environment, build_timeout, run["run_id"])
                 executable = build_dir / "adapter"
                 if build_dir not in executable.resolve().parents:
                     raise ConformanceError(

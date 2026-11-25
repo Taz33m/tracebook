@@ -30,6 +30,16 @@ class AdapterProtocolError(ConformanceError):
     """Raised when an external adapter violates or times out on the protocol."""
 
 
+def _validate_timeout(value: float, name: str) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise ConformanceError(f"{name} must be a positive finite number")
+
+
 class ExternalProcessAdapter:
     """Drive one external engine adapter over newline-delimited JSON."""
 
@@ -49,14 +59,8 @@ class ExternalProcessAdapter:
             if not isinstance(argument, str) or not argument:
                 raise ConformanceError("candidate command arguments must be non-empty strings")
             normalized_command.append(argument)
-        if (
-            isinstance(timeout_seconds, bool)
-            or not isinstance(timeout_seconds, (int, float))
-            or not math.isfinite(float(timeout_seconds))
-            or timeout_seconds <= 0
-        ):
-            raise ConformanceError("timeout_seconds must be a positive finite number")
 
+        _validate_timeout(timeout_seconds, "timeout_seconds")
         self.command = tuple(normalized_command)
         self.timeout_seconds = float(timeout_seconds)
         self._closed = False

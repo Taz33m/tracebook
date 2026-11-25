@@ -202,7 +202,7 @@ becoming false failures.
 
 From a development checkout, `tracebook-conformance qualify-pair` takes the
 adapter and a pinned Git commit, builds two independent captures, and verifies
-the resulting FIFO evidence. [Run the Go example or bring your adapter](docs/conformance.md#captured-two-run-evidence).
+the resulting FIFO evidence. [Run the Go example or bring your adapter](https://github.com/Taz33m/tracebook/blob/main/docs/conformance.md#captured-two-run-evidence).
 
 The 0.7.3 wheel includes the captured evidence commands. Record the wheel
 hash and candidate revision with the two qualification reports.
