@@ -380,6 +380,63 @@ def test_order_lifecycle_trial_spends_one_run_and_requires_the_same_fill(context
     assert result.runs == result.to_dict()["max_runs"] == 2
     assert result.budget_exhausted and not result.one_minimal
 
+    finished = minimize_failing_trace(events, Adapter)
+    assert finished.one_minimal
+    assert finished.report.divergence.candidate == 1010
+    assert (events[0] in finished.events) == context_dependent
+
+
+def test_trade_order_mismatch_can_move_to_an_earlier_fill_within_the_same_event():
+    class Adapter(ReferenceEngineAdapter):
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            trades = tuple(
+                replace(trade, sell_order_id=1012) if trade.sell_order_id == 12 else trade
+                for trade in observation.trades
+            )
+            return replace(observation, trades=trades)
+
+    other = _event(order_id=11, side="SELL")
+    maker = _event(order_id=12, side="SELL")
+    trigger = _event(order_id=13, side="BUY", quantity=2)
+    events = (other, maker, trigger)
+    initial = run_conformance(events, Adapter)
+    result = minimize_failing_trace(events, Adapter)
+    assert initial.divergence.path == "$.observation.trades[1].sell_order_id"
+    assert result.report.divergence.path == "$.observation.trades[0].sell_order_id"
+    assert result.events == (maker, trigger)
+    assert result.one_minimal
+
+
+def test_lifecycle_trial_rejects_the_same_wrong_fill_on_an_earlier_identical_event():
+    marker = _event(symbol="OTHER", order_id=1)
+    maker = _event(order_id=10, side="SELL")
+    taker = _event(order_id=20)
+    events = (marker, maker, taker, maker, taker)
+
+    class Adapter(ReferenceEngineAdapter):
+        def __init__(self, config):
+            super().__init__(config)
+            self.saw_marker = False
+            self.fills = 0
+
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            if event == marker:
+                self.saw_marker = True
+            if observation.trades:
+                self.fills += 1
+                if not self.saw_marker or self.fills == 2:
+                    trade = replace(observation.trades[0], sell_order_id=1010)
+                    return replace(observation, trades=(trade,))
+            return observation
+
+    assert run_conformance(events[1:], Adapter).divergence.event_index == 2
+    result = minimize_failing_trace(events, Adapter, max_runs=2)
+    assert result.events == events
+    assert result.report.divergence.event_index == 5
+    assert result.budget_exhausted
+
 
 def test_failure_signature_can_narrow_but_not_broaden():
     generic = FailureSignature(False, "trades", "execution drift")
