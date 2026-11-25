@@ -1,6 +1,7 @@
 name: gocronx matcher integration
 
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "43 6 * * 2"

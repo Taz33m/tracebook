@@ -11,6 +11,24 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  orderbook-rs:
+    uses: ./.github/workflows/orderbook-rs.yml
+
+  intrepid-orderbook:
+    uses: ./.github/workflows/intrepid-orderbook.yml
+
+  gocronx-matcher:
+    uses: ./.github/workflows/gocronx-matcher.yml
+
+  python-matching-engine:
+    uses: ./.github/workflows/python-matching-engine.yml
+
+  nautilus-trader-book-replay:
+    uses: ./.github/workflows/nautilus-trader-book-replay.yml
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -170,7 +188,14 @@ jobs:
           if-no-files-found: error
 
   publish-conformance:
-    needs: build
+    needs:
+      - build
+      - ci
+      - orderbook-rs
+      - intrepid-orderbook
+      - gocronx-matcher
+      - python-matching-engine
+      - nautilus-trader-book-replay
     runs-on: ubuntu-latest
     environment:
       name: pypi

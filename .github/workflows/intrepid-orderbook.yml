@@ -1,6 +1,7 @@
 name: intrepidkarthi orderbook integration
 
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "17 7 * * 2"

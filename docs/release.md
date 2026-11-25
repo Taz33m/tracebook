@@ -84,6 +84,11 @@ python -m pip check
 
 ## Coordinated PyPI Publishing
 
+At the release tag the publishing workflow calls the Python matrix and each
+native integration workflow. The conformance upload depends on every result
+and on checks against the exact wheel to be uploaded. The same run retains
+the Rust scorecard and both captured Go manifests.
+
 `tracebook-conformance` owns the importable `tracebook` package and the
 qualification command. `tracebook-sim` owns no Python package; it is the
 compatibility facade for the seven simulator/workbench commands and depends on

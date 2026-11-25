@@ -80,9 +80,11 @@ alias for `tracebook.conformance`.
 The 0.7.0 conformance wheel includes the book-replay command and bundled
 trace. Record the wheel hash and adapter revision with each report.
 
-Copy the bundled trace:
+In a fresh Python 3.10–3.13 environment, install the package and copy the
+bundled trace:
 
 ```bash
+python -m pip install "tracebook-conformance==0.7.0"
 python -m tracebook.book_replay sample /tmp/tracebook-book-replay
 ```
 

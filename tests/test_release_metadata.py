@@ -262,10 +262,16 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
     for path in install_surfaces:
         text = path.read_text(encoding="utf-8")
         uninstall = "python -m pip uninstall -y tracebook-sim"
+        version = path.stem if path.parent.name == "releases" else __version__
         pinned_installs = list(
-            re.finditer(r'python -m pip install "tracebook-[^"]+==[0-9.]+"', text)
+            re.finditer(
+                r'python -m pip install "(?:tracebook-conformance|tracebook-sim)'
+                r'(?:\[[^"]+\])?==([0-9.]+)"',
+                text,
+            )
         )
         assert pinned_installs, f"{path} omits pinned installs"
+        assert all(match.group(1) == version for match in pinned_installs), path
         first_install = pinned_installs[0].start()
         assert uninstall in text, f"{path} omits the 0.5.x ownership handoff"
         assert text.index(uninstall) < first_install
