@@ -140,7 +140,7 @@ jobs:
             --conformance-sdist dist/conformance/*.tar.gz \
             --sim-wheel dist/simulator/*.whl \
             --sim-sdist dist/simulator/*.tar.gz \
-            --expected-version 0.7.2
+            --expected-version 0.7.3
 
       - name: Verify distribution ownership and clean-install contracts
         run: |
@@ -153,7 +153,7 @@ jobs:
             --dest dist/legacy \
             "tracebook-sim==0.5.0"
           python tools/verify_distribution_split.py \
-            --expected-version 0.7.2 \
+            --expected-version 0.7.3 \
             --conformance-wheel dist/conformance/*.whl \
             --sim-wheel dist/simulator/*.whl \
             --legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl \

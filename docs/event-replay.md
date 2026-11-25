@@ -14,14 +14,14 @@ only when the source provides explicit, documented assumptions.
 ## Install And Run
 
 If this environment contains `tracebook-sim` 0.5.x, remove that legacy package
-owner before installing 0.7.2:
+owner before installing 0.7.3:
 
 ```bash
 python -m pip uninstall -y tracebook-sim
 ```
 
 ```bash
-python -m pip install "tracebook-sim==0.7.2"
+python -m pip install "tracebook-sim==0.7.3"
 tracebook-replay examples/data/sample_events.jsonl --output replay-summary.json
 ```
 

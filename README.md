@@ -32,14 +32,14 @@ Tracebook requires Python 3.10-3.13. Install the dependency-light conformance
 distribution and materialize the current hash-verified adversarial suite:
 
 If this environment already contains `tracebook-sim` 0.5.x, remove that
-legacy package owner **before installing either 0.7.2 distribution**:
+legacy package owner **before installing either 0.7.3 distribution**:
 
 ```bash
 python -m pip uninstall -y tracebook-sim
 ```
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.2"
+python -m pip install "tracebook-conformance==0.7.3"
 tracebook-conformance sample ./tracebook-suite-v2 --suite-version v2
 tracebook-conformance --help
 ```
@@ -47,12 +47,12 @@ tracebook-conformance --help
 Suite v2 is the current default; the explicit option makes the copied contract
 unambiguous if a later release adds another suite. These commands do not
 require a source checkout, NumPy, or psutil. Install
-`tracebook-sim==0.7.2` instead when you need the simulator, benchmark,
+`tracebook-sim==0.7.3` instead when you need the simulator, benchmark,
 profiling, visualization, replay, or corpus commands. Users migrating that
 distribution from 0.5.x must use the uninstall-first handoff above:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.2"
+python -m pip install "tracebook-sim==0.7.3"
 ```
 
 The
@@ -117,7 +117,7 @@ reduces to four events while preserving the same maker-priority defect.
   <img src="https://raw.githubusercontent.com/Taz33m/tracebook/main/docs/assets/failure-proof.png" alt="Tracebook finds queue-priority drift at event 173 and reduces it to four events" width="860" />
 </p>
 
-With the 0.7.2 wheel installed, rustup with Rust 1.88.0, a native linker, and
+With the 0.7.3 wheel installed, rustup with Rust 1.88.0, a native linker, and
 access to the pinned Cargo dependencies, run this in an empty directory:
 
 ```bash
@@ -200,7 +200,7 @@ these are separate version boundaries. `fifo-limit-v1` qualification does not
 run STP or pro-rata cases, so unsupported features stay explicit without
 becoming false failures.
 
-The 0.7.2 wheel includes the captured evidence commands. Record the wheel
+The 0.7.3 wheel includes the captured evidence commands. Record the wheel
 hash and candidate revision with the two qualification reports.
 
 For release evidence, do not rely on one successful workspace. Start a captured
@@ -297,7 +297,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install "tracebook-conformance==0.7.2"
+      - run: python -m pip install "tracebook-conformance==0.7.3"
       - run: make build
       - run: |
           tracebook-conformance qualify \

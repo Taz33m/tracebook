@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install "tracebook-conformance==0.7.2"
+      - run: python -m pip install "tracebook-conformance==0.7.3"
       - run: make build
 
       - name: Compare matching semantics
