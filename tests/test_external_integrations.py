@@ -168,7 +168,7 @@ def test_orderbook_rs_documentation_and_ci_lock_the_proof_profile():
     assert "--profile fifo-full-v1" in workflow
     assert "--events-per-trace 100" in workflow
     assert "sha256:95c3dac9d27b770a5cccebe9ff16b6e71af443001d633b640983f02f3e04b3c9" in workflow
-    assert "sha256:b082050cb4ab28b465e19446d8767531b9e92615c27bd35a05b8832739bb9e06" in workflow
+    assert "sha256:c1fccff01601fe83a9acf8eb1ce307a6b75c8fbde0a4a01bb24562d2be15d81b" in workflow
     assert "--test-fault=drop-first-trade" in workflow
     assert 'assert report["divergence"]["event_index"] == 3' in workflow
     assert "failure-bc8b19d3e0e3441a98db" in workflow
@@ -199,7 +199,7 @@ def test_gocronx_matcher_integration_is_pinned_qualified_and_honest_about_assump
     assert "awaiting an upstream" in readme
     assert "stable public inspection contract" in readme
     assert "tracebook-conformance qualify" in workflow
-    assert "sha256:2affcb0bf9ca3fbb23a69d1b8bac7a72632361adfd896f4a63f012587b02dd2b" in workflow
+    assert "sha256:2af6e8e5807c9af9d8b0272b4bbe4201415706592f33d197748a251667e6f94e" in workflow
     assert "actions/upload-artifact@v7" in workflow
 
 
@@ -225,9 +225,9 @@ def test_intrepid_orderbook_is_pinned_qualified_and_retains_the_fok_boundary():
     assert "incoming quantity times each potentially crossed maker's" in readme
     assert "6/9" in readme
     assert "failure-1ce2954857800b3a068d" in readme
-    assert "sha256:a063d100c18da36d4a9a278a5f82b6bf26db23eb69e5b982a247f9619b897a22" in workflow
-    assert "sha256:2ba9c45a6d82c0d3c455d5445cad49a9a4258e593cb24fe5c38b71ee72e5e148" in workflow
-    assert "sha256:e034fe7ac4cab36f87562e56d41bdabaecdc1699700384f52fa35105637ab7ac" in workflow
+    assert "sha256:b65ad4aeb54e0ff6506980333330965c892b02f625e303de0d3ea52581214edf" in workflow
+    assert "sha256:b6f43cfadd9cb319b7817ba1e393f9cc46a64884614d999bdac81309e37249bf" in workflow
+    assert "sha256:64cb7e9399d7fafc49b99ffa7b9e3e75dfd9e5139fa28ceea0e9558bd475c4c4" in workflow
     assert "$.observation.outcome.reason" in workflow
     assert "intrepidkarthi/orderbook` v0.26.0" in root_readme
     assert "integrations/intrepid_orderbook/" in architecture
@@ -287,8 +287,8 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     release_notes = (ROOT / "docs" / "releases" / "0.3.0.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'python -m pip install "tracebook-conformance==0.7.1"' in workflow
-    assert 'python -m pip install "tracebook-conformance==0.7.1"' in ci_docs
+    assert 'python -m pip install "tracebook-conformance==0.7.2"' in workflow
+    assert 'python -m pip install "tracebook-conformance==0.7.2"' in ci_docs
     assert "tracebook-conformance qualify" in workflow
     assert "--output-dir artifacts/qualification" in workflow
     assert "if: always()" in workflow

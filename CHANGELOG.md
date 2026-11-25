@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.7.2 — 2026-11-24
+
 - Fixed trade-order minimization returning a different wrong fill. Every
   reduction now preserves the triggering event, buy or sell ID field, and
   reference and candidate order IDs of the original trade-order mismatch.

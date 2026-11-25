@@ -11,7 +11,7 @@ This guide collects the commands a reviewer, contributor, or benchmark author is
 ## Setup
 
 If this environment already contains `tracebook-sim` 0.5.x, remove that
-legacy package owner before installing either 0.7.1 distribution:
+legacy package owner before installing either 0.7.2 distribution:
 
 ```bash
 python -m pip uninstall -y tracebook-sim
@@ -20,7 +20,7 @@ python -m pip uninstall -y tracebook-sim
 Conformance and core-library install:
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.1"
+python -m pip install "tracebook-conformance==0.7.2"
 ```
 
 This ordinary install has no mandatory runtime dependencies and does not
@@ -28,14 +28,14 @@ resolve NumPy or psutil. Install the compatibility facade for simulator and
 workbench commands:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.1"
+python -m pip install "tracebook-sim==0.7.2"
 ```
 
 For the one-time full-surface migration from `tracebook-sim` 0.5.x, continue
 after the uninstall above with:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.1"
+python -m pip install "tracebook-sim==0.7.2"
 ```
 
 See the [package-boundary decision](../packaging/lightweight-conformance.md)
@@ -140,7 +140,7 @@ fixed semantic surface.
 
 Prepare and verify a release-grade two-run evidence pair:
 
-The 0.7.1 wheel includes both evidence commands. Record the wheel hash with the reports.
+The 0.7.2 wheel includes both evidence commands. Record the wheel hash with the reports.
 
 ```bash
 tracebook-conformance evidence-init /path/to/candidate \
@@ -266,7 +266,7 @@ Options:
 Install the optional dashboard dependencies before starting the interactive UI:
 
 ```bash
-python -m pip install "tracebook-sim[dashboard]==0.7.1"
+python -m pip install "tracebook-sim[dashboard]==0.7.2"
 tracebook-dashboard --port 8050 --demo-simulation --demo-throughput 200 --seed 1337
 ```
 
