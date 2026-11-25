@@ -16,6 +16,10 @@ See the [0.7.1 notes](releases/0.7.1.md) for this release and the
 4. Confirm README commands still match the installed console scripts.
 5. Confirm benchmark claims cite command, seed, machine, Python version,
    dependency versions, and report path.
+6. Rerun the pinned Rust and Go qualifications with the release candidate.
+   The qualification ID includes the Tracebook reference version. Compare the
+   full reports with the previous release before updating the expected IDs in
+   the integration workflows and their tests.
 
 ## Local Verification
 

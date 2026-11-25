@@ -113,7 +113,7 @@ jobs:
               (Path(os.environ["REPORT_ROOT"]) / "fifo-limit" / "qualification.json").read_text()
           )
           assert report["qualified"] is True
-          assert report["qualification_id"] == "sha256:5bb06673e36f6ecf7a328285275d7d72b6f1e22e40f139d628411d8fb8bb222b"
+          assert report["qualification_id"] == "sha256:a063d100c18da36d4a9a278a5f82b6bf26db23eb69e5b982a247f9619b897a22"
           assert report["campaign"]["campaign_id"] == "sha256:59d70645ff13f12fa4af23af69631714df22ef5f25cd1104b0c1124f98f71f6a"
           assert report["candidate_runs"] == 28
           assert report["suite"]["report"]["conformant_cases"] == 3
@@ -142,7 +142,7 @@ jobs:
               (Path(os.environ["REPORT_ROOT"]) / "fifo-partial" / "qualification.json").read_text()
           )
           assert report["qualified"] is True
-          assert report["qualification_id"] == "sha256:baee6faa893cd5576f5fe42985250f1ce210d47c402c2c80de563088ff41dc85"
+          assert report["qualification_id"] == "sha256:2ba9c45a6d82c0d3c455d5445cad49a9a4258e593cb24fe5c38b71ee72e5e148"
           assert report["campaign"]["campaign_id"] == "sha256:297f895b99ac26f92287ababd1dcc25b68b0be98787e9b9d814d5cd241769cf9"
           assert report["candidate_runs"] == 28
           assert report["suite"]["report"]["conformant_cases"] == 3
@@ -185,7 +185,7 @@ jobs:
               (Path(os.environ["REPORT_ROOT"]) / "fifo-full" / "failure.json").read_text()
           )
           assert report["qualified"] is False
-          assert report["qualification_id"] == "sha256:ed59a8437c413f3376546ac6bc61452eb08ac75d008667fd619b185e4785f5a2"
+          assert report["qualification_id"] == "sha256:e034fe7ac4cab36f87562e56d41bdabaecdc1699700384f52fa35105637ab7ac"
           assert report["campaign"]["campaign_id"] == "sha256:61464afc70170352bc6eecb6ccb22f120d05166d6f5cb7926ce5d43adf8a6b41"
           assert failure["failure_id"] == "failure-1ce2954857800b3a068d"
           assert failure["original_event_count"] == 7

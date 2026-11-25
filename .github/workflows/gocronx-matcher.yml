@@ -78,7 +78,7 @@ jobs:
               (Path(os.environ["REPORT_ROOT"]) / "qualification" / "qualification.json").read_text()
           )
           assert report["qualified"] is True
-          assert report["qualification_id"] == "sha256:64746a4a21bc3fef7c88e58d749da2adb51cb74fac211088174aba26dc6746ed"
+          assert report["qualification_id"] == "sha256:2affcb0bf9ca3fbb23a69d1b8bac7a72632361adfd896f4a63f012587b02dd2b"
           assert report["candidate_runs"] == 28
           assert report["campaign"]["generated_events"] == 5000
           assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
