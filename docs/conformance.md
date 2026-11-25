@@ -66,8 +66,13 @@ tracebook-conformance minimize events.jsonl \
   --candidate ./my-engine-adapter
 ```
 
-The minimizer truncates events after the first failure, then uses deterministic
-delta debugging. It retains a candidate subsequence only when the same failure
+The minimizer truncates events after the first failure. For a mismatch between
+trade order IDs, it first tries the lifecycles of the two disputed orders, their
+direct counterparties in the reference trades, and the triggering order. This
+trial keeps symbol clears and must reproduce the same triggering event, ID
+field and pair of IDs. If it does, delta debugging starts from that subsequence.
+Otherwise it starts from the original failing prefix. The initial comparison
+and every candidate trial count toward the same budget (100 by default). It retains a candidate subsequence only when the same failure
 category still occurs. The report sets `one_minimal` only after every individual
 deletion in the final round no longer reproduces that category. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
@@ -578,7 +583,7 @@ contract.
 
 Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
-minimized counts, run count, reduction percentage, minimality/budget status,
+minimized counts, run count and limit (`max_runs` in new reports), reduction percentage, minimality/budget status,
 minimized trace hash, target failure category, and the final conformance report.
 Reduction preserves one internal failure signature: operational status,
 divergence category, and classified failure label. A specific label cannot

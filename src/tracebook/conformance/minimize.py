@@ -7,13 +7,13 @@ from dataclasses import dataclass, replace
 from numbers import Integral
 from typing import Iterable, Optional, Tuple, cast
 
-from ..events import MarketEvent
+from ..events import MarketEvent, replay_market_events
 from .classification import (
     FailureSignature,
     failure_signature,
     preserves_failure_signature,
 )
-from .compare import ConformanceReport, run_conformance
+from .compare import ConformanceReport, Divergence, run_conformance
 from .model import (
     ARTIFACT_SCHEMA_VERSION,
     ConformanceConfig,
@@ -22,6 +22,8 @@ from .model import (
     trace_sha256,
 )
 from .protocol import AdapterFactory
+
+DEFAULT_MINIMIZE_RUNS = 100
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class MinimizationResult:
     one_minimal: bool
     budget_exhausted: bool
     report: ConformanceReport
+    max_runs: int | None = None
 
     def to_dict(self) -> dict:
         minimized_count = len(self.events)
@@ -50,6 +53,7 @@ class MinimizationResult:
             "minimized_event_count": minimized_count,
             "reduction_percent": reduction_percent,
             "runs": self.runs,
+            **({"max_runs": self.max_runs} if self.max_runs is not None else {}),
             "target_category": self.target_category,
             "one_minimal": self.one_minimal,
             "budget_exhausted": self.budget_exhausted,
@@ -77,11 +81,37 @@ def _reject_protocol_failure_during_semantic_minimization(
         )
 
 
+def _order_lifecycles(
+    events: tuple[MarketEvent, ...], mismatch: Divergence, config: ConformanceConfig
+) -> tuple[MarketEvent, ...]:
+    """Select the disputed orders and their direct reference-trade counterparties."""
+    trigger = events[-1]
+    disputed_ids = {mismatch.reference, mismatch.candidate}
+    related_ids = disputed_ids | {trigger.order_id}
+    replay = replay_market_events(
+        events,
+        strict=False,
+        matching_algorithm=config.matching_algorithm,
+        tick_size=config.tick_size,
+        self_trade_policy=config.self_trade_policy,
+    )
+    for trade in replay.trades:
+        if trade.symbol == trigger.symbol and (
+            trade.buy_order_id in disputed_ids or trade.sell_order_id in disputed_ids
+        ):
+            related_ids.update((trade.buy_order_id, trade.sell_order_id))
+    return tuple(
+        event
+        for event in events
+        if event.symbol == trigger.symbol and (event.op == "clear" or event.order_id in related_ids)
+    )
+
+
 def minimize_failing_trace(
     events: Iterable[MarketEvent],
     candidate_factory: AdapterFactory,
     config: Optional[ConformanceConfig] = None,
-    max_runs: int = 100,
+    max_runs: int = DEFAULT_MINIMIZE_RUNS,
     trace_name: Optional[str] = None,
     expected_candidate_engine: Optional[EngineMetadata] = None,
 ) -> MinimizationResult:
@@ -113,6 +143,38 @@ def minimize_failing_trace(
         if current != original
         else initial
     )
+
+    def check_trial(trial: tuple[MarketEvent, ...]) -> ConformanceReport | None:
+        nonlocal runs
+        report = run_conformance(trial, candidate_factory, config)
+        runs += 1
+        if report.candidate_engine != candidate_engine:
+            raise ConformanceError("candidate engine metadata changed during minimization")
+        observed = failure_signature(trial, report)
+        _reject_protocol_failure_during_semantic_minimization(report, target, observed, runs)
+        return report if preserves_failure_signature(target, observed) else None
+
+    mismatch = initial.divergence
+    if (
+        runs < max_runs
+        and not target.operational
+        and mismatch.category == "trades"
+        and mismatch.path.endswith((".buy_order_id", ".sell_order_id"))
+    ):
+        trial = _order_lifecycles(current, mismatch, config)
+        if len(trial) < len(current):
+            report = check_trial(trial)
+            if report is not None and report.divergence is not None:
+                observed_drift = report.divergence
+                # Removing unrelated fills can shift the trade index within this event.
+                if (
+                    observed_drift.event_index == len(trial)
+                    and observed_drift.path.rsplit(".", 1)[-1] == mismatch.path.rsplit(".", 1)[-1]
+                    and (observed_drift.reference, observed_drift.candidate)
+                    == (mismatch.reference, mismatch.candidate)
+                ):
+                    current, current_report = trial, report
+
     granularity = 2
     one_minimal = len(current) == 0
 
@@ -127,13 +189,8 @@ def minimize_failing_trace(
             trial = current[:start] + current[start + chunk_size :]
             if not trial:
                 continue
-            report = run_conformance(trial, candidate_factory, config)
-            runs += 1
-            if report.candidate_engine != candidate_engine:
-                raise ConformanceError("candidate engine metadata changed during minimization")
-            observed = failure_signature(trial, report)
-            _reject_protocol_failure_during_semantic_minimization(report, target, observed, runs)
-            if preserves_failure_signature(target, observed):
+            report = check_trial(trial)
+            if report is not None:
                 current = trial
                 current_report = report
                 granularity = max(2, granularity - 1)
@@ -150,13 +207,8 @@ def minimize_failing_trace(
         granularity = min(len(current), granularity * 2)
 
     if len(current) == 1 and not one_minimal and runs < max_runs:
-        empty_report = run_conformance((), candidate_factory, config)
-        runs += 1
-        if empty_report.candidate_engine != candidate_engine:
-            raise ConformanceError("candidate engine metadata changed during minimization")
-        observed = failure_signature((), empty_report)
-        _reject_protocol_failure_during_semantic_minimization(empty_report, target, observed, runs)
-        if preserves_failure_signature(target, observed):
+        empty_report = check_trial(())
+        if empty_report is not None:
             current = ()
             current_report = empty_report
         one_minimal = True
@@ -165,6 +217,7 @@ def minimize_failing_trace(
         events=current,
         original_event_count=len(original),
         runs=runs,
+        max_runs=max_runs,
         target_category=target.category,
         one_minimal=one_minimal,
         budget_exhausted=runs >= max_runs and not one_minimal,

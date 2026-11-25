@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -346,6 +347,38 @@ def test_minimizer_preserves_queue_priority_failure_class():
     assert classify_failure(events, initial) == "queue-priority drift"
     assert minimized.events == events
     assert classify_failure(minimized.events, minimized.report) == "queue-priority drift"
+
+
+@pytest.mark.parametrize("context_dependent", [False, True])
+def test_order_lifecycle_trial_spends_one_run_and_requires_the_same_fill(context_dependent):
+    events = (
+        _event(symbol="OTHER", order_id=10),
+        MarketEvent.from_mapping({"op": "clear", "symbol": "TEST"}),
+        _event(order_id=10, side="SELL"),
+        _event(order_id=20, side="BUY"),
+    )
+    histories = []
+
+    class Adapter(_TradeMismatchAdapter):
+        def __init__(self, config):
+            super().__init__(config)
+            self.seen = []
+            histories.append(self.seen)
+
+        def apply(self, event, index):
+            self.seen.append(event)
+            observation = super().apply(event, index)
+            if context_dependent and observation.trades and events[0] not in self.seen:
+                trade = replace(observation.trades[0], sell_order_id=2000)
+                return replace(observation, trades=(trade,))
+            return observation
+
+    result = minimize_failing_trace(events, Adapter, max_runs=2)
+    assert histories == [list(events), list(events[1:])]
+    assert result.events == (events if context_dependent else events[1:])
+    assert result.report.divergence.candidate == 1010
+    assert result.runs == result.to_dict()["max_runs"] == 2
+    assert result.budget_exhausted and not result.one_minimal
 
 
 def test_failure_signature_can_narrow_but_not_broaden():
