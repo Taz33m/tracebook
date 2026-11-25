@@ -943,3 +943,56 @@ def test_generated_prefixes_find_the_exact_first_fault(rows):
     assert report.conformant is False
     assert report.divergence.event_index == len(events)
     assert report.divergence.category == "book_state"
+
+
+@pytest.mark.parametrize("field", ["price", "quantity"])
+def test_minimizer_preserves_numeric_execution_difference(field):
+    marker, maker, taker = (
+        _event(symbol="OTHER"),
+        _event(order_id=1, side="SELL"),
+        _event(order_id=2),
+    )
+
+    class Adapter(ReferenceEngineAdapter):
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            if observation.trades:
+                trade = replace(observation.trades[0], **{field: "5" if index == 3 else "6"})
+                return replace(observation, trades=(trade,))
+            return observation
+
+    result = minimize_failing_trace([marker, maker, taker], Adapter)
+    assert result.report.divergence.candidate == "5"
+    assert result.events == (marker, maker, taker)
+
+
+def test_minimizer_preserves_order_rejection_reason():
+    marker, target = _event(order_id=10), _event(order_id=20)
+
+    class Adapter(ReferenceEngineAdapter):
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            if event == target:
+                return replace(
+                    observation,
+                    outcome=Outcome("rejected", "BAD_TICK" if index == 2 else "DUPLICATE_ID"),
+                )
+            return observation
+
+    result = minimize_failing_trace([marker, target], Adapter)
+    assert result.events == (marker, target)
+    assert result.report.divergence.candidate == "BAD_TICK"
+
+
+def test_wrong_price_on_priority_probe_is_execution_drift():
+    class WrongPrice(ReferenceEngineAdapter):
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            return replace(
+                observation, trades=tuple(replace(t, price="999") for t in observation.trades)
+            )
+
+    events = generate_campaign_trace("fifo-limit-v1", seed=0, event_count=5)
+    report = run_conformance(events, WrongPrice)
+    assert report.divergence.path.endswith(".price")
+    assert classify_failure(events, report) == "execution drift"

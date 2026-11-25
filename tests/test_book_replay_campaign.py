@@ -232,3 +232,45 @@ def test_campaign_rejects_invalid_bounds(keyword, value, message):
     arguments = {keyword: value}
     with pytest.raises(BookReplayError, match=message):
         run_book_replay_campaign(ReferenceBookReplayAdapter, **arguments)
+
+
+def test_minimizer_keeps_original_l3_outcome():
+    from dataclasses import replace
+    from tracebook.book_replay.model import Outcome
+
+    marker = BookReplayEvent("add", "TEST", 1, "BUY", "99", "1")
+    target = BookReplayEvent("add", "TEST", 2, "BUY", "100", "1")
+
+    class Adapter(ReferenceBookReplayAdapter):
+        def apply(self, event, index):
+            observation = super().apply(event, index)
+            if event == target:
+                return replace(
+                    observation,
+                    outcome=Outcome("rejected", "WRONG_SIDE" if index == 2 else "BAD_PRICE"),
+                )
+            return observation
+
+    result = minimize_book_replay_failure([marker, target], Adapter)
+    assert result.events == (marker, target)
+    assert result.report.divergence.candidate == "WRONG_SIDE"
+
+
+def test_campaign_refuses_different_failure_on_replay():
+    from dataclasses import replace
+    from tracebook.book_replay.model import Outcome
+
+    calls = 0
+
+    class Adapter(ReferenceBookReplayAdapter):
+        def __init__(self, config):
+            super().__init__(config)
+            nonlocal calls
+            calls += 1
+            self.reason = "WRONG_SIDE" if calls == 1 else "BAD_PRICE"
+
+        def apply(self, event, index):
+            return replace(super().apply(event, index), outcome=Outcome("rejected", self.reason))
+
+    with pytest.raises(BookReplayError, match="changed the original divergence"):
+        run_book_replay_campaign(Adapter, traces=1, events_per_trace=5)

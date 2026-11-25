@@ -10,7 +10,11 @@ from numbers import Integral
 from typing import Dict, List, Optional, Sequence, Tuple, TypeVar
 
 from .compare import BookReplayReport, run_book_replay
-from .minimize import BookReplayMinimizationResult, minimize_book_replay_failure
+from .minimize import (
+    BookReplayMinimizationResult,
+    minimize_book_replay_failure,
+    same_book_replay_failure,
+)
 from .model import (
     ARTIFACT_SCHEMA_VERSION,
     PROFILE_NAME,
@@ -498,6 +502,8 @@ def run_book_replay_campaign(
                 trace_name=trace_name,
                 expected_candidate_engine=candidate_engine,
             )
+            if not same_book_replay_failure(original_report, minimization.report):
+                raise BookReplayError("campaign minimization changed the original divergence")
             failure = BookReplayCampaignFailure(
                 trace_result,
                 original_events,

@@ -156,7 +156,7 @@ def minimize_failing_trace(
         observed = failure_signature(trial, report)
         _reject_protocol_failure_during_semantic_minimization(report, target, observed, runs)
         # Equal event values can occur twice. Only the original occurrence ends the prefix.
-        if target.trade_order is not None and (
+        if (target.trade_order is not None or target.detail is not None) and (
             not retains_trigger or report.compared_events != len(trial)
         ):
             return None

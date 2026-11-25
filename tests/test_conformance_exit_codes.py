@@ -578,3 +578,20 @@ def test_cli_qualify_returns_two_for_protocol_failure_during_reduction(tmp_path,
 
     assert exit_code == 2
     assert {path.name for path in output_dir.iterdir()} == {".tracebook-campaign-reservation"}
+
+
+@pytest.mark.parametrize("adapter", [_ApplyFailureAdapter, _SemanticDivergenceAdapter])
+def test_stored_reproduction_requires_exact_typed_semantic_evidence(adapter):
+    events = [_event()]
+    initial = run_reproduction(events, adapter, ConformanceConfig())
+    stored = initial.to_dict()
+    divergence = stored["observed"]["divergence"]
+    if adapter is _SemanticDivergenceAdapter:
+        divergence["event_index"] = True
+    metadata = {
+        "failure_class": initial.failure_class,
+        "reduced_event_count": 1,
+        "reduced_trace_sha256": stored["reduced_trace_sha256"],
+        "expected_reduced_divergence": divergence,
+    }
+    assert not run_reproduction(events, adapter, ConformanceConfig(), expected=metadata).reproduced

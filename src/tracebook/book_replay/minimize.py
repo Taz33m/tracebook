@@ -68,6 +68,31 @@ def _reject_operational_failure(
         )
 
 
+def same_book_replay_failure(original: BookReplayReport, trial: BookReplayReport) -> bool:
+    """Match the operation, field and observed values that caused the failure."""
+    first, second = original.divergence, trial.divergence
+    if first is None or second is None:
+        return False
+    if original.operational_failure or trial.operational_failure:
+        return (
+            original.operational_failure == trial.operational_failure
+            and first.category == second.category
+            and first.kind == second.kind
+            and first.path == second.path
+            and first.message == second.message
+            and first.close_error == second.close_error
+            and first.snapshot_error == second.snapshot_error
+        )
+    return (
+        first.category == second.category
+        and first.kind == second.kind
+        and first.event == second.event
+        and first.path == second.path
+        and first.reference == second.reference
+        and first.candidate == second.candidate
+    )
+
+
 def minimize_book_replay_failure(
     events: Iterable[BookReplayEvent],
     candidate_factory: BookReplayAdapterFactory,
@@ -123,10 +148,9 @@ def minimize_book_replay_failure(
             if report.candidate_engine != candidate_engine:
                 raise BookReplayError("candidate engine metadata changed during minimization")
             _reject_operational_failure(report, target, runs)
-            if (
-                not report.conformant
-                and report.divergence is not None
-                and report.divergence.category == target
+            if same_book_replay_failure(initial, report) and (
+                initial.operational_failure
+                or (start + chunk_size < len(current) and report.compared_events == len(trial))
             ):
                 current = trial
                 current_report = report
@@ -149,11 +173,7 @@ def minimize_book_replay_failure(
         if empty_report.candidate_engine != candidate_engine:
             raise BookReplayError("candidate engine metadata changed during minimization")
         _reject_operational_failure(empty_report, target, runs)
-        if (
-            not empty_report.conformant
-            and empty_report.divergence is not None
-            and empty_report.divergence.category == target
-        ):
+        if same_book_replay_failure(initial, empty_report):
             current = ()
             current_report = empty_report
         one_minimal = True

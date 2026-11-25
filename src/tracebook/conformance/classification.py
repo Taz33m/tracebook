@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from ..core.order import OrderSide
 from ..events import MarketEvent
@@ -30,6 +30,7 @@ class FailureSignature:
     category: str
     failure_class: str
     trade_order: TradeOrderMismatch | None = None
+    detail: tuple[MarketEvent, str, str, Any, Any] | None = None
 
 
 def is_operational_divergence(
@@ -129,7 +130,11 @@ def classify_failure(events: Sequence[MarketEvent], report: ConformanceReport) -
     is_priority_probe = is_queue_priority_probe(
         events, divergence.event_index
     ) or is_partial_fill_priority_probe(events, divergence.event_index)
-    if divergence.category == "trades" and is_priority_probe:
+    if (
+        divergence.category == "trades"
+        and is_priority_probe
+        and divergence.path.rsplit(".", 1)[-1] in ("buy_order_id", "sell_order_id")
+    ):
         return QUEUE_PRIORITY_DRIFT
     return {
         "outcome": "order-outcome drift",
@@ -157,11 +162,25 @@ def failure_signature(
         trade_order = TradeOrderMismatch(
             events[divergence.event_index - 1], field, divergence.reference, divergence.candidate
         )
+    detail = None
+    if (
+        not report.operational_failure
+        and trade_order is None
+        and divergence.category in ("trades", "outcome")
+    ):
+        detail = (
+            events[divergence.event_index - 1],
+            divergence.kind,
+            divergence.path,
+            divergence.reference,
+            divergence.candidate,
+        )
     return FailureSignature(
         operational=report.operational_failure,
         category=divergence.category,
         failure_class=classify_failure(events, report),
         trade_order=trade_order,
+        detail=detail,
     )
 
 
@@ -174,6 +193,8 @@ def preserves_failure_signature(
     if target.operational != observed.operational or target.category != observed.category:
         return False
     if target.trade_order is not None and target.trade_order != observed.trade_order:
+        return False
+    if target.detail is not None and target.detail != observed.detail:
         return False
     return target.failure_class == observed.failure_class or (
         target.failure_class == "execution drift" and observed.failure_class == QUEUE_PRIORITY_DRIFT
