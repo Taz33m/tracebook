@@ -23,19 +23,24 @@ Tracebook preserves both sides of that history:
 
 ## Run the packaged proof
 
-To reproduce the 19-run result, install the conformance package from the
-repository root in an active virtual environment:
+To reproduce the 19-run result, start at the repository root with Python
+3.10–3.13. Create a fresh virtual environment and install the local package.
 
 ```bash
-python -m pip install --force-reinstall .
+proof_dir="$(mktemp -d)"
+python3 -m venv "$proof_dir/venv"
+. "$proof_dir/venv/bin/activate"
+python -m pip install .
 ```
 
 The proof requires a native C toolchain and Rust 1.88.0
 (`rustup toolchain install 1.88.0 --profile minimal`). The first build needs
 access to the locked Cargo dependencies, including the pinned Git revision.
-With the same environment active, run this command from an empty directory:
+With the same environment active, run the proof from an empty directory.
 
 ```bash
+mkdir "$proof_dir/run"
+cd "$proof_dir/run"
 tracebook-conformance fifo-proof
 ```
 
