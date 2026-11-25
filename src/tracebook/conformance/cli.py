@@ -10,6 +10,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import List, Optional
 
+from .._paths import paths_overlap
 from .._version import __version__
 from ..core.order import SelfTradePolicy
 from ..events import load_market_events
@@ -34,7 +35,6 @@ from .model import (
 )
 from .qualification import _QualificationOutputReservation, run_qualification
 from .reproduce import (
-    discover_failure_metadata,
     load_failure_metadata,
     reproduction_config,
     run_reproduction,
@@ -260,7 +260,7 @@ def _config(args) -> ConformanceConfig:
 def _emit_report(report: dict, output: Optional[str]) -> None:
     rendered = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if output:
-        path = Path(output)
+        path = Path(output).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(rendered, encoding="utf-8")
         print(f"Report written: {path}")
@@ -275,7 +275,7 @@ def _emit_junit(report: dict, output: Optional[str]) -> None:
 
 
 def _write_events(events, output: str) -> None:
-    path = Path(output)
+    path = Path(output).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as handle:
         for event in events:
@@ -283,8 +283,7 @@ def _write_events(events, output: str) -> None:
 
 
 def _require_distinct_paths(*paths: Optional[str]) -> None:
-    resolved = [Path(path).expanduser().resolve() for path in paths if path is not None]
-    if len(resolved) != len(set(resolved)):
+    if paths_overlap(paths):
         raise ConformanceError("input and output paths must be distinct")
 
 
@@ -479,17 +478,15 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"Reduced trace: {report_path.parent / 'reduced.jsonl'}")
             return exit_code_for_artifact(payload)
         if args.command == "reproduce":
+            sibling = Path(args.events).expanduser().with_name("failure.json")
+            metadata_path = args.metadata or (str(sibling) if sibling.is_file() else None)
             _require_distinct_paths(
                 args.events,
-                args.metadata,
+                metadata_path,
                 args.output,
                 args.junit_output,
             )
-            metadata = (
-                load_failure_metadata(args.metadata)
-                if args.metadata is not None
-                else discover_failure_metadata(args.events)
-            )
+            metadata = load_failure_metadata(metadata_path) if metadata_path is not None else None
             events = load_market_events(args.events)
             reproduction_result = run_reproduction(
                 events,

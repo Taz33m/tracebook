@@ -361,3 +361,49 @@ def test_replay_cli_writes_machine_readable_summary(tmp_path, capsys):
     assert payload["trades_included"] is True
     assert payload["books"]["BTCUSD"]["bids"] == [[100.0, 1.0, 1]]
     assert "Replay summary written" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("name", "data", "error"),
+    [
+        ("trace.jsonl", '{"op":"cancel","symbol":"X","order_id":1,"order_id":2}', "duplicate"),
+        ("trace.csv", "op,symbol,order_id,order_id\ncancel,X,1,2", "duplicate"),
+        ("trace.csv", "op,symbol,order_id\ncancel,X,1,2", "more values"),
+    ],
+)
+def test_loader_rejects_ambiguous_order_records(tmp_path, name, data, error):
+    path = tmp_path / name
+    path.write_text(data)
+    with pytest.raises(MarketReplayError, match=error):
+        load_market_events(path)
+
+
+def test_replay_reports_bad_encoding_as_input_error(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_bytes(b"\xff")
+    assert main([str(path)]) == 2
+
+
+@pytest.mark.parametrize("ext", ["jsonl", "csv"])
+def test_file_replay_stops_reading_at_first_rejected_order(tmp_path, ext):
+    path = tmp_path / ("trace." + ext)
+    path.write_text(
+        '{"op":"cancel","symbol":"X","order_id":1}\ncorrupt\n'
+        if ext == "jsonl"
+        else "op,symbol,order_id\ncancel,X,1\ninvalid,X,2\n"
+    )
+    with pytest.raises(MarketReplayError, match="Event 1"):
+        replay_market_event_file(path)
+
+
+@pytest.mark.parametrize("hard_link", [False, True])
+def test_summary_cannot_destroy_input_trace(tmp_path, hard_link):
+    trace = tmp_path / "orders.jsonl"
+    trace.write_text('{"op":"clear","symbol":"BTC"}\n')
+    original = trace.read_bytes()
+    output = trace
+    if hard_link:
+        output = tmp_path / "summary.json"
+        output.hardlink_to(trace)
+    assert main([str(trace), "--output", str(output)]) == 2
+    assert trace.read_bytes() == original

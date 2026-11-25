@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .. import __version__
+from .._paths import paths_overlap
 from ..core.order import SelfTradePolicy
 from .market_replay import MarketReplayError, replay_market_event_file
 
@@ -49,6 +50,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         parser.error("--depth-levels must be non-negative")
 
     try:
+        if paths_overlap((args.input, args.output)):
+            raise MarketReplayError("output must be distinct from the event input")
         result = replay_market_event_file(
             args.input,
             matching_algorithm=args.algorithm,
@@ -56,7 +59,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             strict=not args.lenient,
             self_trade_policy=SelfTradePolicy[args.self_trade_policy],
         )
-    except MarketReplayError as exc:
+    except (MarketReplayError, OSError) as exc:
         print(f"Replay failed: {exc}", file=sys.stderr)
         return 2
 
@@ -66,7 +69,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     rendered = json.dumps(summary, indent=2, allow_nan=False)
     if args.output:
-        output = Path(args.output)
+        output = Path(args.output).expanduser()
         try:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(rendered + "\n", encoding="utf-8")

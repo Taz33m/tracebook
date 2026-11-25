@@ -16,7 +16,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from numbers import Integral, Real
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, cast
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, TextIO, cast
 
 from ..core.order import NO_OWNER, OrderSide, OrderType, SelfTradePolicy, Trade, normalize_symbol
 from ..core.orderbook import OrderBook, OrderBookManager
@@ -311,59 +311,79 @@ class MarketReplayResult:
         }
 
 
-def _load_market_events_bytes(data: bytes, suffix: str) -> List[MarketEvent]:
-    """Parse normalized events from one immutable file payload."""
-    mappings: List[Mapping[str, Any]] = []
+def _unique_fields(pairs: list[tuple[str, Any]]) -> dict:
+    result: dict[str, Any] = {}
+    for name, value in pairs:
+        if name in result:
+            raise MarketReplayError(f"duplicate JSON field {name!r}")
+        result[name] = value
+    return result
+
+
+def _event_mappings(handle: TextIO, suffix: str) -> Iterator[Mapping[str, Any]]:
     if suffix in {".jsonl", ".ndjson"}:
-        text = data.decode("utf-8-sig")
-        for line_number, line in enumerate(text.splitlines(), 1):
+        for number, line in enumerate(handle, 1):
             if not line.strip():
                 continue
             try:
-                item = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise MarketReplayError(f"Invalid JSON on line {line_number}: {exc}") from exc
+                item = json.loads(line, object_pairs_hook=_unique_fields)
+            except ValueError as exc:
+                raise MarketReplayError(f"Invalid JSON on line {number}: {exc}") from exc
             if not isinstance(item, dict):
-                raise MarketReplayError(f"Line {line_number} must contain a JSON object")
-            mappings.append(item)
+                raise MarketReplayError(f"Line {number} must contain a JSON object")
+            yield item
     elif suffix == ".json":
         try:
-            payload = json.loads(data.decode("utf-8-sig"))
-        except json.JSONDecodeError as exc:
+            payload = json.load(handle, object_pairs_hook=_unique_fields)
+        except ValueError as exc:
             raise MarketReplayError(f"Invalid JSON: {exc}") from exc
         if isinstance(payload, dict):
             payload = payload.get("events")
         if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
             raise MarketReplayError("JSON input must be an event array or an object with events[]")
-        mappings = payload
+        yield from payload
     elif suffix == ".csv":
-        with io.StringIO(data.decode("utf-8-sig"), newline="") as handle:
-            reader = csv.DictReader(handle)
-            if not reader.fieldnames:
-                raise MarketReplayError("CSV input requires a header row")
-            mappings = list(reader)
+        reader = csv.DictReader(handle, strict=True)
+        if not reader.fieldnames:
+            raise MarketReplayError("CSV input requires a header row")
+        if len(set(reader.fieldnames)) != len(reader.fieldnames):
+            raise MarketReplayError("CSV input has duplicate column names")
+        for row in reader:
+            if None in row:
+                raise MarketReplayError(f"CSV row {reader.line_num} has more values than columns")
+            yield row
     else:
         raise MarketReplayError("Event file must end in .json, .jsonl, .ndjson, or .csv")
 
-    events = []
-    for index, mapping in enumerate(mappings, 1):
-        try:
-            events.append(MarketEvent.from_mapping(mapping))
-        except (TypeError, ValueError) as exc:
-            raise MarketReplayError(f"Invalid event {index}: {exc}") from exc
-    return events
+
+def _read_events(handle: TextIO, suffix: str) -> Iterator[MarketEvent]:
+    try:
+        for index, mapping in enumerate(_event_mappings(handle, suffix), 1):
+            try:
+                yield MarketEvent.from_mapping(mapping)
+            except (TypeError, ValueError) as exc:
+                raise MarketReplayError(f"Invalid event {index}: {exc}") from exc
+    except (UnicodeError, csv.Error) as exc:
+        raise MarketReplayError(f"Invalid event file: {exc}") from exc
+
+
+def _load_market_events_bytes(data: bytes, suffix: str) -> List[MarketEvent]:
+    """Parse the exact bytes whose hash was verified by the suite loader."""
+    with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8-sig", newline="") as handle:
+        return list(_read_events(handle, suffix))
+
+
+def _iter_market_events(path: str | Path) -> Iterator[MarketEvent]:
+    source = Path(path).expanduser()
+    if not source.is_file():
+        raise MarketReplayError(f"Event file not found: {source}")
+    with source.open(encoding="utf-8-sig", newline="") as handle:
+        yield from _read_events(handle, source.suffix.lower())
 
 
 def load_market_events(path: str | Path) -> List[MarketEvent]:
     """Load normalized events from JSON, JSONL/NDJSON, or CSV."""
-    source = Path(path)
-    if not source.is_file():
-        raise MarketReplayError(f"Event file not found: {source}")
-
-    suffix = source.suffix.lower()
-    if suffix not in {".json", ".jsonl", ".ndjson", ".csv"}:
-        raise MarketReplayError("Event file must end in .json, .jsonl, .ndjson, or .csv")
-    return _load_market_events_bytes(source.read_bytes(), suffix)
+    return list(_iter_market_events(path))
 
 
 def replay_market_events(
@@ -609,7 +629,7 @@ def replay_market_event_file(
 ) -> MarketReplayResult:
     """Load and replay one normalized event file."""
     return replay_market_events(
-        load_market_events(path),
+        _iter_market_events(path),
         matching_algorithm=matching_algorithm,
         tick_size=tick_size,
         strict=strict,
