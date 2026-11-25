@@ -9,7 +9,7 @@ def scorecard(root: Path) -> dict:
     def load(path: str) -> dict:
         return json.loads((root / path).read_text(encoding="utf-8"))
 
-    rows = []
+    rows: list[dict[str, object]] = []
     for name, origin, case, control in (
         ("Flash workload", "historical", "flash-handoff", "flash-handoff/fixed.json"),
         (
@@ -51,6 +51,7 @@ def scorecard(root: Path) -> dict:
                 "case": name,
                 "origin": origin,
                 "status": "measured",
+                "tracebook_version": report["reference_engine"]["version"],
                 "candidate": report["candidate_engine"],
                 "first_divergent_event": first,
                 "reduced_events": reduced["minimized_event_count"],
