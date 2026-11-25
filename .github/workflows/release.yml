@@ -11,6 +11,24 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  orderbook-rs:
+    uses: ./.github/workflows/orderbook-rs.yml
+
+  intrepid-orderbook:
+    uses: ./.github/workflows/intrepid-orderbook.yml
+
+  gocronx-matcher:
+    uses: ./.github/workflows/gocronx-matcher.yml
+
+  python-matching-engine:
+    uses: ./.github/workflows/python-matching-engine.yml
+
+  nautilus-trader-book-replay:
+    uses: ./.github/workflows/nautilus-trader-book-replay.yml
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -122,7 +140,7 @@ jobs:
             --conformance-sdist dist/conformance/*.tar.gz \
             --sim-wheel dist/simulator/*.whl \
             --sim-sdist dist/simulator/*.tar.gz \
-            --expected-version 0.6.0
+            --expected-version 0.7.0
 
       - name: Verify distribution ownership and clean-install contracts
         run: |
@@ -135,12 +153,22 @@ jobs:
             --dest dist/legacy \
             "tracebook-sim==0.5.0"
           python tools/verify_distribution_split.py \
-            --expected-version 0.6.0 \
+            --expected-version 0.7.0 \
             --conformance-wheel dist/conformance/*.whl \
             --sim-wheel dist/simulator/*.whl \
             --legacy-wheel dist/legacy/tracebook_sim-0.5.0-py3-none-any.whl \
             --legacy-wheel-sha256 d190e1c2af83e5d853b0734b4d9627b1a8f6707e0fbab391015d2d94437cd4da \
             --resolver-runtime-checks
+
+      - name: Verify the installed historical FIFO proof
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          python -m venv "$RUNNER_TEMP/fifo-tool"
+          "$RUNNER_TEMP/fifo-tool/bin/python" -m pip install --no-deps dist/conformance/*.whl
+          mkdir "$RUNNER_TEMP/fifo-proof"
+          cd "$RUNNER_TEMP/fifo-proof"
+          "$RUNNER_TEMP/fifo-tool/bin/tracebook-conformance" fifo-proof
+          cmp fifo-proof.jsonl "$GITHUB_WORKSPACE/integrations/orderbook_rs/regressions/flash-issue-88-reduced.jsonl"
 
       - name: Prove conformance wheel without simulation dependencies
         run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl
@@ -160,7 +188,14 @@ jobs:
           if-no-files-found: error
 
   publish-conformance:
-    needs: build
+    needs:
+      - build
+      - ci
+      - orderbook-rs
+      - intrepid-orderbook
+      - gocronx-matcher
+      - python-matching-engine
+      - nautilus-trader-book-replay
     runs-on: ubuntu-latest
     environment:
       name: pypi

@@ -77,13 +77,14 @@ alias for `tracebook.conformance`.
 
 ## Run It
 
-Book replay is unreleased and is not present in the published 0.6.0 wheel.
-Install this source checkout (`python -m pip install -e .`) or its built wheel,
-and record the exact source revision with any evidence.
+The 0.7.0 conformance wheel includes the book-replay command and bundled
+trace. Record the wheel hash and adapter revision with each report.
 
-Copy the bundled trace:
+In a fresh Python 3.10–3.13 environment, install the package and copy the
+bundled trace:
 
 ```bash
+python -m pip install "tracebook-conformance==0.7.0"
 python -m tracebook.book_replay sample /tmp/tracebook-book-replay
 ```
 

@@ -34,7 +34,7 @@ from email.parser import BytesParser
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-EXPECTED_VERSION = "0.6.0"
+EXPECTED_VERSION = "0.7.0"
 LEGACY_VERSION = "0.5.0"
 OFFICIAL_LEGACY_WHEEL_SHA256 = "d190e1c2af83e5d853b0734b4d9627b1a8f6707e0fbab391015d2d94437cd4da"
 CONFORMANCE_DISTRIBUTION = "tracebook-conformance"

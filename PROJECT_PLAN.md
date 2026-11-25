@@ -104,98 +104,41 @@ passed in neither arm (0/6 each). The now-implemented captured two-run workflow
 addresses candidate identity and artifact freshness mechanically. Its effect on
 independent onboarding remains unmeasured; the study did not test that workflow.
 
-The immediate bottleneck is adoption, not another matching algorithm. An engine
-author should be able to move from an adapter command to a trustworthy,
-profile-scoped compatibility artifact in one invocation. Qualification version
-1 combines relevant immutable suite cases, a deterministic generated campaign,
-semantic coverage, JSON, JUnit, and any minimized failure without testing
-features outside the profile the engine claims.
-
-The retention pilot sharpens the adoption path. Tracebook should earn upstream
-ownership by first delivering a reviewable semantic result: a localized
-divergence, a minimized trace, or a focused native regression. Tracebook can
-carry the adapter and scheduled qualification out of tree until the engine
-maintainer independently chooses to retain the tool or workflow. A passing
-artifact produced only by this repository remains technical evidence, not
-adoption.
-
-The 0.6.0 distribution split removes installation weight from that path without
-broadening it. Tracebook discovers, localizes, and reduces; maintainers review
-small native regressions. Adapter or CI ownership is offered only after the
-maintainer has seen concrete semantic value.
-
-## How The Roadmap Is Chosen
-
-Roadmap decisions use an evidence ladder:
-
-1. **Maintainer behavior:** Did an external author run the tool, understand the
-   result, accept the semantic boundary, and keep the regression in CI?
-2. **Workflow friction:** Measure time to first qualification, adapter size,
-   failed command attempts, protocol questions, and manual artifact edits.
-3. **Discovery yield:** Under an equal candidate-run budget, compare unique
-   semantic transitions, time to first divergence, and minimized reproducer
-   quality on held-out real and injected defects.
-4. **Repeatability:** Prefer results independently reproduced from the public
-   package over repository-local demos, stars, benchmark volume, or test count.
-
-A feature moves into the maintained product only when it improves one of those
-measures for an external engine. Paper-derived techniques begin as controlled
-experiments rather than presumed roadmap wins.
+The product question is whether a developer can obtain a trustworthy answer
+from the installed package. The historical FIFO proof exercises the complete
+path from workload to first difference, reduced trace, and passing control.
 
 ## Next Milestones
 
-1. Complete one independent onboarding of the captured two-run workflow. Start
-   from a concrete, tested semantic artifact, record the exact Tracebook source
-   revision and wheel hash (the workflow is not in the published 0.6.0 package),
-   ask one narrow ownership question, and measure time to the first verified
-   pair, human corrections, and whether an external maintainer retains the
-   output. Tracebook-owned rehearsals and scheduled integrations are not
-   adoption. The [prepared Go evidence packet](docs/independent-onboarding.md)
-   supplies a concrete starting point; independent public-package use remains
-   the release gate below. The Go maintainer reviewed the adapter and declined
-   local execution under their policy on third-party code. They offered to
-   link release-tag qualification run by Tracebook CI. Record whether the
-   link is retained upstream alongside the independent execution blocker.
-2. Keep the raw Flash-to-Tracebook forensic handoff opportunistic. If an
-   untriaged divergence appears, measure localization, minimization, translation
-   into a native regression, and maintainer retention honestly; do not keep
-   searching incompatible or unfinished repositories solely to manufacture the
-   gate.
-3. Await an OPEX maintainer decision on the focused lifecycle repair after one
-   concise status follow-up. Do not add repeated hypothetical integration
-   outreach to an inactive review. Any new outreach should begin with a tested
-   native artifact and one narrow semantic question.
-4. Observe at least two external onboarding attempts before building an adapter
-   scaffold. The 865-line Go adapter is the first concrete signal that protocol
-   framing, canonical hashing, state translation, and decimal handling may
-   dominate the work. Extract only pieces repeated by a second author while
-   leaving engine-specific semantics explicit.
-5. Keep guided exploration research-only. The first frozen held-out comparison
-   improved one injected defect and regressed on the historical defect plus a
-   second injected defect, so it failed the product gate.
-6. Revisit protocol v2, additional semantic profiles, and candidate benchmarking
-   only after qualification evidence identifies a repeated external need.
+1. Ship the coordinated 0.7.0 distributions through the reproducibility gate.
+2. Keep the four-event proof runnable from an empty directory with one command.
+   Measure the installed path on each candidate release.
+3. Track first divergent event, reduced size, minimizer runs and budget,
+   one-minimality, and fixed-engine controls in the Rust integration scorecard.
+   Keep historical defects and injected controls labeled separately.
+4. Choose the next engineering change from an observed missed defect, poor
+   reduction or repeatable adapter problem. Attach a failing example and a
+   measurable acceptance criterion before expanding profiles or protocols.
 
 ## Next Release Gate
 
-The next feature release is gated by external use, not a calendar date. Before
-cutting it, require:
+- The exact release candidate passes the supported Python matrix, native
+  integration checks, distribution ownership, privacy, migration, and
+  wheel/source agreement checks in the [release checklist](docs/release.md).
+- A clean install of the built wheel runs `tracebook-conformance fifo-proof`
+  from an empty directory. It must regenerate the four-event Flash trace from
+  15,739 messages, reproduce the maker mismatch on the affected revision, and
+  pass the fixed engine. The injected control has its own row in the scorecard.
+- CI verifies two byte-identical FIFO qualification bundles for each pinned Go
+  release and retains the manifests.
+- After publication, verify clean installs of both public packages, the exact
+  facade dependency, and the FIFO proof from the public wheel.
 
-- two independently maintained engines qualified with the public package;
-- one candidate repository retaining a qualification or reduced regression in
-  its own CI;
-- an observed time to first qualification under 30 minutes for a new adapter
-  author; and
-- evidence that any new adapter helper removes repeated friction rather than
-  merely reducing Tracebook's own integration code.
-
-The north-star measure is the number of independently maintained candidate
-repositories that retain Tracebook-derived evidence. A recurring CI job is the
-strongest form; a native regression counts only when a raw failure actually
-passed through Tracebook localization or minimization. Downloads, clones, stars,
-local adapters, passing campaigns, and regressions translated from already
-reduced third-party reports are awareness or technical signals, not adoption by
-themselves.
+External runs, retained native tests, upstream CI, documentation links, and
+first-time adapter-author timings remain adoption measurements. Record them
+when observed. Release scheduling and feature selection can proceed using the
+repository-owned checks above. The [Go onboarding record](docs/independent-onboarding.md)
+preserves the maintainer's review and decision about local execution.
 
 ## Decision Rules
 

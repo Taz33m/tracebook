@@ -1,6 +1,7 @@
 name: orderbook-rs integration
 
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "31 6 * * 1"
@@ -19,6 +20,7 @@ on:
       - "src/tracebook/events/**"
       - "tests/test_external_integrations.py"
       - "tests/test_flash_bridge.py"
+      - "tools/fifo_scorecard.py"
       - "tests/test_integration_workflow_coverage.py"
 
 permissions:
@@ -111,7 +113,7 @@ jobs:
               (Path(os.environ["REPORT_ROOT"]) / "qualification" / "qualification.json").read_text()
           )
           assert report["qualified"] is True
-          assert report["qualification_id"] == "sha256:c04a07cbdb9931232162ef1a05740221311f3b2fa21b9b552093a2706a12c488"
+          assert report["qualification_id"] == "sha256:10c162a1a6db2a7715e98af54871cc7a94675f2e7c4fe3754e18c48157c0371c"
           assert report["candidate_runs"] == 28
           assert report["campaign"]["generated_events"] == 5000
           assert report["campaign"]["semantic_coverage"]["coverage_ratio"] == 1.0
@@ -472,6 +474,12 @@ jobs:
           assert report["divergence"]["event_index"] == 3
           assert report["divergence"]["category"] == "trades"
           PY
+
+      - name: Write the historical and injected FIFO scorecard
+        if: always() && env.REPORT_ROOT != ''
+        run: |
+          mkdir -p "$REPORT_ROOT"
+          python tools/fifo_scorecard.py "$REPORT_ROOT" > "$REPORT_ROOT/scorecard.json"
 
       - uses: actions/upload-artifact@v7
         if: always()

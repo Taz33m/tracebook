@@ -21,6 +21,24 @@ Tracebook preserves both sides of that history:
   `53b4d2b0a657f4260e316d3a8ac3f0df0fc068bf` with `pricelevel 0.7.0`;
 - maintained `orderbook-rs 0.12.0` with `pricelevel 0.9.1`.
 
+## Run the packaged proof
+
+Install the 0.7.0 conformance wheel and provision a native C toolchain and
+Rust 1.88.0 (`rustup toolchain install 1.88.0 --profile minimal`). The first
+build needs access to the locked Cargo dependencies, including the pinned Git
+revision. From an empty directory, run:
+
+```bash
+tracebook-conformance fifo-proof
+```
+
+The wheel includes the original hash-verified, normalized Flash prefix and
+the two Rust adapter source trees. The command builds both binaries, measures
+the first divergence, minimizes the full prefix with a budget of 200 runs,
+and replays the actual reduced events against both engines. On success it
+prints all four events and writes `fifo-proof.jsonl`. Use `--output PATH`
+to choose a fresh destination. Existing files are preserved.
+
 ## The Defect
 
 At one price level, the historical queue removed the head maker before

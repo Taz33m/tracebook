@@ -40,6 +40,8 @@ recursive-include tests *.py
 recursive-include src/tracebook/visualization/web *.html *.css *.js
 recursive-include src/tracebook/corpus/fixtures *.json *.jsonl
 recursive-include src/tracebook/conformance/fixtures *.json *.jsonl
+include src/tracebook/conformance/fixtures/flash/issue-88-prefix.jsonl.gz
+include src/tracebook/conformance/fixtures/flash/LICENSE-Flash.txt
 recursive-include src/tracebook/book_replay/fixtures *.jsonl
 include src/tracebook/py.typed
 

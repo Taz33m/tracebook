@@ -4,8 +4,12 @@ All notable changes to `tracebook` will be documented here.
 
 The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## Unreleased
+## 0.7.0 — 2026-11-24
 
+- Added `tracebook-conformance fifo-proof` to rebuild the pinned Rust engines,
+  reduce the Flash workload from 15,739 events to four, and verify both outcomes.
+- Adopted a release gate based on clean installs, historical and injected
+  regression controls, and reproducible Go qualification evidence.
 - Made initial staging-identity failures explicit: report the possible residue
   path and skipped cleanup, preserve unverified entries, and exit before starting
   a candidate. Documented conservative manual recovery without blanket deletion.

@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import json
 import struct
@@ -226,3 +227,24 @@ def test_real_flash_provenance_hashes_the_durable_evidence():
     assert provenance["minimization"]["reduced_trace_sha256"] == (
         "sha256:" + hashlib.sha256(REAL_REDUCED_TRACE.read_bytes()).hexdigest()
     )
+
+
+def test_packaged_flash_prefix_matches_the_original_conversion():
+    fixture = ROOT / "src/tracebook/conformance/fixtures/flash/issue-88-prefix.jsonl.gz"
+    prefix = gzip.decompress(fixture.read_bytes())
+    provenance = json.loads(REAL_PROVENANCE.read_bytes())["handoff"]
+    assert len(prefix.splitlines()) == provenance["converted_prefix_event_count"]
+    assert (
+        "sha256:" + hashlib.sha256(prefix).hexdigest()
+        == provenance["converted_prefix_trace_sha256"]
+    )
+
+
+def test_fifo_proof_refuses_existing_output_before_build(tmp_path, capsys):
+    from tracebook.conformance.cli import main as conformance_cli
+
+    output = tmp_path / "previous.jsonl"
+    output.write_bytes(b"retained")
+    assert conformance_cli(["fifo-proof", "--output", str(output)]) == 2
+    assert "already exists" in capsys.readouterr().err
+    assert output.read_bytes() == b"retained"

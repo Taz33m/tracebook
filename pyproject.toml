@@ -84,6 +84,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 tracebook = ["py.typed"]
 "tracebook.corpus.fixtures" = ["coinbase-btcusd-synthetic-v1/*"]
+"tracebook.conformance.fixtures" = ["flash/*.gz", "flash/*.txt"]
 "tracebook.conformance.fixtures.v1" = ["*.json", "*.jsonl"]
 "tracebook.conformance.fixtures.v2" = ["*.json", "*.jsonl"]
 "tracebook.book_replay.fixtures" = ["*.jsonl"]
@@ -117,3 +118,12 @@ fail_under = 75
 show_missing = true
 skip_covered = true
 # CI type-checks the package and research harness: `mypy src/tracebook experiments`.
+
+# Install the two existing crates for the packaged FIFO proof. Cargo builds
+# in a temporary directory, outside the Python installation.
+[tool.setuptools.data-files]
+"share/tracebook/fifo-proof/orderbook_rs" = ["integrations/orderbook_rs/Cargo.toml", "integrations/orderbook_rs/Cargo.lock"]
+"share/tracebook/fifo-proof/orderbook_rs/src" = ["integrations/orderbook_rs/src/*.rs"]
+"share/tracebook/fifo-proof/orderbook_rs/src/bin" = ["integrations/orderbook_rs/src/bin/*.rs"]
+"share/tracebook/fifo-proof/rust_protocol" = ["integrations/rust_protocol/Cargo.toml"]
+"share/tracebook/fifo-proof/rust_protocol/src" = ["integrations/rust_protocol/src/*.rs"]

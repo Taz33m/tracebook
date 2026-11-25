@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 try:
@@ -8,6 +9,7 @@ except ModuleNotFoundError:  # Python 3.10
 
 import tracebook
 from tracebook._version import __version__
+from tools.verify_distribution_split import EXPECTED_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOT_DEVELOPMENT_EXTRAS = ("dev",)
@@ -28,11 +30,28 @@ def test_runtime_version_has_single_source_of_truth():
     metadata = _pyproject()
 
     assert tracebook.__version__ == __version__
-    assert __version__ == "0.6.0"
+    assert __version__ == "0.7.0"
     assert metadata["project"]["dynamic"] == ["version"]
     assert metadata["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "tracebook._version.__version__"
     }
+
+
+def test_release_command_gates_match_the_prepared_package_version():
+    assert EXPECTED_VERSION == __version__
+    for relative_path in (
+        "Makefile",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "CONTRIBUTING.md",
+        "docs/release.md",
+    ):
+        contents = (ROOT / relative_path).read_text(encoding="utf-8")
+        versions = re.findall(r"--expected-version\s+(\d+\.\d+\.\d+)", contents)
+        assert versions, f"{relative_path} omits the coordinated version check"
+        assert set(versions) == {__version__}, relative_path
+    notes = ROOT / "docs" / "releases" / f"{__version__}.md"
+    assert f"# Tracebook {__version__}" in notes.read_text(encoding="utf-8")
 
 
 def test_distribution_name_cli_and_typing_metadata_are_release_ready():
@@ -105,9 +124,9 @@ def test_simulator_facade_has_exact_version_dependency_and_no_packages():
     assert _pyproject()["build-system"]["requires"] == build_requirements
     assert metadata["build-system"]["requires"] == build_requirements
     assert project["name"] == "tracebook-sim"
-    assert project["version"] == "0.6.0"
+    assert project["version"] == __version__
     assert project["dependencies"] == [
-        "tracebook-conformance==0.6.0",
+        f"tracebook-conformance=={__version__}",
         "numpy>=2.2.6",
         "psutil>=7.2.2",
     ]
@@ -235,6 +254,7 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
         ROOT / "docs" / "corpora.md",
         ROOT / "docs" / "event-replay.md",
         ROOT / "docs" / "releases" / "0.6.0.md",
+        ROOT / "docs" / "releases" / "0.7.0.md",
         ROOT / "packaging" / "lightweight-conformance.md",
         ROOT / "packaging" / "tracebook-sim" / "README.md",
     )
@@ -242,12 +262,17 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
     for path in install_surfaces:
         text = path.read_text(encoding="utf-8")
         uninstall = "python -m pip uninstall -y tracebook-sim"
-        pinned_installs = (
-            'python -m pip install "tracebook-conformance==0.6.0"',
-            'python -m pip install "tracebook-sim==0.6.0"',
-            'python -m pip install "tracebook-sim[capture]==0.6.0"',
+        version = path.stem if path.parent.name == "releases" else __version__
+        pinned_installs = list(
+            re.finditer(
+                r'python -m pip install "(?:tracebook-conformance|tracebook-sim)'
+                r'(?:\[[^"]+\])?==([0-9.]+)"',
+                text,
+            )
         )
-        first_install = min(text.index(command) for command in pinned_installs if command in text)
+        assert pinned_installs, f"{path} omits pinned installs"
+        assert all(match.group(1) == version for match in pinned_installs), path
+        first_install = pinned_installs[0].start()
         assert uninstall in text, f"{path} omits the 0.5.x ownership handoff"
         assert text.index(uninstall) < first_install
 
@@ -258,12 +283,13 @@ def test_citation_metadata_tracks_the_public_release():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "cff-version: 1.2.0" in citation
-    assert 'version: "0.6.0"' in citation
-    assert "date-released: 2026-07-27" in citation
+    assert 'version: "0.7.0"' in citation
+    assert "date-released: 2026-11-24" in citation
     assert '- name: "Taz33m"' in citation
     assert "family-names:" not in citation
     assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
-    assert 'url: "https://pypi.org/project/tracebook-conformance/0.6.0/"' in citation
+    assert 'url: "https://pypi.org/project/tracebook-conformance/0.7.0/"' in citation
+    assert "| `0.7.x` | Yes |" in security
     assert "| `0.6.x` | Yes |" in security
     assert "| `< 0.6` | No |" in security
     assert "| `0.5.x` | Yes |" not in security

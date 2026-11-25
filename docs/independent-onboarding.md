@@ -11,38 +11,32 @@ one verified FIFO-limit evidence pair, and would they retain the result or its
 CI check? The native unfillable-FOK rejection is a documented contract
 difference, not a bug accusation or a request to change native matching.
 
-The captured evidence workflow and this adapter are unreleased. The published
-0.6.0 wheel does not contain the new evidence commands. Use a wheel built from
-the exact Tracebook checkout below, not `pip install tracebook-conformance==0.6.0`.
-The built wheel still carries version 0.6.0: record its SHA-256 and source commit
-so it cannot be confused with that release. Do not upload it to PyPI.
+The original invitation used a pre-release source build carrying version
+0.6.0. Its [historical instructions](https://github.com/Taz33m/tracebook/blob/55e3c4b010c8cc1bc967db59f94f593ffa0f6838/docs/independent-onboarding.md)
+remain pinned to the reviewed source. The steps below start a new 0.7.0 run.
 
-## Reproduce From A Reviewed Checkout
+## Reproduce With The Release Wheel
 
-Prerequisites: Git, Go >=1.23.5, Python >=3.10, and a POSIX shell. Start at the
-root of a clean, reviewed Tracebook checkout containing this packet. Review the
-adapter before running it; candidate execution is not sandboxed. These commands
-download only public source and Go modules, and never use experiment material.
-
-Create and inspect the conformance wheel following the repository's build and
-privacy gates. Then set `WHEEL` to that artifact's absolute path. Run the
-following with Bash; all candidate, cache, build, and qualification outputs stay
-under a fresh directory, which is preserved on failure.
+Use Git, Go >=1.23.5, Python 3.10–3.13, and Bash. Start in a reviewed
+Tracebook checkout with the `v0.7.0` tag. The adapter will run with your user
+permissions. The commands record the adapter source revision and public wheel
+hash and keep the evidence, dependencies and builds under a fresh directory.
 
 ```bash
 set -euo pipefail
 TRACEBOOK_ROOT=$PWD
-TRACEBOOK_REV=$(git rev-parse HEAD)
-test -z "$(git status --porcelain --untracked-files=no)"
-WHEEL="$TRACEBOOK_ROOT/dist/conformance/tracebook_conformance-0.6.0-py3-none-any.whl"
-test -f "$WHEEL"
-shasum -a 256 "$WHEEL"
+TRACEBOOK_REV=$(git rev-parse 'v0.7.0^{commit}')
+echo "$TRACEBOOK_REV"
 
 ATTEMPT_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/tracebook-onboarding.XXXXXX")
 export ATTEMPT_ROOT
 python3 -m venv "$ATTEMPT_ROOT/tool"
 PYTHON="$ATTEMPT_ROOT/tool/bin/python"
-"$PYTHON" -m pip install "$WHEEL"
+"$PYTHON" -m pip download --index-url https://pypi.org/simple --no-deps \
+  --only-binary=:all: --dest "$ATTEMPT_ROOT" 'tracebook-conformance==0.7.0'
+WHEEL="$ATTEMPT_ROOT/tracebook_conformance-0.7.0-py3-none-any.whl"
+"$PYTHON" -m pip hash "$WHEEL"
+"$PYTHON" -m pip install --no-index "$WHEEL"
 "$PYTHON" -m tracebook.conformance.cli --help
 
 CANDIDATE_REV=51d480cdb68b9989febb0b075d291cf891f425b3
