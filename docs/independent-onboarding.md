@@ -13,19 +13,19 @@ difference, not a bug accusation or a request to change native matching.
 
 The original invitation used a pre-release source build carrying version
 0.6.0. Its [historical instructions](https://github.com/Taz33m/tracebook/blob/55e3c4b010c8cc1bc967db59f94f593ffa0f6838/docs/independent-onboarding.md)
-remain pinned to the reviewed source. The steps below start a new 0.7.0 run.
+remain pinned to the reviewed source. The steps below start a new 0.7.1 run.
 
 ## Reproduce With The Release Wheel
 
 Use Git, Go >=1.23.5, Python 3.10–3.13, and Bash. Start in a reviewed
-Tracebook checkout with the `v0.7.0` tag. The adapter will run with your user
+Tracebook checkout with the `v0.7.1` tag. The adapter will run with your user
 permissions. The commands record the adapter source revision and public wheel
 hash and keep the evidence, dependencies and builds under a fresh directory.
 
 ```bash
 set -euo pipefail
 TRACEBOOK_ROOT=$PWD
-TRACEBOOK_REV=$(git rev-parse 'v0.7.0^{commit}')
+TRACEBOOK_REV=$(git rev-parse 'v0.7.1^{commit}')
 echo "$TRACEBOOK_REV"
 
 ATTEMPT_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/tracebook-onboarding.XXXXXX")
@@ -33,8 +33,8 @@ export ATTEMPT_ROOT
 python3 -m venv "$ATTEMPT_ROOT/tool"
 PYTHON="$ATTEMPT_ROOT/tool/bin/python"
 "$PYTHON" -m pip download --index-url https://pypi.org/simple --no-deps \
-  --only-binary=:all: --dest "$ATTEMPT_ROOT" 'tracebook-conformance==0.7.0'
-WHEEL="$ATTEMPT_ROOT/tracebook_conformance-0.7.0-py3-none-any.whl"
+  --only-binary=:all: --dest "$ATTEMPT_ROOT" 'tracebook-conformance==0.7.1'
+WHEEL="$ATTEMPT_ROOT/tracebook_conformance-0.7.1-py3-none-any.whl"
 "$PYTHON" -m pip hash "$WHEEL"
 "$PYTHON" -m pip install --no-index "$WHEEL"
 "$PYTHON" -m tracebook.conformance.cli --help

@@ -30,7 +30,7 @@ def test_runtime_version_has_single_source_of_truth():
     metadata = _pyproject()
 
     assert tracebook.__version__ == __version__
-    assert __version__ == "0.7.0"
+    assert __version__ == "0.7.1"
     assert metadata["project"]["dynamic"] == ["version"]
     assert metadata["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "tracebook._version.__version__"
@@ -255,6 +255,7 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
         ROOT / "docs" / "event-replay.md",
         ROOT / "docs" / "releases" / "0.6.0.md",
         ROOT / "docs" / "releases" / "0.7.0.md",
+        ROOT / "docs" / "releases" / f"{__version__}.md",
         ROOT / "packaging" / "lightweight-conformance.md",
         ROOT / "packaging" / "tracebook-sim" / "README.md",
     )
@@ -283,12 +284,12 @@ def test_citation_metadata_tracks_the_public_release():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "cff-version: 1.2.0" in citation
-    assert 'version: "0.7.0"' in citation
+    assert 'version: "0.7.1"' in citation
     assert "date-released: 2026-11-24" in citation
     assert '- name: "Taz33m"' in citation
     assert "family-names:" not in citation
     assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
-    assert 'url: "https://pypi.org/project/tracebook-conformance/0.7.0/"' in citation
+    assert 'url: "https://pypi.org/project/tracebook-conformance/0.7.1/"' in citation
     assert "| `0.7.x` | Yes |" in security
     assert "| `0.6.x` | Yes |" in security
     assert "| `< 0.6` | No |" in security

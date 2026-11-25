@@ -32,14 +32,14 @@ Tracebook requires Python 3.10-3.13. Install the dependency-light conformance
 distribution and materialize the current hash-verified adversarial suite:
 
 If this environment already contains `tracebook-sim` 0.5.x, remove that
-legacy package owner **before installing either 0.7.0 distribution**:
+legacy package owner **before installing either 0.7.1 distribution**:
 
 ```bash
 python -m pip uninstall -y tracebook-sim
 ```
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.0"
+python -m pip install "tracebook-conformance==0.7.1"
 tracebook-conformance sample ./tracebook-suite-v2 --suite-version v2
 tracebook-conformance --help
 ```
@@ -47,12 +47,12 @@ tracebook-conformance --help
 Suite v2 is the current default; the explicit option makes the copied contract
 unambiguous if a later release adds another suite. These commands do not
 require a source checkout, NumPy, or psutil. Install
-`tracebook-sim==0.7.0` instead when you need the simulator, benchmark,
+`tracebook-sim==0.7.1` instead when you need the simulator, benchmark,
 profiling, visualization, replay, or corpus commands. Users migrating that
 distribution from 0.5.x must use the uninstall-first handoff above:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 The
@@ -117,15 +117,15 @@ reduces to four events while preserving the same maker-priority defect.
   <img src="https://raw.githubusercontent.com/Taz33m/tracebook/main/docs/assets/failure-proof.png" alt="Tracebook finds queue-priority drift at event 173 and reduces it to four events" width="860" />
 </p>
 
-With the 0.7.0 wheel installed, rustup with Rust 1.88.0, a native linker, and
+With the 0.7.1 wheel installed, rustup with Rust 1.88.0, a native linker, and
 access to the pinned Cargo dependencies, run this in an empty directory:
 
 ```bash
 tracebook-conformance fifo-proof
 ```
 
-It rebuilds both candidates, minimizes the full Flash prefix, and writes the
-verified four events to `fifo-proof.jsonl`. On the final sell, FIFO requires
+It rebuilds both candidates, minimizes the full Flash prefix in 19 of the
+default 100 runs, and writes the verified four events to `fifo-proof.jsonl`. On the final sell, FIFO requires
 maker `146075`. The affected engine fills maker `185199` first.
 
 The reduced trace then becomes an ordinary CI regression: it must reproduce
@@ -200,7 +200,7 @@ these are separate version boundaries. `fifo-limit-v1` qualification does not
 run STP or pro-rata cases, so unsupported features stay explicit without
 becoming false failures.
 
-The 0.7.0 wheel includes the captured evidence commands. Record the wheel
+The 0.7.1 wheel includes the captured evidence commands. Record the wheel
 hash and candidate revision with the two qualification reports.
 
 For release evidence, do not rely on one successful workspace. Start a captured
@@ -297,7 +297,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install "tracebook-conformance==0.7.0"
+      - run: python -m pip install "tracebook-conformance==0.7.1"
       - run: make build
       - run: |
           tracebook-conformance qualify \

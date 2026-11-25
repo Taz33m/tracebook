@@ -12,7 +12,7 @@ For a pull-request gate, copy
 Use Python 3.10 through 3.13.
 
 If this environment already contains `tracebook-sim` 0.5.x, remove that
-legacy package owner before installing either 0.7.0 distribution:
+legacy package owner before installing either 0.7.1 distribution:
 
 ```bash
 python -m pip uninstall -y tracebook-sim
@@ -21,21 +21,21 @@ python -m pip uninstall -y tracebook-sim
 Install matching-engine qualification and the core Python API:
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.0"
+python -m pip install "tracebook-conformance==0.7.1"
 ```
 
 Install the simulator/workbench facade when you also need its commands and
 NumPy/psutil-backed surfaces:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 The uninstall-first step prevents the legacy wheel from later removing files
 now owned by `tracebook-conformance`. Complete the full-surface migration with:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 For a contributor checkout:
@@ -124,7 +124,7 @@ Use `--algorithm PRO_RATA` to compare the pro-rata path.
 Install the optional dashboard dependencies before starting the interactive UI:
 
 ```bash
-python -m pip install "tracebook-sim[dashboard]==0.7.0"
+python -m pip install "tracebook-sim[dashboard]==0.7.1"
 tracebook-dashboard --port 8050 --demo-simulation
 ```
 

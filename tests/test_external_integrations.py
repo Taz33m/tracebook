@@ -287,8 +287,8 @@ def test_030_integration_documentation_and_ci_template_are_complete():
     release_notes = (ROOT / "docs" / "releases" / "0.3.0.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'python -m pip install "tracebook-conformance==0.7.0"' in workflow
-    assert 'python -m pip install "tracebook-conformance==0.7.0"' in ci_docs
+    assert 'python -m pip install "tracebook-conformance==0.7.1"' in workflow
+    assert 'python -m pip install "tracebook-conformance==0.7.1"' in ci_docs
     assert "tracebook-conformance qualify" in workflow
     assert "--output-dir artifacts/qualification" in workflow
     assert "if: always()" in workflow

@@ -22,7 +22,7 @@ vendor, or install any Python packages.
 
 ## Install contracts
 
-Uninstall the legacy owner before installing either 0.7.0 distribution when an
+Uninstall the legacy owner before installing either 0.7.1 distribution when an
 environment contains the monolithic `tracebook-sim` 0.5.x wheel:
 
 ```bash
@@ -32,13 +32,13 @@ python -m pip uninstall -y tracebook-sim
 For matching-engine qualification:
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.0"
+python -m pip install "tracebook-conformance==0.7.1"
 ```
 
 For the full simulator and workbench command surface:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 The simulator dependency is pinned exactly because its console scripts invoke
@@ -55,28 +55,28 @@ delete files that the newly installed conformance wheel now owns. Distribution
 metadata may then report that the new version is installed even though the shared import package
 has been removed.
 
-After uninstalling the legacy owner, install the required 0.7.0 surface:
+After uninstalling the legacy owner, install the required 0.7.1 surface:
 
 ```bash
-python -m pip install "tracebook-sim==0.7.0"
+python -m pip install "tracebook-sim==0.7.1"
 ```
 
 For a conformance-only migration, replace the second command with:
 
 ```bash
-python -m pip install "tracebook-conformance==0.7.0"
+python -m pip install "tracebook-conformance==0.7.1"
 ```
 
 If a direct upgrade has already left the environment damaged, repair the
 package owner without resolving the simulator stack again:
 
 ```bash
-python -m pip install --force-reinstall --no-deps "tracebook-conformance==0.7.0"
+python -m pip install --force-reinstall --no-deps "tracebook-conformance==0.7.1"
 python -m pip check
 ```
 
 This is a one-release ownership handoff, not a continuing install-order
-requirement. Fresh 0.7.0 environments have disjoint wheel records.
+requirement. Fresh 0.7.1 environments have disjoint wheel records.
 
 ## Why an extra cannot provide the boundary
 

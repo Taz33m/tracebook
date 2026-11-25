@@ -6,6 +6,8 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+## 0.7.1 — 2026-11-24
+
 - Reduced the Flash FIFO failure to the same four events in 19 candidate runs
   with the default 100-run budget. Minimization reports now record the budget
   alongside the number of runs used. Historical reports remain readable.
