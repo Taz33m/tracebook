@@ -164,9 +164,10 @@ python -m tracebook.book_replay campaign \
 ```
 
 The runner stops at the first divergence and automatically delta-debugs its
-compared prefix. Reduction preserves the first-divergence category, rejects a
-new protocol failure while reducing a semantic failure, records its candidate
-run budget, and reports whether the result is one-minimal. Campaign artifacts
+compared prefix. For a semantic divergence, each accepted reduction keeps the
+triggering operation, field, and observed values. A different failure when the
+campaign reruns the prefix aborts the reduction. The report records the number
+of candidate runs and whether every single deletion loses the original failure. Campaign artifacts
 include the generator version, campaign ID, per-trace seeds and hashes,
 capability coverage, original evidence, minimized evidence, and a stable
 failure ID.

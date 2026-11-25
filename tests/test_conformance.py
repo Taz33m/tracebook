@@ -996,3 +996,14 @@ def test_wrong_price_on_priority_probe_is_execution_drift():
     report = run_conformance(events, WrongPrice)
     assert report.divergence.path.endswith(".price")
     assert classify_failure(events, report) == "execution drift"
+
+
+def test_inconsistent_adapter_order_count_is_operational():
+    class Adapter(ReferenceEngineAdapter):
+        def apply(self, event, index):
+            return replace(super().apply(event, index), resting_order_count=0)
+
+    report = run_conformance([_event()], Adapter)
+    assert report.operational_failure
+    assert report.divergence.kind == "invalid_order_count"
+    assert (report.divergence.reference, report.divergence.candidate) == (1, 0)

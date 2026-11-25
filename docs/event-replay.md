@@ -3,6 +3,9 @@
 `tracebook-replay` processes order-level events through the same validated books
 used by the Python API. It accepts `.json`, `.jsonl`/`.ndjson`, and `.csv` files,
 preserves source-file order, and supports independent books per symbol.
+File replay reads CSV and JSONL one record at a time. In strict mode, the first
+rejected event stops replay. Duplicate JSON keys, duplicate CSV headers, and
+extra CSV columns are input errors.
 
 This is an order-event (L3-style) interface. Aggregated L2 snapshots do not
 contain enough information to reconstruct queue priority and should be converted

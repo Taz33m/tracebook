@@ -516,3 +516,16 @@ def test_cli_rejects_overwriting_input(tmp_path, capsys):
 
     assert exit_code == 2
     assert "input and output paths must be distinct" in capsys.readouterr().err
+
+
+def test_inconsistent_adapter_order_count_is_operational():
+    from dataclasses import replace
+
+    class Adapter(ReferenceBookReplayAdapter):
+        def apply(self, event, index):
+            return replace(super().apply(event, index), order_count=0)
+
+    report = run_book_replay([BookReplayEvent("add", "TEST", 1, "BUY", "100", "1")], Adapter)
+    assert report.operational_failure
+    assert report.divergence.kind == "invalid_order_count"
+    assert (report.divergence.reference, report.divergence.candidate) == (1, 0)

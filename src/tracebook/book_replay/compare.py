@@ -215,6 +215,19 @@ def _localize_state(
             reference=candidate_digest,
             candidate=candidate_observation.state_hash,
         )
+    if (
+        candidate_observation is not None
+        and candidate_state.order_count != candidate_observation.order_count
+    ):
+        return replace(
+            divergence,
+            category="protocol",
+            kind="invalid_order_count",
+            path="$.observation.order_count",
+            message="candidate order count does not describe its snapshot",
+            reference=candidate_state.order_count,
+            candidate=candidate_observation.order_count,
+        )
     difference = first_difference(reference_state.to_dict(), candidate_state.to_dict(), "$.state")
     if difference is None:
         return divergence

@@ -6,6 +6,19 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Verify captured FIFO qualification claims against the shipped reference and
+  seeded workloads. Evidence bundles support non-ASCII candidate metadata.
+- Preserve the original execution values and rejection reasons through
+  matching and L3 reductions. Reproduction requires typed semantic evidence.
+  Both comparison protocols report a count inconsistent with the candidate
+  snapshot as an adapter error.
+- Protect source traces and corpus evidence when writing reports. Stream
+  CSV and JSONL file replay and reject ambiguous order records.
+- Preserve Coinbase book state and trade counts when skipping invalid feed
+  messages. Check snapshot product identity and decimal conversion fidelity.
+- Validate corpus benchmark phases, event counts, timing samples, and derived
+  throughput before reporting a performance change.
+
 ## 0.7.2 — 2026-11-24
 
 - Fixed trade-order minimization returning a different wrong fill. Every

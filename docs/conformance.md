@@ -75,6 +75,9 @@ Otherwise it starts from the original failing prefix. Every subsequent
 deletion must reproduce that order-ID mismatch on the same occurrence of the
 triggering event, even when two input events have identical values. The fill's
 position in the event's trade list can shift when earlier fills disappear.
+For other execution differences and order rejections, a reduction must keep
+the triggering occurrence, the differing field, and its reference and candidate
+values. A price or quantity error on a FIFO probe is reported as execution drift.
 The initial comparison and every candidate trial count toward the same budget
 (100 by default). The report sets `one_minimal` only after every individual
 deletion in the final round stops reproducing the target failure. If `--max-runs`
@@ -199,7 +202,10 @@ tracebook-conformance evidence-verify "$WORKSPACE/evidence-plan.json"
 Verification fails closed if either captured tree changed; either bundle is
 missing, noncanonical, incomplete, or unqualified; candidate identity differs;
 or terminal result, deterministic IDs, counts, semantic coverage, or artifact
-bytes differ between runs. Success writes one exclusive
+bytes differ between runs. The verifier also regenerates the seeded workloads
+and replays the fixed cases with the bundled reference. It checks trace hashes,
+case configuration, compared-event counts, terminal book hashes, and observed
+capability counts against that replay. Success writes one exclusive
 `evidence-manifest.json` at the workspace root. The workflow prepares and checks
 the filesystem contract, but it does not sandbox a compiler or prove that an
 adapter avoided undeclared external caches; CI or a disposable host remains the
