@@ -1,6 +1,9 @@
 import json
+import os
+import signal
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -195,3 +198,35 @@ def test_pair_stops_a_hung_build(candidate, tmp_path, capsys):
     assert main(pair_args(candidate, bundle, workspace) + ["--build-timeout", "0.1"]) == 2
     assert "adapter build timed out" in capsys.readouterr().err
     assert not (workspace / "evidence-manifest.json").exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="checks POSIX process-group cancellation")
+def test_terminating_cli_stops_active_build(candidate, tmp_path):
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    workspace = tmp_path / "results"
+    build = bundle / "build"
+    build.write_text('#!/bin/sh\necho "$$" > "$TRACEBOOK_BUILD_DIR/pid"\nexec sleep 30\n')
+    build.chmod(0o755)
+    pid_file = workspace / "runs/run-1/build/pid"
+    command = [
+        sys.executable,
+        "-m",
+        "tracebook.conformance.cli",
+        *pair_args(candidate, bundle, workspace),
+    ]
+    with subprocess.Popen(command) as cli:
+        try:
+            deadline = time.monotonic() + 10
+            while not pid_file.is_file() and time.monotonic() < deadline and cli.poll() is None:
+                time.sleep(0.02)
+            assert pid_file.is_file()
+            build_pid = int(pid_file.read_text())
+            cli.terminate()
+            assert cli.wait(timeout=5) == 128 + signal.SIGTERM
+            with pytest.raises(ProcessLookupError):
+                os.kill(build_pid, 0)
+            assert not (workspace / "evidence-manifest.json").exists()
+        finally:
+            if cli.poll() is None:
+                cli.kill()

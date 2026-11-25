@@ -7,7 +7,10 @@ import shutil
 import signal
 import subprocess  # nosec B404
 import tempfile
+import threading
+from contextlib import ExitStack
 from pathlib import Path
+from types import FrameType
 
 from .evidence import (
     GIT_COMMIT_HASH,
@@ -75,25 +78,41 @@ def _require_executable(path: Path) -> None:
 def _build_adapter(
     directory: Path, environment: dict[str, str], timeout: float, run_id: str
 ) -> None:
-    with subprocess.Popen(  # nosec B603
-        [str(directory / "build")],
-        cwd=directory,
-        env=environment,
-        start_new_session=os.name == "posix",
-    ) as process:
+    # A detached build needs a supervisor to relay cancellation to its descendants.
+    supervise_group = (
+        os.name == "posix"
+        and threading.current_thread() is threading.main_thread()
+        and signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
+    )
+
+    def terminate(signum: int, _frame: FrameType | None) -> None:
+        raise SystemExit(128 + signum)
+
+    with ExitStack() as cleanup:
+        if supervise_group:
+            previous = signal.signal(signal.SIGTERM, terminate)
+            cleanup.callback(signal.signal, signal.SIGTERM, previous)
+        process = cleanup.enter_context(
+            subprocess.Popen(  # nosec B603
+                [str(directory / "build")],
+                cwd=directory,
+                env=environment,
+                start_new_session=supervise_group,
+            )
+        )
         try:
             status = process.wait(timeout=timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
-            if os.name == "posix":
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            else:
-                process.kill()
-            if isinstance(exc, KeyboardInterrupt):
-                raise
+        except subprocess.TimeoutExpired as exc:
             raise ConformanceError(f"{run_id} adapter build timed out after {timeout:g}s") from exc
+        finally:
+            if process.returncode is None:
+                if supervise_group:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    process.kill()
     if status:
         raise ConformanceError(f"{run_id} adapter build failed (exit {status})")
 
