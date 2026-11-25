@@ -408,3 +408,84 @@ def test_adapter_is_single_use_and_id_map_is_opt_in():
 
     venue_id = "11111111-1111-4111-8111-111111111111"
     assert coinbase_order_id("BTC-USD", venue_id) == coinbase_order_id("btc-usd", venue_id)
+
+
+def test_snapshot_must_belong_to_requested_product():
+    with pytest.raises(CoinbaseL3Error, match="product_id"):
+        CoinbaseL3Adapter(_empty_snapshot(), "ETH-USD")
+    snapshot = _empty_snapshot()
+    del snapshot["product_id"]
+    assert CoinbaseL3Adapter(snapshot, "eth-usd").product_id == "ETH-USD"
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"type": "open", "order_id": "new", "side": "buy", "price": "1e400", "remaining_size": "1"},
+        {"type": "change", "order_id": "maker", "new_size": "1", "new_price": "1e400"},
+        {
+            "type": "match",
+            "maker_order_id": "maker",
+            "taker_order_id": "taker",
+            "price": "10",
+            "size": "1e-400",
+        },
+        {"type": "done", "order_id": "maker", "reason": "canceled", "time": "1960-01-01T00:00:00Z"},
+    ],
+)
+def test_skipped_message_preserves_maker_state_and_trade_ledger(invalid):
+    snapshot = {**_empty_snapshot(), "asks": [["10", "2", "maker"]]}
+    adapter = CoinbaseL3Adapter(snapshot, strict=False, retain_id_map=True, retain_trades=True)
+    feed = [
+        {**invalid, "product_id": "BTC-USD", "sequence": 11},
+        {
+            "type": "done",
+            "order_id": "maker",
+            "reason": "canceled",
+            "remaining_size": "2",
+            "product_id": "BTC-USD",
+            "sequence": 12,
+        },
+    ]
+    assert [event.op for event in adapter.iter_events(feed)] == ["new", "cancel"]
+    assert len(adapter.issues) == 1
+    assert adapter.active_order_count == adapter.exchange_trades_observed == 0
+    assert not adapter.exchange_trades
+
+
+def test_feed_quantity_accounting_is_independent_of_decimal_context():
+    from decimal import localcontext
+
+    snapshot = {**_empty_snapshot(), "asks": [["10", "100", "maker"]]}
+    feed = [
+        {
+            "type": "match",
+            "maker_order_id": "maker",
+            "taker_order_id": "taker",
+            "price": "10",
+            "size": "0.001",
+            "product_id": "BTC-USD",
+            "sequence": 11,
+        },
+        {
+            "type": "done",
+            "order_id": "maker",
+            "reason": "canceled",
+            "remaining_size": "99.999",
+            "product_id": "BTC-USD",
+            "sequence": 12,
+        },
+    ]
+    with localcontext() as context:
+        context.prec = 3
+        assert [event.op for event in CoinbaseL3Adapter(snapshot).iter_events(feed)] == [
+            "new",
+            "reduce",
+            "cancel",
+        ]
+
+
+def test_unrepresentable_distinct_quote_cannot_collapse_to_same_price():
+    snapshot = {**_empty_snapshot(), "asks": [["100.0000000000000001", "2", "maker"]]}
+    with pytest.raises(CoinbaseL3Error, match="precision"):
+        list(CoinbaseL3Adapter(snapshot).iter_events([]))

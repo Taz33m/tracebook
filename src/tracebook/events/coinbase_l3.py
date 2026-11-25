@@ -14,7 +14,7 @@ import math
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from numbers import Integral
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, cast
@@ -115,7 +115,17 @@ def _float(value: Decimal, field_name: str) -> float:
     parsed = float(value)
     if not math.isfinite(parsed) or parsed <= 0:
         raise CoinbaseL3Error(f"{field_name} cannot be represented as a positive float")
+    if Decimal(str(parsed)) != value:
+        raise CoinbaseL3Error(f"{field_name} loses precision in normalized events")
     return parsed
+
+
+def _subtract_size(left: Decimal, right: Decimal) -> Decimal:
+    """Subtract feed sizes exactly, independent of caller decimal precision."""
+    with localcontext() as context:
+        scale = min(cast(int, left.as_tuple().exponent), cast(int, right.as_tuple().exponent))
+        context.prec = max(left.adjusted(), right.adjusted()) - scale + 2
+        return left - right
 
 
 def _side(value: Any) -> OrderSide:
@@ -146,6 +156,8 @@ def _timestamp_ns(value: Any) -> Optional[int]:
     delta = base - _EPOCH
     whole_seconds = delta.days * 86_400 + delta.seconds
     fraction = (match.group("fraction") or "").ljust(9, "0")
+    if whole_seconds < 0:
+        raise CoinbaseL3Error("time must be non-negative")
     return whole_seconds * 1_000_000_000 + (int(fraction) if fraction else 0)
 
 
@@ -222,6 +234,11 @@ class CoinbaseL3Adapter:
 
         source_product = product_id if product_id is not None else snapshot.get("product_id")
         self.product_id = _product_id(source_product)
+        if (
+            snapshot.get("product_id") is not None
+            and _product_id(snapshot["product_id"]) != self.product_id
+        ):
+            raise CoinbaseL3Error("snapshot product_id does not match requested product")
         sequence = _integer(snapshot.get("sequence"), "snapshot.sequence")
         if sequence is None or sequence < 0:
             raise CoinbaseL3Error("snapshot.sequence must be non-negative")
@@ -483,16 +500,18 @@ class CoinbaseL3Adapter:
         size_field = "size" if compact else "remaining_size"
         size = cast(Decimal, _decimal(mapping.get(size_field), size_field))
         timestamp_ns = _timestamp_ns(mapping.get("time"))
-        order = self._add_active(venue_id, side, price, size, timestamp_ns)
-        return MarketEvent(
+        event = MarketEvent(
             op="new",
             symbol=self.product_id,
-            order_id=order.normalized_order_id,
+            order_id=coinbase_order_id(self.product_id, venue_id),
             side=side,
             price=_float(price, "price"),
             quantity=_float(size, size_field),
             timestamp_ns=timestamp_ns,
         )
+
+        self._add_active(venue_id, side, price, size, timestamp_ns)
+        return event
 
     def _match(self, mapping: Mapping[str, Any], compact: bool, sequence: int) -> MarketEvent:
         maker_id = _text(mapping.get("maker_order_id"), "maker_order_id")
@@ -512,6 +531,13 @@ class CoinbaseL3Adapter:
             self._validate_side(mapping.get("side"), order)
         timestamp_ns = _timestamp_ns(mapping.get("time"))
         trade_id = _integer(mapping.get("trade_id"), "trade_id", required=False)
+        event = MarketEvent(
+            op="reduce",
+            symbol=self.product_id,
+            order_id=order.normalized_order_id,
+            quantity=_float(size, "size"),
+            timestamp_ns=timestamp_ns,
+        )
         self.exchange_trades_observed += 1
         if self.retain_trades:
             self.exchange_trades.append(
@@ -529,14 +555,7 @@ class CoinbaseL3Adapter:
                     timestamp_ns=timestamp_ns,
                 )
             )
-        order.remaining -= size
-        event = MarketEvent(
-            op="reduce",
-            symbol=self.product_id,
-            order_id=order.normalized_order_id,
-            quantity=_float(size, "size"),
-            timestamp_ns=timestamp_ns,
-        )
+        order.remaining = _subtract_size(order.remaining, size)
         if order.remaining == 0:
             self._remove_active(maker_id)
         return event
@@ -606,47 +625,36 @@ class CoinbaseL3Adapter:
                 raise CoinbaseL3Error(f"change old price {old_price} does not match {order.price}")
 
         timestamp_ns = _timestamp_ns(mapping.get("time"))
-        if new_size == 0:
-            reduction = order.remaining
-            self._remove_active(venue_id)
-            return [
-                MarketEvent(
-                    op="reduce",
-                    symbol=self.product_id,
-                    order_id=order.normalized_order_id,
-                    quantity=_float(reduction, "reduction"),
-                    timestamp_ns=timestamp_ns,
-                )
-            ]
-        if new_price == order.price and new_size < order.remaining:
-            reduction = order.remaining - new_size
-            order.remaining = new_size
-            return [
-                MarketEvent(
-                    op="reduce",
-                    symbol=self.product_id,
-                    order_id=order.normalized_order_id,
-                    quantity=_float(reduction, "reduction"),
-                    timestamp_ns=timestamp_ns,
-                )
-            ]
+        if new_size == 0 or (new_price == order.price and new_size < order.remaining):
+            reduction = _subtract_size(order.remaining, new_size)
+            event = MarketEvent(
+                op="reduce",
+                symbol=self.product_id,
+                order_id=order.normalized_order_id,
+                quantity=_float(reduction, "reduction"),
+                timestamp_ns=timestamp_ns,
+            )
+            if new_size == 0:
+                self._remove_active(venue_id)
+            else:
+                order.remaining = new_size
+            return [event]
         if new_price == order.price and new_size == order.remaining:
             self.messages_ignored += 1
             return []
 
+        event = MarketEvent(
+            op="replace",
+            symbol=self.product_id,
+            order_id=order.normalized_order_id,
+            price=_float(new_price, "price"),
+            quantity=_float(new_size, size_field),
+            timestamp_ns=timestamp_ns,
+        )
         order.price = new_price
         order.remaining = new_size
         order.timestamp_ns = timestamp_ns
-        return [
-            MarketEvent(
-                op="replace",
-                symbol=self.product_id,
-                order_id=order.normalized_order_id,
-                price=_float(new_price, "price"),
-                quantity=_float(new_size, size_field),
-                timestamp_ns=timestamp_ns,
-            )
-        ]
+        return [event]
 
     def _add_active(
         self,
