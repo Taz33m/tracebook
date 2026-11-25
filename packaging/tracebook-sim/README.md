@@ -34,7 +34,7 @@ python -m pip install "tracebook-sim==0.7.0"
 
 Do not directly upgrade an environment containing `tracebook-sim` 0.5.x. That
 release owned the entire `tracebook` package; its uninstall record can remove
-files newly installed by `tracebook-conformance` 0.6.0.
+files newly installed by the conformance wheel.
 
 After removing the legacy owner as shown above, install the new facade:
 

@@ -52,7 +52,7 @@ combination.
 script. During a direct in-place upgrade, pip may install the new conformance
 dependency and then uninstall 0.5.x. The old wheel's uninstall record can
 delete files that the newly installed conformance wheel now owns. Distribution
-metadata may then say 0.6.0 is installed even though the shared import package
+metadata may then report that the new version is installed even though the shared import package
 has been removed.
 
 After uninstalling the legacy owner, install the required 0.7.0 surface:

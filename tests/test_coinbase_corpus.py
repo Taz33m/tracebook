@@ -172,6 +172,7 @@ def test_checked_synthetic_corpus_regenerates_byte_for_byte(tmp_path, monkeypatc
     # historical metadata when testing byte reproduction; normal preparation
     # above must still record the current version. Keep the frozen fixture intact.
     historical = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
+    assert historical["tool"] == {"name": "tracebook", "version": "0.6.0"}
     monkeypatch.setattr(corpus_module, "__version__", historical["tool"]["version"])
     regenerated = tmp_path / "regenerated"
     prepare_coinbase_corpus(

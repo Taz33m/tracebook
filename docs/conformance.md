@@ -137,10 +137,9 @@ silently.
 
 ## Captured Two-Run Evidence
 
-This workflow is unreleased. Use a pinned source checkout or a wheel built from
-that checkout, recording its Git revision and SHA-256; the published 0.6.0 wheel
-does not contain these commands. The source version string alone cannot
-distinguish this build from the released package.
+The 0.7.0 conformance wheel includes `evidence-init` and `evidence-verify`.
+Record the exact wheel hash and candidate revision with each run. For a
+development build, also record the Tracebook source commit.
 
 Use the evidence workflow when a qualification result will support a release,
 benchmark, or external claim. It pins the candidate before adapter readiness and
