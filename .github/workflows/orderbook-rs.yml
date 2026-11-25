@@ -469,6 +469,52 @@ jobs:
               assert run_conformance(subset, affected, config).conformant, index
           PY
 
+      - name: Preserve the original maker mismatch when other fills can diverge
+        run: |
+          tracebook-conformance minimize \
+            integrations/orderbook_rs/regressions/competing-fills.jsonl \
+            --tick-size 1 --quantity-decimal-places 0 \
+            --events-output "$REPORT_ROOT/competing-fills-reduced.jsonl" \
+            --output "$REPORT_ROOT/competing-fills-minimization.json" \
+            --candidate-cmd "$HISTORICAL_ADAPTER"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from tracebook.conformance import ConformanceConfig, ExternalProcessAdapterFactory, run_conformance
+          from tracebook.events import load_market_events
+
+          root = Path(os.environ["REPORT_ROOT"])
+          events = load_market_events(Path("integrations/orderbook_rs/regressions/competing-fills.jsonl"))
+          reduced = load_market_events(root / "competing-fills-reduced.jsonl")
+          result = json.loads((root / "competing-fills-minimization.json").read_text())
+          config = ConformanceConfig(tick_size=1, quantity_decimal_places=0)
+          affected = ExternalProcessAdapterFactory([os.environ["HISTORICAL_ADAPTER"]])
+          fixed = ExternalProcessAdapterFactory([os.environ["ADAPTER"]])
+
+          def wrong_fill(report):
+              assert not report.operational_failure
+              drift = report.divergence
+              if drift is None:
+                  return None
+              return (drift.event["order_id"], drift.path.rsplit(".", 1)[-1], drift.reference, drift.candidate)
+
+          expected = (21, "sell_order_id", 15, 16)
+          assert wrong_fill(run_conformance(events, affected, config)) == expected
+          assert len(events) == 21
+          assert 0 < len(reduced) <= 8
+          assert result["one_minimal"] and not result["budget_exhausted"]
+          assert 0 < result["runs"] <= 48
+          assert result["max_runs"] == 100
+          assert wrong_fill(run_conformance(reduced, affected, config)) == expected
+          assert run_conformance(events, fixed, config).conformant
+          assert run_conformance(reduced, fixed, config).conformant
+          for i in range(len(reduced)):
+              subset = reduced[:i] + reduced[i + 1:]
+              assert wrong_fill(run_conformance(subset, affected, config)) != expected, i
+          PY
+
       - name: Prove Rust-side trade drift is detected
         run: |
           set +e

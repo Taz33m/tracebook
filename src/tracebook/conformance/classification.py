@@ -15,12 +15,21 @@ QUEUE_PRIORITY_DRIFT = "queue-priority drift"
 
 
 @dataclass(frozen=True)
+class TradeOrderMismatch:
+    trigger: MarketEvent
+    field: str
+    reference_id: int
+    candidate_id: int
+
+
+@dataclass(frozen=True)
 class FailureSignature:
     """Failure identity that a reduction must preserve."""
 
     operational: bool
     category: str
     failure_class: str
+    trade_order: TradeOrderMismatch | None = None
 
 
 def is_operational_divergence(
@@ -137,10 +146,22 @@ def failure_signature(
     divergence = report.divergence
     if divergence is None:
         return None
+    trade_order = None
+    field = divergence.path.rsplit(".", 1)[-1]
+    if (
+        not report.operational_failure
+        and divergence.category == "trades"
+        and field in ("buy_order_id", "sell_order_id")
+    ):
+        # Removing unrelated fills can shift the trade index within the triggering event.
+        trade_order = TradeOrderMismatch(
+            events[divergence.event_index - 1], field, divergence.reference, divergence.candidate
+        )
     return FailureSignature(
         operational=report.operational_failure,
         category=divergence.category,
         failure_class=classify_failure(events, report),
+        trade_order=trade_order,
     )
 
 
@@ -151,6 +172,8 @@ def preserves_failure_signature(
     if observed is None:
         return False
     if target.operational != observed.operational or target.category != observed.category:
+        return False
+    if target.trade_order is not None and target.trade_order != observed.trade_order:
         return False
     return target.failure_class == observed.failure_class or (
         target.failure_class == "execution drift" and observed.failure_class == QUEUE_PRIORITY_DRIFT

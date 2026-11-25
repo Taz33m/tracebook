@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from ..events import MarketEvent
-from .classification import FailureSignature, failure_signature, is_operational_divergence
+from .classification import failure_signature
 from .compare import ConformanceReport, run_conformance
 from .model import ARTIFACT_SCHEMA_VERSION, ConformanceConfig, ConformanceError, trace_sha256
 from .protocol import AdapterFactory
@@ -121,17 +121,10 @@ def run_reproduction(
             raise ConformanceError("failure metadata requires failure_class")
         if not isinstance(expected_divergence, Mapping):
             raise ConformanceError("failure metadata requires expected_reduced_divergence")
-        expected_signature = FailureSignature(
-            operational=is_operational_divergence(
-                expected_divergence.get("category"),
-                snapshot_failed=bool(expected_divergence.get("snapshot_error")),
-                close_failed=bool(expected_divergence.get("close_error")),
-            ),
-            category=str(expected_divergence.get("category")),
-            failure_class=expected_class,
-        )
-        reproduced = observed_signature == expected_signature and divergence == dict(
-            expected_divergence
+        reproduced = (
+            observed_signature is not None
+            and observed_signature.failure_class == expected_class
+            and divergence == dict(expected_divergence)
         )
     return ReproductionResult(
         events=tuple(events),

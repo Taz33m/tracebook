@@ -71,10 +71,13 @@ trade order IDs, it first tries the lifecycles of the two disputed orders, their
 direct counterparties in the reference trades, and the triggering order. This
 trial keeps symbol clears and must reproduce the same triggering event, ID
 field and pair of IDs. If it does, delta debugging starts from that subsequence.
-Otherwise it starts from the original failing prefix. The initial comparison
-and every candidate trial count toward the same budget (100 by default). It retains a candidate subsequence only when the same failure
-category still occurs. The report sets `one_minimal` only after every individual
-deletion in the final round no longer reproduces that category. If `--max-runs`
+Otherwise it starts from the original failing prefix. Every subsequent
+deletion must reproduce that order-ID mismatch on the same occurrence of the
+triggering event, even when two input events have identical values. The fill's
+position in the event's trade list can shift when earlier fills disappear.
+The initial comparison and every candidate trial count toward the same budget
+(100 by default). The report sets `one_minimal` only after every individual
+deletion in the final round stops reproducing the target failure. If `--max-runs`
 stops the search first, `budget_exhausted` is true and no minimality claim is
 made. Every fresh candidate process must report the same engine metadata as the
 initial failing run; a binary or adapter identity change aborts minimization.
@@ -585,8 +588,9 @@ Minimization reports use
 `artifact_type = "tracebook.conformance.minimization"` and include original and
 minimized counts, run count and limit (`max_runs` in new reports), reduction percentage, minimality/budget status,
 minimized trace hash, target failure category, and the final conformance report.
-Reduction preserves one internal failure signature: operational status,
-divergence category, and classified failure label. A specific label cannot
+Reduction tracks the operational status, divergence category, and classified
+failure label. A buy- or sell-order-ID mismatch also tracks the triggering
+event, the ID field, and the ordered reference and candidate IDs. A specific label cannot
 broaden during reduction; a queue-priority failure, for example, cannot become
 generic execution drift merely because both use the `trades` category. Removing
 causal noise may narrow generic execution drift to the queue-priority defect it

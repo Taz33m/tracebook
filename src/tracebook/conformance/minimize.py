@@ -10,10 +10,11 @@ from typing import Iterable, Optional, Tuple, cast
 from ..events import MarketEvent, replay_market_events
 from .classification import (
     FailureSignature,
+    TradeOrderMismatch,
     failure_signature,
     preserves_failure_signature,
 )
-from .compare import ConformanceReport, Divergence, run_conformance
+from .compare import ConformanceReport, run_conformance
 from .model import (
     ARTIFACT_SCHEMA_VERSION,
     ConformanceConfig,
@@ -82,11 +83,11 @@ def _reject_protocol_failure_during_semantic_minimization(
 
 
 def _order_lifecycles(
-    events: tuple[MarketEvent, ...], mismatch: Divergence, config: ConformanceConfig
+    events: tuple[MarketEvent, ...], mismatch: TradeOrderMismatch, config: ConformanceConfig
 ) -> tuple[MarketEvent, ...]:
     """Select the disputed orders and their direct reference-trade counterparties."""
-    trigger = events[-1]
-    disputed_ids = {mismatch.reference, mismatch.candidate}
+    trigger = mismatch.trigger
+    disputed_ids = {mismatch.reference_id, mismatch.candidate_id}
     related_ids = disputed_ids | {trigger.order_id}
     replay = replay_market_events(
         events,
@@ -144,7 +145,9 @@ def minimize_failing_trace(
         else initial
     )
 
-    def check_trial(trial: tuple[MarketEvent, ...]) -> ConformanceReport | None:
+    def check_trial(
+        trial: tuple[MarketEvent, ...], *, retains_trigger: bool
+    ) -> ConformanceReport | None:
         nonlocal runs
         report = run_conformance(trial, candidate_factory, config)
         runs += 1
@@ -152,28 +155,19 @@ def minimize_failing_trace(
             raise ConformanceError("candidate engine metadata changed during minimization")
         observed = failure_signature(trial, report)
         _reject_protocol_failure_during_semantic_minimization(report, target, observed, runs)
+        # Equal event values can occur twice. Only the original occurrence ends the prefix.
+        if target.trade_order is not None and (
+            not retains_trigger or report.compared_events != len(trial)
+        ):
+            return None
         return report if preserves_failure_signature(target, observed) else None
 
-    mismatch = initial.divergence
-    if (
-        runs < max_runs
-        and not target.operational
-        and mismatch.category == "trades"
-        and mismatch.path.endswith((".buy_order_id", ".sell_order_id"))
-    ):
-        trial = _order_lifecycles(current, mismatch, config)
+    if runs < max_runs and target.trade_order is not None:
+        trial = _order_lifecycles(current, target.trade_order, config)
         if len(trial) < len(current):
-            report = check_trial(trial)
-            if report is not None and report.divergence is not None:
-                observed_drift = report.divergence
-                # Removing unrelated fills can shift the trade index within this event.
-                if (
-                    observed_drift.event_index == len(trial)
-                    and observed_drift.path.rsplit(".", 1)[-1] == mismatch.path.rsplit(".", 1)[-1]
-                    and (observed_drift.reference, observed_drift.candidate)
-                    == (mismatch.reference, mismatch.candidate)
-                ):
-                    current, current_report = trial, report
+            report = check_trial(trial, retains_trigger=True)
+            if report is not None:
+                current, current_report = trial, report
 
     granularity = 2
     one_minimal = len(current) == 0
@@ -189,7 +183,7 @@ def minimize_failing_trace(
             trial = current[:start] + current[start + chunk_size :]
             if not trial:
                 continue
-            report = check_trial(trial)
+            report = check_trial(trial, retains_trigger=start + chunk_size < len(current))
             if report is not None:
                 current = trial
                 current_report = report
@@ -207,7 +201,7 @@ def minimize_failing_trace(
         granularity = min(len(current), granularity * 2)
 
     if len(current) == 1 and not one_minimal and runs < max_runs:
-        empty_report = check_trial(())
+        empty_report = check_trial((), retains_trigger=False)
         if empty_report is not None:
             current = ()
             current_report = empty_report

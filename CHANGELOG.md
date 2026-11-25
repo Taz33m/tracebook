@@ -6,6 +6,10 @@ The project follows [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## Unreleased
 
+- Fixed trade-order minimization returning a different wrong fill. Every
+  reduction now preserves the triggering event, buy or sell ID field, and
+  reference and candidate order IDs of the original trade-order mismatch.
+
 ## 0.7.1 — 2026-11-24
 
 - Reduced the Flash FIFO failure to the same four events in 19 candidate runs
