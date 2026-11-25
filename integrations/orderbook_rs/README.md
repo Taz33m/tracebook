@@ -180,8 +180,9 @@ comparator in
 Running that boundary against the affected graph identifies canonical sequence
 `15738`. Tracebook's bounded
 [`flash_benchmark` bridge](../flash_benchmark) converts the corresponding
-15,739-message binary prefix. The 0.7.0 release minimized it in 193 runs.
-The updated reducer in this checkout produces the same trace in 19 runs.
+15,739-message binary prefix. The 0.7.0 proof used 193 of its 200 candidate
+runs. Grouping order lifecycles produces the same four events in 19 of the
+default 100 runs.
 
 The one-minimal result preserves Flash's actual workload values in
 [`regressions/flash-issue-88-reduced.jsonl`](regressions/flash-issue-88-reduced.jsonl):

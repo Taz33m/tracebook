@@ -23,10 +23,17 @@ Tracebook preserves both sides of that history:
 
 ## Run the packaged proof
 
-Install the 0.7.0 conformance wheel and provision a native C toolchain and
-Rust 1.88.0 (`rustup toolchain install 1.88.0 --profile minimal`). The first
-build needs access to the locked Cargo dependencies, including the pinned Git
-revision. From an empty directory, run:
+To reproduce the 19-run result, install the conformance package from the
+repository root in an active virtual environment:
+
+```bash
+python -m pip install --force-reinstall .
+```
+
+The proof requires a native C toolchain and Rust 1.88.0
+(`rustup toolchain install 1.88.0 --profile minimal`). The first build needs
+access to the locked Cargo dependencies, including the pinned Git revision.
+With the same environment active, run this command from an empty directory:
 
 ```bash
 tracebook-conformance fifo-proof
@@ -109,8 +116,8 @@ tracebook-conformance minimize \
 
 Tracebook finds the same semantic boundary at event `15739`. Delta debugging
 in the 0.7.0 release took 193 candidate runs under its 200-run proof budget.
-The updated reducer in this checkout takes 19 runs under the ordinary 100-run
-default. Both produce the same one-minimal four-event JSONL.
+Grouping order lifecycles takes 19 runs under the 100-run default. Both
+produce the same one-minimal four-event JSONL.
 
 ## Independent Generated Campaign
 
