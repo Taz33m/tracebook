@@ -127,6 +127,17 @@ jobs:
           python -c "import json; assert json.load(open('/tmp/conformance-suite.json'))['conformant'] is True"
           python -c "import json; p=json.load(open('/tmp/tracebook-conformance-campaign/campaign.json')); assert p['conformant'] is True and p['generated_events'] == 75 and p['generator_version'] == 2; assert p['campaign_id'] == 'sha256:e091b14fe9774b2715e5544eef78115f34e8bbbd83d5c13936bafb4d44ba0965'; assert p['semantic_coverage']['coverage_ratio'] == 1.0; assert [t['trace_sha256'] for t in p['traces']] == ['sha256:488c68887f5655b927a0b623e2d814afc07c5fd6090cefee0376025bacb5cdd7', 'sha256:0e299394becb4a533b63149e381eb39701c4e6931e3d797fcafa422ee63a6942', 'sha256:cc221ad5ec4a012995d7815c7d2c0f31f91e8d559b0d37eda8dce5877c4c19ab']"
 
+      - name: Verify the installed historical FIFO proof
+        if: matrix.python-version == '3.13'
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          python -m venv "$RUNNER_TEMP/fifo-tool"
+          "$RUNNER_TEMP/fifo-tool/bin/python" -m pip install --no-deps dist/conformance/*.whl
+          mkdir "$RUNNER_TEMP/fifo-proof"
+          cd "$RUNNER_TEMP/fifo-proof"
+          "$RUNNER_TEMP/fifo-tool/bin/tracebook-conformance" fifo-proof
+          cmp fifo-proof.jsonl "$GITHUB_WORKSPACE/integrations/orderbook_rs/regressions/flash-issue-88-reduced.jsonl"
+
       - name: Prove conformance wheel without simulation dependencies
         if: matrix.python-version == '3.13'
         run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl

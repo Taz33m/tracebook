@@ -50,8 +50,8 @@ def test_release_command_gates_match_the_prepared_package_version():
         versions = re.findall(r"--expected-version\s+(\d+\.\d+\.\d+)", contents)
         assert versions, f"{relative_path} omits the coordinated version check"
         assert set(versions) == {__version__}, relative_path
-    draft = ROOT / "docs" / "releases" / f"{__version__}.md"
-    assert "Draft — not published" in draft.read_text(encoding="utf-8")
+    notes = ROOT / "docs" / "releases" / f"{__version__}.md"
+    assert f"# Tracebook {__version__}" in notes.read_text(encoding="utf-8")
 
 
 def test_distribution_name_cli_and_typing_metadata_are_release_ready():
@@ -254,6 +254,7 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
         ROOT / "docs" / "corpora.md",
         ROOT / "docs" / "event-replay.md",
         ROOT / "docs" / "releases" / "0.6.0.md",
+        ROOT / "docs" / "releases" / "0.7.0.md",
         ROOT / "packaging" / "lightweight-conformance.md",
         ROOT / "packaging" / "tracebook-sim" / "README.md",
     )
@@ -261,12 +262,11 @@ def test_public_install_surfaces_warn_before_the_legacy_ownership_handoff():
     for path in install_surfaces:
         text = path.read_text(encoding="utf-8")
         uninstall = "python -m pip uninstall -y tracebook-sim"
-        pinned_installs = (
-            'python -m pip install "tracebook-conformance==0.6.0"',
-            'python -m pip install "tracebook-sim==0.6.0"',
-            'python -m pip install "tracebook-sim[capture]==0.6.0"',
+        pinned_installs = list(
+            re.finditer(r'python -m pip install "tracebook-[^"]+==[0-9.]+"', text)
         )
-        first_install = min(text.index(command) for command in pinned_installs if command in text)
+        assert pinned_installs, f"{path} omits pinned installs"
+        first_install = pinned_installs[0].start()
         assert uninstall in text, f"{path} omits the 0.5.x ownership handoff"
         assert text.index(uninstall) < first_install
 
@@ -277,12 +277,13 @@ def test_citation_metadata_tracks_the_public_release():
     manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "cff-version: 1.2.0" in citation
-    assert 'version: "0.6.0"' in citation
-    assert "date-released: 2026-07-27" in citation
+    assert 'version: "0.7.0"' in citation
+    assert "date-released: 2026-11-24" in citation
     assert '- name: "Taz33m"' in citation
     assert "family-names:" not in citation
     assert 'repository-code: "https://github.com/Taz33m/tracebook"' in citation
-    assert 'url: "https://pypi.org/project/tracebook-conformance/0.6.0/"' in citation
+    assert 'url: "https://pypi.org/project/tracebook-conformance/0.7.0/"' in citation
+    assert "| `0.7.x` | Yes |" in security
     assert "| `0.6.x` | Yes |" in security
     assert "| `< 0.6` | No |" in security
     assert "| `0.5.x` | Yes |" not in security

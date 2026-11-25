@@ -10,6 +10,7 @@ connectivity, custody, account management, or trading advice.
 
 | Version | Supported |
 | --- | --- |
+| `0.7.x` | Yes |
 | `0.6.x` | Yes |
 | `< 0.6` | No |
 

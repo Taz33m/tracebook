@@ -11,11 +11,10 @@ one verified FIFO-limit evidence pair, and would they retain the result or its
 CI check? The native unfillable-FOK rejection is a documented contract
 difference, not a bug accusation or a request to change native matching.
 
-The captured evidence workflow and this adapter are unreleased. The published
-0.6.0 wheel does not contain the new evidence commands. Use a wheel built from
-the exact Tracebook checkout below, not `pip install tracebook-conformance==0.6.0`.
-The built wheel still carries version 0.6.0: record its SHA-256 and source commit
-so it cannot be confused with that release. Do not upload it to PyPI.
+The original invitation used a pre-release source build carrying version
+0.6.0. The commands below preserve that historical packet and its wheel
+identity. For a new attempt, install the 0.7.0 wheel, record its hash, and use
+the corresponding release checkout for the adapter.
 
 ## Reproduce From A Reviewed Checkout
 

@@ -19,6 +19,7 @@ on:
       - "src/tracebook/events/**"
       - "tests/test_external_integrations.py"
       - "tests/test_flash_bridge.py"
+      - "tools/fifo_scorecard.py"
       - "tests/test_integration_workflow_coverage.py"
 
 permissions:
@@ -472,6 +473,12 @@ jobs:
           assert report["divergence"]["event_index"] == 3
           assert report["divergence"]["category"] == "trades"
           PY
+
+      - name: Write the historical and injected FIFO scorecard
+        if: always() && env.REPORT_ROOT != ''
+        run: |
+          mkdir -p "$REPORT_ROOT"
+          python tools/fifo_scorecard.py "$REPORT_ROOT" > "$REPORT_ROOT/scorecard.json"
 
       - uses: actions/upload-artifact@v7
         if: always()

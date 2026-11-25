@@ -23,6 +23,7 @@ from .compare import run_conformance
 from .evidence import prepare_evidence_workspace, write_evidence_manifest
 from .external import AdapterProtocolError, ExternalProcessAdapterFactory
 from .exit_codes import exit_code_for_artifact
+from .fifo_proof import run_fifo_proof
 from .junit import write_junit
 from .minimize import minimize_failing_trace
 from .model import (
@@ -91,6 +92,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    proof = commands.add_parser(
+        "fifo-proof", help="Reduce and replay the historical Flash FIFO failure."
+    )
+    proof.add_argument(
+        "--output",
+        type=Path,
+        default=Path("fifo-proof.jsonl"),
+        help="New file for the verified four-event JSONL (default: fifo-proof.jsonl).",
+    )
 
     sample = commands.add_parser("sample", help="Copy the bundled adversarial suite.")
     sample.add_argument("destination")
@@ -296,6 +307,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "fifo-proof":
+            run_fifo_proof(args.output)
+            return 0
         if args.command == "sample":
             suite = copy_bundled_conformance_suite(
                 args.destination,

@@ -2,10 +2,8 @@
 
 `tracebook` is still alpha software. Use this checklist before cutting any public release or tagged benchmark claim.
 
-The prepared source version is **0.7.0**, not yet published. The
-[draft 0.7.0 notes](releases/0.7.0.md) list the release scope and remaining
-publication gates. Public installation examples, citation metadata, and
-support policy still describe the latest public release, 0.6.0.
+See the [0.7.0 notes](releases/0.7.0.md) for this release and the
+[project release gate](../PROJECT_PLAN.md#next-release-gate) for its evidence criteria.
 
 ## Version And Changelog
 
@@ -120,6 +118,7 @@ After publishing, verify the lightweight path from a clean environment:
 python -m pip install --no-cache-dir "tracebook-conformance==0.7.0"
 python -c "import tracebook; print(tracebook.__version__)"
 tracebook-conformance --help
+tracebook-conformance fifo-proof
 python -m pip check
 python -m pip download --no-deps --no-binary=:all: "tracebook-conformance==0.7.0"
 ```
@@ -168,7 +167,7 @@ Release notes should include:
 - compatibility notes
 - known limitations
 
-For the next release, begin with the [draft 0.7.0 notes](releases/0.7.0.md).
+The [0.7.0 notes](releases/0.7.0.md) cover the packaged proof and captured evidence.
 The [0.6.0 notes](releases/0.6.0.md) document the distribution split. The
 [0.5.0 notes](releases/0.5.0.md) document qualification as a public contract,
 the [0.4.1 notes](releases/0.4.1.md) document the first upstream semantic

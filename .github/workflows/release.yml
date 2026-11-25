@@ -142,6 +142,16 @@ jobs:
             --legacy-wheel-sha256 d190e1c2af83e5d853b0734b4d9627b1a8f6707e0fbab391015d2d94437cd4da \
             --resolver-runtime-checks
 
+      - name: Verify the installed historical FIFO proof
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          python -m venv "$RUNNER_TEMP/fifo-tool"
+          "$RUNNER_TEMP/fifo-tool/bin/python" -m pip install --no-deps dist/conformance/*.whl
+          mkdir "$RUNNER_TEMP/fifo-proof"
+          cd "$RUNNER_TEMP/fifo-proof"
+          "$RUNNER_TEMP/fifo-tool/bin/tracebook-conformance" fifo-proof
+          cmp fifo-proof.jsonl "$GITHUB_WORKSPACE/integrations/orderbook_rs/regressions/flash-issue-88-reduced.jsonl"
+
       - name: Prove conformance wheel without simulation dependencies
         run: python tools/smoke_conformance_wheel.py dist/conformance/*.whl
 
